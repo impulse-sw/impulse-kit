@@ -1,10 +1,10 @@
 [package]
 name = "cc-auth"
 description = "Simple backend authorization system"
-version = "0.3.2"
-edition = "2024"
-license = "MIT"
-authors = ["Klimenty Titov <aclo.create@gmail.com>"]
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
 
 [dependencies]
 chrono = { workspace = true, features = ["serde"] }
@@ -14,8 +14,8 @@ serde_json = { workspace = true }
 
 [target.'cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))'.dependencies]
 bb8-redis = { workspace = true }
-cc-utils = { workspace = true, default-features = false, features = ["salvo"] }
+cc-utils = { workspace = true, default-features = false, features = ["salvo", "mresult"] }
 passwords = { workspace = true }
 
 [target.'cfg(any(target_arch = "wasm32", target_arch = "wasm64"))'.dependencies]
-cc-utils = { workspace = true, default-features = false }
+cc-utils = { workspace = true, default-features = false, features = ["cresult"] }

@@ -1,10 +1,10 @@
 [package]
 name = "cc-error-pages"
 description = "Error pages for standard CC Server Kit errors"
-version = "0.1.1"
-edition = "2024"
-license = "MIT"
-authors = ["Klimenty Titov <aclo.create@gmail.com>"]
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
 
 [dependencies]
 cc-utils = { workspace = true, features = ["reqwest"] }
@@ -12,6 +12,7 @@ cc-ui-kit = { workspace = true }
 leptos = { workspace = true, features = ["csr"] }
 leptos_i18n = { workspace = true, features = ["csr", "json_files"] }
 leptos_meta = { workspace = true }
+lucide-leptos = { workspace = true }
 web-sys = { workspace = true, features = ["Document", "Location"] }
 
 [package.metadata.leptos-i18n]

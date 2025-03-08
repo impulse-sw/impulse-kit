@@ -1,3 +1,5 @@
+//! Methods to work with routes on SPA.
+
 use cc_utils::results::CResult;
 
 /// Get server's address and port

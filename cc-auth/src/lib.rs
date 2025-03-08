@@ -18,6 +18,7 @@
 //! }
 //! ```
 
+#![warn(missing_docs)]
 #![deny(warnings, clippy::todo, clippy::unimplemented)]
 
 #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
@@ -57,6 +58,7 @@ pub type UserId = u64;
 /// Holds user token.
 #[derive(Deserialize, Serialize)]
 pub struct UserToken {
+  /// User unique identifier.
   pub user_id: UserId,
   token_str: String,
   #[serde(with = "ts_seconds")]
@@ -65,6 +67,7 @@ pub struct UserToken {
 
 #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl UserToken {
+  /// Creates a new token (random string).
   pub fn new(id: UserId) -> MResult<Self> {
     generate_token(id)
   }

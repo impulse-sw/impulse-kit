@@ -35,7 +35,7 @@ pub async fn get_filepath_from_dist(filename: impl Into<String>) -> MResult<Stri
 pub async fn get_from_dist(filename: impl Into<String>) -> MResult<File> {
   let filename = filename.into();
   let filepath = get_filepath_from_dist(&filename).await?;
-  file_upload!(filepath, filename)
+  file_upload!(filepath.into(), filename)
 }
 
 #[handler]
@@ -79,6 +79,11 @@ impl salvo::Writer for AnyOf {
   }
 }
 
+/// Static router.
+///
+/// All that you need to include your app internals inside your application.
+///
+/// Note that `cc-static-server` serves only files from `dist` or `/usr/local/frontend-dist` folders.
 pub fn frontend_router() -> Router {
   Router::new()
     .get(frontend)

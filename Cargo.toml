@@ -10,12 +10,18 @@ members = [
 ]
 resolver = "2"
 
+[workspace.package]
+version = "0.5.8"
+edition = "2024"
+license = "MIT"
+authors = ["Klimenty Titov <aclo.create@gmail.com>"]
+
 [workspace.dependencies]
-cc-auth = { version = "0.3.2", path = "cc-auth" }
-cc-server-kit = { version = "0.3.6", path = "cc-server-kit", default-features = false }
-cc-static-server = { version = "0.2.8", path = "cc-static-server" }
-cc-utils = { version = "0.5.7", path = "cc-utils", default-features = false }
-cc-ui-kit = { version = "0.1.0-alpha-10", path = "cc-ui-kit" }
+cc-auth = { path = "cc-auth" }
+cc-server-kit = { path = "cc-server-kit", default-features = false }
+cc-static-server = { path = "cc-static-server" }
+cc-utils = { path = "cc-utils", default-features = false }
+cc-ui-kit = { path = "cc-ui-kit" }
 
 anyhow = "1"
 bb8-redis = "0.20"

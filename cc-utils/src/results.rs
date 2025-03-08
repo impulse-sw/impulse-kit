@@ -1,13 +1,15 @@
 //! Result types for `ErrorResponse` (`salvo`) and `CliError` (`reqwest`) errors.
 
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(feature = "mresult")]
 use crate::errors::ErrorResponse;
 
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+/// Simple backend result type.
+#[cfg(feature = "mresult")]
 pub type MResult<T> = Result<T, ErrorResponse>;
 
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
+#[cfg(feature = "cresult")]
 use crate::errors::CliError;
 
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
+/// Simple frontend result type.
+#[cfg(feature = "cresult")]
 pub type CResult<T> = Result<T, CliError>;
