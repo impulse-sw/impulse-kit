@@ -54,7 +54,7 @@ tower-compat = ["salvo/tower-compat"]
 brotli = { optional = true, workspace = true, features = ["default"] }
 bytes = { optional = true, workspace = true }
 cc-auth = { optional = true, workspace = true }
-cc-utils = { workspace = true, features = ["salvo", "reqwest"] }
+cc-utils = { workspace = true, features = ["salvo", "reqwest", "mresult"] }
 encoding_rs = { optional = true, workspace = true }
 flate2 = { optional = true, workspace = true, features = ["default"] }
 http-body-util = { optional = true, workspace = true }

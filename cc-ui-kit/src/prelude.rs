@@ -1,11 +1,22 @@
-pub use leptos::prelude::*;
+//! UI Kit prelude.
 
 pub use console_error_panic_hook;
+pub use leptos::prelude::*;
+
 pub use console_log;
 pub use log;
 
 pub use thaw::*;
 
+/// Application entrypoint.
+///
+/// Just specify log level and needed view:
+///
+/// ```rust,ignore
+/// fn main() {
+///   setup_app(log::Level::Info, Box::new(move || { view! { <App /> }.into_any() }))
+/// }
+/// ```
 pub fn setup_app(#[allow(unused_variables)] log_level: log::Level, children: Children) {
   console_error_panic_hook::set_once();
   #[cfg(debug_assertions)]
@@ -17,6 +28,7 @@ pub fn setup_app(#[allow(unused_variables)] log_level: log::Level, children: Chi
   })
 }
 
+/// Also, you can use main styled `UIApp` component without `setup_app`, if you want more flexibility.
 #[component]
 pub fn UIApp(children: Children) -> impl IntoView {
   use crate::utils::{cn, dark_theme, light_theme};

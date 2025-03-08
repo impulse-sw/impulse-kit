@@ -237,6 +237,8 @@ pub async fn load_generic_config<T: DeserializeOwned + GenericSetup + Default>(a
 }
 
 /// Loads the server's state: initializes the logging and checks YAML config for misconfigurations and errors.
+///
+/// You should call this function only once at startup because of logging setup.
 pub async fn load_generic_state<T: GenericSetup>(setup: &T) -> MResult<GenericServerState> {
   let data = setup.generic_values();
 

@@ -20,9 +20,9 @@
 //! log_level: debug
 //! ```
 //!
-//! ```rust
+//! ```rust,ignore
 //! use cc_server_kit::prelude::*;
-//! use serde::Deserialize;
+//! use serde::{Deserialize, Serialize};
 //!
 //! #[derive(Deserialize, Default, Clone)]
 //! struct Setup {
@@ -77,7 +77,7 @@
 //! async fn main() {
 //!   let setup = load_generic_config::<Setup>("server-example").await.unwrap();
 //!   let state = load_generic_state(&setup).await.unwrap();
-//!   let router = get_root_router(&state, setup.clone()).push(tests_router());
+//!   let router = get_root_router_autoinject(&state, setup.clone()).push(tests_router());
 //!   start(state, &setup, router).await.unwrap();
 //! }
 //! ```
@@ -85,6 +85,7 @@
 //! Here we go! You can now start the server with `cargo run --release`!
 
 #![feature(let_chains, stmt_expr_attributes)]
+#![warn(missing_docs)]
 #![deny(warnings, clippy::todo, clippy::unimplemented)]
 
 pub mod generic_setup;

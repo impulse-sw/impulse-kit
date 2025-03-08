@@ -1,4 +1,6 @@
-// Utility function to combine classes
+//! Some utility for UI kit.
+
+/// Utility function to combine classes
 pub fn cn(base: &str, additional: Option<&str>) -> String {
   match additional {
     Some(class) => format!("{} {}", base, class),
@@ -6,6 +8,7 @@ pub fn cn(base: &str, additional: Option<&str>) -> String {
   }
 }
 
+/// Dark theme colors provider.
 pub fn dark_theme() -> thaw::Theme {
   let mut theme = thaw::Theme::dark();
   theme.color.color_brand_background = "#fafafa".to_string();
@@ -19,6 +22,7 @@ pub fn dark_theme() -> thaw::Theme {
   theme
 }
 
+/// Light theme colors provider.
 pub fn light_theme() -> thaw::Theme {
   let mut theme = thaw::Theme::light();
   theme.color.color_brand_background = "#17171a".to_string();

@@ -5,13 +5,17 @@
 /// Usage:
 ///
 /// ```rust
-/// use salvo::Router;
-/// use cc_utils::brotli;
+/// use cc_utils::prelude::*;
+/// use salvo::prelude::*;
+///
+/// #[handler]
+/// async fn hello_compressed_json() -> MResult<Plain> {
+///   plain!("Hello world! I will be compressed... maybe.".to_string())
+/// }
 ///
 /// let router = Router::with_hoop(brotli!()).path("new-compressed-json").get(hello_compressed_json);
 /// ```
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[macro_export]
 macro_rules! brotli {
   () => {

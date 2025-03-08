@@ -7,7 +7,7 @@ pub use cc_utils::{
 };
 
 pub use crate::generic_setup::{GenericSetup, GenericValues, load_generic_config, load_generic_state};
-pub use crate::startup::{get_root_router, start};
+pub use crate::startup::{get_root_router, get_root_router_autoinject, start};
 pub use salvo;
 pub use tracing;
 pub use tracing::instrument;

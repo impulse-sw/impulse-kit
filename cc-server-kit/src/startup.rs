@@ -1,4 +1,11 @@
 //! Startup module.
+//!
+//! In most cases, you just need to use `start` function:
+//!
+//! ```rust,ignore
+//! let (server, _) = start(app_state, app_config, router).await.unwrap();
+//! server.await
+//! ```
 
 use cc_utils::prelude::MResult;
 use salvo::prelude::*;
@@ -43,6 +50,10 @@ pub async fn h3_header(depot: &mut Depot, res: &mut Response) {
     .unwrap();
 }
 
+/// Returns preconfigured router with app state injected.
+///
+/// To get your `app_config` inside handler/endpoint, call
+/// `depot.obtain::<YourAppConfigType>().unwrap()`.
 pub fn get_root_router_autoinject<T: GenericSetup + Send + Sync + Clone + 'static>(
   app_state: &GenericServerState,
   app_config: T,
@@ -92,6 +103,21 @@ unsafe fn make_mut<T>(reference: &T) -> &mut T {
   unsafe { &mut *mut_ptr }
 }
 
+/// Starts up HTTPS redirect server.
+///
+/// Example:
+///
+/// ```rust,ignore
+/// let (server, _) = start(app_state, app_config, router).await.unwrap();
+/// let (redirect, _) = start_force_https_redirect(80, 443).await.unwrap();
+///
+/// tracing::info!("Server is booted.");
+///
+/// tokio::select! {
+///   _ = server   => tracing::info!("Server is shutdowned."),
+///   _ = redirect => tracing::info!("Redirect is shutdowned."),
+/// }
+/// ```
 #[cfg(feature = "force-https")]
 pub async fn start_force_https_redirect(
   listen_port: u16,
@@ -105,6 +131,10 @@ pub async fn start_force_https_redirect(
   Ok((server, handle))
 }
 
+/// Starts your application with provided service, if you predefined one by yourself.
+///
+/// For example, you can setup service with error catcher or any other middleware that
+/// `salvo` provides.
 pub async fn start_with_service(
   app_state: GenericServerState,
   app_config: &impl GenericSetup,
@@ -370,6 +400,23 @@ pub async fn start(
   Ok((fut, handle))
 }
 
+/// Signal to graceful shutdown.
+///
+/// Required to be manually awaited, if you start server with `start_clean`/`start_with_service` functions. Example:
+///
+/// ```rust,ignore
+/// let (server, handle) = start_clean(app_state, app_config, router).await.unwrap();
+/// let default_handle = tokio::spawn(async move { shutdown_signal(handle).await });
+///
+/// tracing::info!("Server is booted.");
+///
+/// tokio::select! {
+///   _ = server         => tracing::info!("Server is shutdowned."),
+///   _ = default_handle => std::process::exit(0),
+/// }
+/// ```
+///
+/// Graceful coroutine starts automatically with `start` function.
 pub async fn shutdown_signal(handle: ServerHandle) {
   tokio::signal::ctrl_c().await.unwrap();
   tracing::info!("Shutdown with Ctrl+C requested.");

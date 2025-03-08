@@ -1,41 +1,22 @@
 //! Implementation of utilities for working with responses in `salvo` and `reqwest`.
 
-#[cfg(not(all(
-  any(target_arch = "wasm32", target_arch = "wasm64"),
-  not(any(feature = "salvo", feature = "reqwest"))
-)))]
-use crate::prelude::*;
-
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::http::HeaderValue;
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::hyper::header::CONTENT_TYPE;
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::oapi::{EndpointOutRegister, ToSchema};
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::{Depot, Request, Response};
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::Writer as ServerResponseWriter;
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::fs::NamedFile;
-
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
-use serde::Serialize;
-
-#[cfg(feature = "reqwest")]
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
-use serde::de::DeserializeOwned;
 
 /// Macro to define the function that called the response.
 #[macro_export]
@@ -57,9 +38,9 @@ macro_rules! fn_name {
 
 /// Macro for automating `EndpointOutRegister` implementations (for simple types)
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 macro_rules! impl_oapi_endpoint_out {
   ($t:tt, $c:expr) => {
+    #[cfg(feature = "salvo")]
     impl EndpointOutRegister for $t {
       #[inline]
       fn register(components: &mut salvo::oapi::Components, operation: &mut salvo::oapi::Operation) {
@@ -74,9 +55,9 @@ macro_rules! impl_oapi_endpoint_out {
 
 /// Macro for automating `EndpointOutRegister` implementations (for template types)
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 macro_rules! impl_oapi_endpoint_out_t {
   ($t:tt, $c:expr) => {
+    #[cfg(feature = "salvo")]
     impl<T> EndpointOutRegister for $t<T> {
       #[inline]
       fn register(components: &mut salvo::oapi::Components, operation: &mut salvo::oapi::Operation) {
@@ -91,15 +72,13 @@ macro_rules! impl_oapi_endpoint_out_t {
 
 /// Sends 200 without data.
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 pub struct OK(pub &'static str);
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_oapi_endpoint_out!(OK, "text/plain");
 
+/// Returns empty `200 OK` response.
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[macro_export]
 macro_rules! ok {
   () => {
@@ -108,11 +87,10 @@ macro_rules! ok {
 }
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[salvo::async_trait]
 impl ServerResponseWriter for OK {
   async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
-    res.status_code(StatusCode::OK);
+    res.status_code(salvo::http::StatusCode::OK);
     res.render("");
     tracing::debug!("[{}] => Received and sent result 200", self.0);
   }
@@ -120,7 +98,6 @@ impl ServerResponseWriter for OK {
 
 /// Sends 200 and plain text.
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[derive(Debug)]
 pub struct Plain(pub String, pub &'static str);
 
@@ -128,6 +105,7 @@ pub struct Plain(pub String, pub &'static str);
 #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_oapi_endpoint_out!(Plain, "text/plain");
 
+/// Returns given plain text.
 #[cfg(feature = "salvo")]
 #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[macro_export]
@@ -141,11 +119,10 @@ macro_rules! plain {
 }
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[salvo::async_trait]
 impl ServerResponseWriter for Plain {
   async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
-    res.status_code(StatusCode::OK);
+    res.status_code(salvo::http::StatusCode::OK);
     res.render(&self.0);
     tracing::debug!("[{}] => Received and sent result 200 with text: {}", self.1, self.0);
   }
@@ -161,6 +138,7 @@ pub struct Html(pub String, pub &'static str);
 #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_oapi_endpoint_out!(Html, "text/html");
 
+/// Returns given HTML code.
 #[cfg(feature = "salvo")]
 #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[macro_export]
@@ -178,7 +156,7 @@ macro_rules! html {
 #[salvo::async_trait]
 impl ServerResponseWriter for Html {
   async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
-    res.status_code(StatusCode::OK);
+    res.status_code(salvo::http::StatusCode::OK);
     res.render(salvo::writing::Text::Html(&self.0));
     tracing::debug!("[{}] => Received and sent result 200 with HTML", self.1);
   }
@@ -188,7 +166,7 @@ impl ServerResponseWriter for Html {
 #[cfg(feature = "salvo")]
 #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[derive(Debug)]
-pub struct File(pub String, pub String, pub &'static str);
+pub struct File(pub std::path::PathBuf, pub String, pub &'static str);
 
 #[cfg(feature = "salvo")]
 #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
@@ -201,9 +179,10 @@ impl_oapi_endpoint_out!(File, "application/octet-stream");
 /// ```rust
 /// use cc_utils::prelude::*;
 /// use salvo::prelude::*;
+/// use std::path::PathBuf;
 ///
 /// pub async fn some_endpoint() -> MResult<File> {
-///   file_upload!("filepath".to_string(), "Normal file name".to_string())
+///   file_upload!(PathBuf::from("filepath.txt"), "Normal file name.txt".to_string())
 /// }
 /// ```
 #[cfg(feature = "salvo")]
@@ -224,7 +203,7 @@ macro_rules! file_upload {
 #[salvo::async_trait]
 impl ServerResponseWriter for File {
   async fn write(self, req: &mut Request, _depot: &mut Depot, res: &mut Response) {
-    res.status_code(StatusCode::OK);
+    res.status_code(salvo::http::StatusCode::OK);
     NamedFile::builder(&self.0)
       .attached_name(&self.1)
       .use_last_modified(true)
@@ -244,6 +223,7 @@ pub struct Json<T>(pub T, pub &'static str);
 #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_oapi_endpoint_out_t!(Json, "application/json");
 
+/// Serializes to JSON and returns given object.
 #[cfg(feature = "salvo")]
 #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[macro_export]
@@ -256,12 +236,11 @@ macro_rules! json {
   };
 }
 
-#[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(all(feature = "salvo", feature = "mresult"))]
 #[salvo::async_trait]
-impl<T: Serialize + Send> ServerResponseWriter for Json<T> {
+impl<T: serde::Serialize + Send> ServerResponseWriter for Json<T> {
   async fn write(self, req: &mut Request, depot: &mut Depot, res: &mut Response) {
-    res.status_code(StatusCode::OK);
+    res.status_code(salvo::http::StatusCode::OK);
     match serde_json::to_string(&self.0) {
       Ok(s) => {
         res.headers_mut().insert(
@@ -274,7 +253,7 @@ impl<T: Serialize + Send> ServerResponseWriter for Json<T> {
       }
       Err(e) => {
         tracing::error!("[{}] => Failed to serialize data: {:?}", e, self.1);
-        ErrorResponse::from("Failed to serialize data.")
+        crate::prelude::ErrorResponse::from("Failed to serialize data.")
           .with_500()
           .build()
           .write(req, depot, res)
@@ -286,16 +265,14 @@ impl<T: Serialize + Send> ServerResponseWriter for Json<T> {
 
 /// Sends 200 and MsgPack.
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[derive(Debug)]
 pub struct MsgPack<T>(pub T, pub &'static str);
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_oapi_endpoint_out_t!(MsgPack, "application/msgpack");
 
+/// Serializes to MsgPack and returns given object.
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[macro_export]
 macro_rules! msgpack {
   ($msgpack_data:expr) => {
@@ -306,12 +283,11 @@ macro_rules! msgpack {
   };
 }
 
-#[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(all(feature = "salvo", feature = "mresult"))]
 #[salvo::async_trait]
-impl<T: Serialize + Send> ServerResponseWriter for MsgPack<T> {
+impl<T: serde::Serialize + Send> ServerResponseWriter for MsgPack<T> {
   async fn write(self, req: &mut Request, depot: &mut Depot, res: &mut Response) {
-    res.status_code(StatusCode::OK);
+    res.status_code(salvo::http::StatusCode::OK);
     match rmp_serde::to_vec(&self.0) {
       Ok(bytes) => {
         res.headers_mut().insert(
@@ -324,7 +300,7 @@ impl<T: Serialize + Send> ServerResponseWriter for MsgPack<T> {
       }
       Err(e) => {
         tracing::error!("[{}] => Failed to serialize data: {:?}", e, self.1);
-        ErrorResponse::from("Failed to serialize data.")
+        crate::prelude::ErrorResponse::from("Failed to serialize data.")
           .with_500()
           .build()
           .write(req, depot, res)
@@ -334,17 +310,19 @@ impl<T: Serialize + Send> ServerResponseWriter for MsgPack<T> {
   }
 }
 
-#[cfg(feature = "reqwest")]
+/// Trait to parse MessagePack responses from `reqwest` library.
+#[cfg(all(feature = "reqwest", feature = "cresult"))]
 #[allow(async_fn_in_trait)]
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
 pub trait MsgPackResponse {
-  async fn msgpack<T: DeserializeOwned>(self) -> CResult<T>;
+  /// Parses MessagePack from body.
+  async fn msgpack<T: serde::de::DeserializeOwned>(self) -> crate::prelude::CResult<T>;
 }
 
-#[cfg(feature = "reqwest")]
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
+#[cfg(all(feature = "reqwest", feature = "cresult"))]
 impl MsgPackResponse for reqwest::Response {
-  async fn msgpack<T: DeserializeOwned>(self) -> CResult<T> {
+  async fn msgpack<T: serde::de::DeserializeOwned>(self) -> crate::prelude::CResult<T> {
+    use crate::errors::ConsiderCli;
+
     let full = self.bytes().await?;
     rmp_serde::from_slice(&full).consider_cli(None)
   }

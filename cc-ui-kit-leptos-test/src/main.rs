@@ -1,3 +1,6 @@
+//! Test for CC UI Kit framework.
+
+#![warn(missing_docs)]
 #![deny(warnings, clippy::todo, clippy::unimplemented)]
 
 use cc_ui_kit::prelude::*;

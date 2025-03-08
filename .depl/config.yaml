@@ -24,7 +24,6 @@ artifacts:
   - cc-ui-kit-leptos-test/dist
   - cc-ui-kit-leptos-test/static-server.yaml
   - target/x86_64-unknown-linux-gnu/doc
-  - target/wasm32-unknown-unknown/doc
 variables: []
 place_artifacts_into_project_root:
   - from: target/x86_64-unknown-linux-gnu/release/cc-static-server
@@ -40,9 +39,7 @@ place_artifacts_into_project_root:
   - from: cc-error-pages/dist
     to: cc-error-pages/dist
   - from: target/x86_64-unknown-linux-gnu/doc
-    to: docs/x86-64
-  - from: target/wasm32-unknown-unknown/doc
-    to: docs/wasm32
+    to: docs
 pipelines:
   - title: common-ops
     desc: Common monorepo operations
@@ -221,7 +218,7 @@ pipelines:
               show_success_output: false
               show_bash_c: true
               only_when_fresh: false
-      - title: Generate `x86-64` docs
+      - title: Test docs
         desc: ''
         info: cargo-doc@0.1.0
         tags:
@@ -229,16 +226,16 @@ pipelines:
           - doc
         exec_in_project_dir: false
         action:
-          type: build
+          type: pre_build
           supported_langs:
             - rust
           commands:
-            - bash_c: cargo doc --target x86_64-unknown-linux-gnu --workspace --exclude cc-ui-kit --exclude cc-ui-kit-leptos-test --exclude cc-error-pages --no-deps
+            - bash_c: cargo test --doc
               ignore_fails: false
               show_success_output: false
               show_bash_c: true
               only_when_fresh: false
-      - title: Generate `wasm32` docs
+      - title: Generate docs
         desc: ''
         info: cargo-doc@0.1.0
         tags:
@@ -250,7 +247,7 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: cargo doc --target wasm32-unknown-unknown --workspace --exclude cc-server-kit --exclude cc-static-server --no-deps
+            - bash_c: cargo doc --target x86_64-unknown-linux-gnu --workspace --no-deps
               ignore_fails: false
               show_success_output: false
               show_bash_c: true

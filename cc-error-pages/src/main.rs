@@ -1,3 +1,9 @@
+//! Error pages for CC Services.
+//!
+//! Works with 400, 401, 403, 404, 405, 423 & 500 status codes.
+//! Just redirect to `/{status-code}` or return `dist/index.html`
+//! instead of requested resource.
+
 #![deny(warnings, clippy::todo, clippy::unimplemented)]
 
 use cc_ui_kit::{

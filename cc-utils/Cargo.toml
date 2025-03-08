@@ -7,9 +7,11 @@ license = { workspace = true }
 authors = { workspace = true }
 
 [features]
-default = ["salvo", "reqwest"]
+default = ["salvo", "reqwest", "mresult", "cresult"]
 salvo = ["dep:salvo"]
 reqwest = ["dep:reqwest"]
+mresult = ["salvo"]
+cresult = []
 
 [dependencies]
 anyhow = { workspace = true }
@@ -20,4 +22,4 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 
 [target.'cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))'.dependencies]
-salvo = { workspace = true, features = ["oapi", "rustls"], optional = true }
+salvo = { workspace = true, features = ["oapi", "rustls", "compression"], optional = true }

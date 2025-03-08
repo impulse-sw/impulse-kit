@@ -7,7 +7,7 @@ license = { workspace = true }
 authors = { workspace = true }
 
 [dependencies]
-cc-utils = { workspace = true }
+cc-utils = { workspace = true, features = ["cresult"] }
 console_error_panic_hook = { workspace = true }
 console_log = { workspace = true }
 leptos = { workspace = true, features = ["csr"] }

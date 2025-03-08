@@ -1,40 +1,42 @@
 //! Implementation of optional private errors for `salvo` and client errors for `reqwest`.
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use std::any::Any;
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::http::StatusCode;
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::oapi::{EndpointOutRegister, ToSchema};
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::{Depot, Request, Response};
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::Writer as ServerResponseWriter;
 
+/// Boxed dynamic error.
+///
+/// Honestly, bad decision, but works when needed.
 pub type BoxDynError = Box<dyn std::error::Error + 'static + Send + Sync>;
 
 /// Data structure responsible for server errors.
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(feature = "mresult")]
 #[derive(Debug)]
 pub struct ErrorResponse {
+  /// Status code to return.
   #[cfg(feature = "salvo")]
   #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
   pub status_code: Option<StatusCode>,
+  /// Text to return (and hide error messages that leads to leak vulnerable data).
   pub error_text: String,
+  /// Text that really describes error situation.
   pub original_text: Option<String>,
+  /// If set to `true`, `cc-server-kit` will return predefined and generic error message.
   pub public_error: bool,
 }
 
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(feature = "mresult")]
 impl std::fmt::Display for ErrorResponse {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str(&format!(
@@ -46,25 +48,25 @@ impl std::fmt::Display for ErrorResponse {
   }
 }
 
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(feature = "mresult")]
 impl std::error::Error for ErrorResponse {}
 
 /// Data structure responsible for client errors.
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
+#[cfg(feature = "cresult")]
 #[derive(Debug, Clone)]
 pub struct CliError {
+  /// Error message.
   pub message: String,
 }
 
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
+#[cfg(feature = "cresult")]
 impl std::fmt::Display for CliError {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str(self.message.as_str())
   }
 }
 
-#[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(all(feature = "salvo", feature = "mresult"))]
 #[salvo::async_trait]
 impl ServerResponseWriter for ErrorResponse {
   /// Method for sending an error message to the client.
@@ -101,8 +103,7 @@ impl ServerResponseWriter for ErrorResponse {
   }
 }
 
-#[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(all(feature = "salvo", feature = "mresult"))]
 impl EndpointOutRegister for ErrorResponse {
   /// Registers error types for OpenAPI.
   fn register(components: &mut salvo::oapi::Components, operation: &mut salvo::oapi::Operation) {
@@ -137,9 +138,7 @@ impl EndpointOutRegister for ErrorResponse {
   }
 }
 
-#[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
-#[allow(dead_code)]
+#[cfg(feature = "mresult")]
 impl ErrorResponse {
   /// Private error BAD REQUEST (400).
   pub fn with_400(&mut self) -> &mut Self {
@@ -260,9 +259,9 @@ impl ErrorResponse {
 }
 
 /// A trait that allows you to transform any error into an `ErrorResponse` by assigning additional parameters.
-#[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(feature = "mresult")]
 pub trait Consider<T> {
+  /// Replace given error type `T` with `ErrorResponse` with given parameters.
   fn consider(
     self,
     status_code: Option<StatusCode>,
@@ -271,13 +270,14 @@ pub trait Consider<T> {
   ) -> Result<T, ErrorResponse>;
 }
 
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
+/// A trait that allows you to transform any error into an `CliError` by assigning additional parameters.
+#[cfg(feature = "cresult")]
 pub trait ConsiderCli<T> {
+  /// Replace given error type `T` with `CliError` with given parameters.
   fn consider_cli(self, error_text_replacement: Option<String>) -> Result<T, CliError>;
 }
 
-#[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(feature = "mresult")]
 impl<T> Consider<T> for Result<T, ErrorResponse> {
   /// Changes the parameters of a possible error to the specified ones.
   fn consider(
@@ -302,7 +302,7 @@ impl<T> Consider<T> for Result<T, ErrorResponse> {
   }
 }
 
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
+#[cfg(feature = "cresult")]
 impl<T> ConsiderCli<T> for Result<T, CliError> {
   /// Changes the parameters of a possible error to the specified ones.
   fn consider_cli(self, error_text_replacement: Option<String>) -> Result<T, CliError> {
@@ -316,8 +316,7 @@ impl<T> ConsiderCli<T> for Result<T, CliError> {
   }
 }
 
-#[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(feature = "mresult")]
 impl<T> Consider<T> for Result<T, String> {
   /// Changes the parameters of a possible error to the specified ones.
   fn consider(
@@ -342,7 +341,7 @@ impl<T> Consider<T> for Result<T, String> {
   }
 }
 
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(feature = "mresult")]
 impl<T> Consider<T> for anyhow::Result<T> {
   /// Changes the parameters of a possible error to the specified ones.
   fn consider(
@@ -367,7 +366,7 @@ impl<T> Consider<T> for anyhow::Result<T> {
   }
 }
 
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
+#[cfg(feature = "cresult")]
 impl<T> ConsiderCli<T> for Result<T, String> {
   /// Changes the parameters of a possible error to the specified ones.
   fn consider_cli(self, error_text_replacement: Option<String>) -> Result<T, CliError> {
@@ -381,8 +380,7 @@ impl<T> ConsiderCli<T> for Result<T, String> {
   }
 }
 
-#[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(feature = "mresult")]
 impl<T> Consider<T> for Result<T, &str> {
   /// Changes the parameters of a possible error to the specified ones.
   fn consider(
@@ -407,7 +405,7 @@ impl<T> Consider<T> for Result<T, &str> {
   }
 }
 
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
+#[cfg(feature = "cresult")]
 impl<T> ConsiderCli<T> for Result<T, &str> {
   /// Changes the parameters of a possible error to the specified ones.
   fn consider_cli(self, error_text_replacement: Option<String>) -> Result<T, CliError> {
@@ -421,8 +419,7 @@ impl<T> ConsiderCli<T> for Result<T, &str> {
   }
 }
 
-#[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(feature = "mresult")]
 impl From<String> for ErrorResponse {
   /// Creates a new error from a string.
   fn from(value: String) -> Self {
@@ -436,7 +433,7 @@ impl From<String> for ErrorResponse {
   }
 }
 
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
+#[cfg(feature = "cresult")]
 impl From<String> for CliError {
   /// Creates a new error from a string.
   fn from(value: String) -> Self {
@@ -444,8 +441,7 @@ impl From<String> for CliError {
   }
 }
 
-#[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(feature = "mresult")]
 impl From<&str> for ErrorResponse {
   /// Creates a new error from a string.
   fn from(value: &str) -> Self {
@@ -459,7 +455,7 @@ impl From<&str> for ErrorResponse {
   }
 }
 
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
+#[cfg(feature = "cresult")]
 impl From<&str> for CliError {
   /// Creates a new error from a string.
   fn from(value: &str) -> Self {
@@ -470,11 +466,9 @@ impl From<&str> for CliError {
 }
 
 /// Macro to simplify `Consider` trait implementation.
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 macro_rules! impl_consider {
   ($e:ty) => {
-    #[cfg(feature = "salvo")]
-    #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+    #[cfg(feature = "mresult")]
     impl<T> Consider<T> for Result<T, $e> {
       /// Изменяет параметры возможной ошибки на указанные.
       fn consider(
@@ -499,8 +493,7 @@ macro_rules! impl_consider {
       }
     }
 
-    #[cfg(feature = "salvo")]
-    #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+    #[cfg(feature = "mresult")]
     impl From<$e> for ErrorResponse {
       /// Создаёт `ErrorResponse` из данной ошибки.
       fn from(value: $e) -> Self {
@@ -511,9 +504,9 @@ macro_rules! impl_consider {
 }
 
 /// Macro to simplify `ConsiderCli` trait implementation.
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
 macro_rules! impl_consider_cli {
   ($e:ty) => {
+    #[cfg(feature = "cresult")]
     impl<T> ConsiderCli<T> for Result<T, $e> {
       /// Изменяет параметры возможной ошибки на указанные.
       fn consider_cli(self, error_text_replacement: Option<String>) -> Result<T, CliError> {
@@ -527,6 +520,7 @@ macro_rules! impl_consider_cli {
       }
     }
 
+    #[cfg(feature = "cresult")]
     impl From<$e> for CliError {
       /// Создаёт `CliError` из данной ошибки.
       fn from(value: $e) -> Self {
@@ -536,43 +530,28 @@ macro_rules! impl_consider_cli {
   };
 }
 
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_consider!(rmp_serde::encode::Error);
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_consider!(rmp_serde::decode::Error);
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_consider!(std::io::Error);
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_consider!(std::string::FromUtf8Error);
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_consider!(std::env::VarError);
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_consider!(std::sync::mpsc::RecvError);
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_consider!(serde_json::Error);
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_consider!(BoxDynError);
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_consider!(std::num::ParseIntError);
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_consider!(std::num::ParseFloatError);
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_consider!(tracing::subscriber::SetGlobalDefaultError);
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_consider!(salvo::Error);
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_consider!(salvo::hyper::http::status::InvalidStatusCode);
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_consider!(salvo::http::ParseError);
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl<T> Consider<T> for Result<T, Option<&Box<dyn Any + Send + Sync>>> {
   /// Изменяет параметры возможной ошибки на указанные.
   fn consider(
@@ -597,8 +576,7 @@ impl<T> Consider<T> for Result<T, Option<&Box<dyn Any + Send + Sync>>> {
   }
 }
 
-#[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(feature = "mresult")]
 impl From<Option<&Box<dyn Any + Send + Sync>>> for ErrorResponse {
   /// Создаёт `ErrorResponse` из данной ошибки.
   fn from(_value: Option<&Box<(dyn Any + Send + Sync + 'static)>>) -> Self {
@@ -606,8 +584,7 @@ impl From<Option<&Box<dyn Any + Send + Sync>>> for ErrorResponse {
   }
 }
 
-#[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(feature = "mresult")]
 impl<T, U> Consider<T> for Result<T, std::sync::mpsc::SendError<U>> {
   /// Изменяет параметры возможной ошибки на указанные.
   fn consider(
@@ -632,8 +609,7 @@ impl<T, U> Consider<T> for Result<T, std::sync::mpsc::SendError<U>> {
   }
 }
 
-#[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+#[cfg(feature = "mresult")]
 impl<U> From<std::sync::mpsc::SendError<U>> for ErrorResponse {
   /// Создаёт `ErrorResponse` из данной ошибки.
   fn from(value: std::sync::mpsc::SendError<U>) -> Self {
@@ -642,30 +618,20 @@ impl<U> From<std::sync::mpsc::SendError<U>> for ErrorResponse {
 }
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_consider!(salvo::http::header::ToStrError);
 
-#[cfg(feature = "reqwest")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
-impl_consider!(reqwest::Error);
-
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_consider!(salvo::http::errors::StatusError);
 
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
+#[cfg(feature = "reqwest")]
+impl_consider!(reqwest::Error);
+
 impl_consider_cli!(rmp_serde::encode::Error);
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
 impl_consider_cli!(rmp_serde::decode::Error);
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
 impl_consider_cli!(std::io::Error);
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
 impl_consider_cli!(std::string::FromUtf8Error);
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
 impl_consider_cli!(serde_json::Error);
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
 impl_consider_cli!(BoxDynError);
 
 #[cfg(feature = "reqwest")]
-#[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
 impl_consider_cli!(reqwest::Error);
