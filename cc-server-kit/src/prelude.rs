@@ -13,7 +13,7 @@ pub use tracing;
 pub use tracing::instrument;
 
 pub use salvo::handler;
-pub use salvo::{Depot, Request, Router};
+pub use salvo::{Depot, Request, Response, Router};
 
 #[cfg(feature = "oapi")]
 pub use salvo::oapi::endpoint;

@@ -84,6 +84,8 @@ impl salvo::Writer for AnyOf {
 /// All that you need to include your app internals inside your application.
 ///
 /// Note that `cc-static-server` serves only files from `dist` or `/usr/local/frontend-dist` folders.
+/// Make sure that `dist` folder is located in one folder with your application, not in current working
+/// directory provided by `$ pwd`.
 pub fn frontend_router() -> Router {
   Router::new()
     .get(frontend)
