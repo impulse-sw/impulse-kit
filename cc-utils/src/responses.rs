@@ -204,6 +204,7 @@ macro_rules! file_upload {
 impl ServerResponseWriter for File {
   async fn write(self, req: &mut Request, _depot: &mut Depot, res: &mut Response) {
     res.status_code(salvo::http::StatusCode::OK);
+    res.headers_mut().append("Cache-Control", HeaderValue::from_static("public, max-age=0, must-revalidate"));
     NamedFile::builder(&self.0)
       .attached_name(&self.1)
       .use_etag(true)
