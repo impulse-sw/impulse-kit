@@ -206,6 +206,7 @@ impl ServerResponseWriter for File {
     res.status_code(salvo::http::StatusCode::OK);
     NamedFile::builder(&self.0)
       .attached_name(&self.1)
+      .use_etag(true)
       .use_last_modified(true)
       .send(req.headers(), res)
       .await;
