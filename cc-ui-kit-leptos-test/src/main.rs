@@ -194,7 +194,7 @@ fn App() -> impl IntoView {
       <NavItem
         icon=icondata::AiGithubOutlined
         value="github"
-        href="https://github.com/markcda/cc-ui-kit"
+        href="https://github.com/impulse-sw/cc-services"
         attr:target="_blank"
       >
         "CC UI Kit's GitHub"
