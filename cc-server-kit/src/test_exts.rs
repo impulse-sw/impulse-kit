@@ -1,3 +1,5 @@
+//! Extensions and methods for testing your software.
+
 use std::borrow::Cow;
 use std::io::{self, Result as IoResult, Write};
 
@@ -7,7 +9,7 @@ use flate2::write::{GzDecoder, ZlibDecoder};
 use http_body_util::BodyExt;
 use mime::Mime;
 use serde::de::DeserializeOwned;
-use tokio::io::{Error as IoError, ErrorKind};
+use tokio::io::Error as IoError;
 use zstd::stream::write::Decoder as ZstdDecoder;
 
 use salvo::Error;
@@ -136,7 +138,7 @@ impl ResponseExt for Response {
     if let Cow::Owned(s) = text {
       return Ok(s);
     }
-    String::from_utf8(full.to_vec()).map_err(|e| IoError::new(ErrorKind::Other, e).into())
+    String::from_utf8(full.to_vec()).map_err(|e| IoError::other(e).into())
   }
 
   async fn take_bytes(&mut self, content_type: Option<&Mime>) -> salvo::Result<Bytes> {
@@ -155,4 +157,32 @@ impl ResponseExt for Response {
     };
     Ok(bytes)
   }
+}
+
+/// Initializes the logger for tests.
+pub fn init_test_logger(log_level: tracing::Level) -> cc_utils::results::MResult<()> {
+  use tracing_subscriber::filter::LevelFilter;
+  use tracing_subscriber::fmt::format::FmtSpan;
+  use tracing_subscriber::prelude::*;
+  use tracing_subscriber::{fmt, registry};
+
+  let format = fmt::format()
+    .with_level(true)
+    .with_target(true)
+    .with_thread_ids(false)
+    .with_thread_names(false)
+    .with_file(false)
+    .with_line_number(true)
+    .compact();
+
+  let io_tracer = fmt::layer()
+    .event_format(format.clone())
+    .with_writer(std::io::stdout)
+    .with_span_events(FmtSpan::CLOSE)
+    .with_filter(LevelFilter::from_level(log_level));
+
+  let collector = registry().with(io_tracer);
+  tracing::subscriber::set_global_default(collector)?;
+
+  Ok(())
 }
