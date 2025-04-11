@@ -11,7 +11,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.5.12-1"
+version = "0.5.12-2"
 edition = "2024"
 license = "MIT"
 authors = ["Klimenty Titov <aclo.create@gmail.com>"]
@@ -55,7 +55,7 @@ serde = { version = "1", default-features = false }
 serde_json = "1"
 serde_yaml = "0.9"
 sha3 = "0.10"
-thaw = { git = "https://github.com/impulse-sw/thaw.git", default-features = false }
+thaw = { git = "https://github.com/impulse-sw/thaw.git", branch = "feat/input-autofocus", default-features = false }
 tokio = { version = "1", default-features = false }
 tracing = "0.1"
 tracing-appender = "0.2"
