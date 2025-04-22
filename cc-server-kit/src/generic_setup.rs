@@ -469,9 +469,9 @@ fn init_logging(
   };
 
   #[cfg(feature = "otel")]
-  let collector = registry().with(io_tracer).with(file_tracer).with(otel_tracer);
+  let collector = registry().with(file_tracer).with(io_tracer).with(otel_tracer);
   #[cfg(not(feature = "otel"))]
-  let collector = registry().with(io_tracer).with(file_tracer);
+  let collector = registry().with(file_tracer).with(io_tracer);
 
   tracing::subscriber::set_global_default(collector)?;
 
