@@ -367,7 +367,7 @@ fn init_logging(
   use tracing_subscriber::{fmt, registry};
 
   #[cfg(feature = "otel")]
-  use crate::otel::api::{KeyValue, trace::TracerProvider};
+  use crate::otel::api::trace::TracerProvider;
   #[cfg(feature = "otel")]
   use crate::otel::exporter::WithExportConfig;
   #[cfg(feature = "otel")]
@@ -444,12 +444,12 @@ fn init_logging(
       .with_endpoint(open_telemetry_endpoint.as_str())
       .build()
       .map_err(|_| ErrorResponse::from("Failed to initialize OTEL telemetry!"))?;
-    let otel_provider = opentelemetry_sdk::trace::TracerProvider::builder()
+    let otel_provider = opentelemetry_sdk::trace::SdkTracerProvider::builder()
       .with_simple_exporter(otel_span_exporter)
       .with_id_generator(RandomIdGenerator::default())
       .with_max_events_per_span(32)
       .with_max_attributes_per_span(64)
-      .with_resource(Resource::new(vec![KeyValue::new("service.name", app_name.to_owned())]))
+      .with_resource(Resource::builder().with_service_name(app_name.to_string()).build())
       .build()
       .tracer(app_name.to_owned());
 
