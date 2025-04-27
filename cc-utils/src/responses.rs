@@ -92,7 +92,7 @@ impl ServerResponseWriter for OK {
   async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
     res.status_code(salvo::http::StatusCode::OK);
     res.render("");
-    tracing::debug!("[{}] => Received and sent result 200", self.0);
+    tracing::trace!("[{}] => Received and sent result 200", self.0);
   }
 }
 
@@ -124,7 +124,7 @@ impl ServerResponseWriter for Plain {
   async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
     res.status_code(salvo::http::StatusCode::OK);
     res.render(&self.0);
-    tracing::debug!("[{}] => Received and sent result 200 with text: {}", self.1, self.0);
+    tracing::trace!("[{}] => Received and sent result 200 with text: {}", self.1, self.0);
   }
 }
 
@@ -158,7 +158,7 @@ impl ServerResponseWriter for Html {
   async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
     res.status_code(salvo::http::StatusCode::OK);
     res.render(salvo::writing::Text::Html(&self.0));
-    tracing::debug!("[{}] => Received and sent result 200 with HTML", self.1);
+    tracing::trace!("[{}] => Received and sent result 200 with HTML", self.1);
   }
 }
 
@@ -214,7 +214,7 @@ impl ServerResponseWriter for File {
       .use_last_modified(true)
       .send(req.headers(), res)
       .await;
-    tracing::debug!("[{}] => Received and sent result 200 with file {}", self.2, self.1);
+    tracing::trace!("[{}] => Received and sent result 200 with file {}", self.2, self.1);
   }
 }
 
@@ -252,9 +252,9 @@ impl<T: serde::Serialize + Send> ServerResponseWriter for Json<T> {
           CONTENT_TYPE,
           HeaderValue::from_static("application/json; charset=utf-8"),
         );
-        tracing::debug!("[{}] => Sending JSON: {:?}", self.1, s.as_str());
+        tracing::trace!("[{}] => Sending JSON: {:?}", self.1, s.as_str());
         res.write_body(s).ok();
-        tracing::debug!("[{}] => Received and sent result 200 with JSON", self.1);
+        tracing::trace!("[{}] => Received and sent result 200 with JSON", self.1);
       }
       Err(e) => {
         tracing::error!("[{}] => Failed to serialize data: {:?}", e, self.1);
@@ -299,9 +299,9 @@ impl<T: serde::Serialize + Send> ServerResponseWriter for MsgPack<T> {
           CONTENT_TYPE,
           HeaderValue::from_static("application/msgpack; charset=utf-8"),
         );
-        tracing::debug!("[{}] => Sending bytes: {:?}", self.1, bytes);
+        tracing::trace!("[{}] => Sending bytes: {:04X?}", self.1, bytes);
         res.write_body(bytes).ok();
-        tracing::debug!("[{}] => Received and sent result 200 with MsgPack", self.1);
+        tracing::trace!("[{}] => Received and sent result 200 with MsgPack", self.1);
       }
       Err(e) => {
         tracing::error!("[{}] => Failed to serialize data: {:?}", e, self.1);
