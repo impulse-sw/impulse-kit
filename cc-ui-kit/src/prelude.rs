@@ -32,7 +32,7 @@ pub fn setup_app(#[allow(unused_variables)] log_level: log::Level, children: Chi
 /// Also, you can use main styled `UIApp` component without `setup_app`, if you want more flexibility.
 #[component]
 pub fn UIApp(children: Children) -> impl IntoView {
-  use crate::utils::{cn, dark_theme, light_theme};
+  use crate::utils::{dark_theme, light_theme};
 
   let leptos_use::UseColorModeReturn { mode, .. } = leptos_use::use_color_mode();
   let tw_dark_class = RwSignal::new(if let leptos_use::ColorMode::Dark = mode.get() {
@@ -56,7 +56,7 @@ pub fn UIApp(children: Children) -> impl IntoView {
   });
 
   view! {
-    <ConfigProvider theme class=cn("uikit-app-container", tw_dark_class.get())>
+    <ConfigProvider theme class="uikit-app-container" class:dark=move || tw_dark_class.get().is_some()>
       <div class="uikit-app-content">{children()}</div>
     </ConfigProvider>
   }
