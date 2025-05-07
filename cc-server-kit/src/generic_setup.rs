@@ -1,6 +1,5 @@
 //! Setup module.
 
-use salvo::http::StatusCode;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use std::io::Read;
@@ -9,8 +8,6 @@ use std::sync::Arc;
 use tracing_appender::non_blocking::WorkerGuard as TracingFileGuard;
 
 use cc_utils::prelude::*;
-
-static E500: StatusCode = StatusCode::INTERNAL_SERVER_ERROR;
 
 /// Provides at least values needed by Server Kit to start.
 pub trait GenericSetup {
@@ -152,10 +149,10 @@ async fn watcher<P: AsRef<std::path::Path>>(path: P) -> MResult<u16> {
 
   let (tx, mut rx) = tokio::sync::mpsc::channel(1);
   let mut watcher = RecommendedWatcher::new(move |res| tx.blocking_send(res).unwrap(), Config::default())
-    .map_err(|e| ErrorResponse::from(e.to_string()).with_500_pub().build())?;
+    .map_err(|e| ServerError::from_private(e).with_500())?;
   watcher
     .watch(path.as_ref(), RecursiveMode::NonRecursive)
-    .map_err(|e| ErrorResponse::from(e.to_string()).with_500_pub().build())?;
+    .map_err(|e| ServerError::from_private(e).with_500())?;
 
   while let Some(res) = rx.recv().await {
     match res {
@@ -165,19 +162,21 @@ async fn watcher<P: AsRef<std::path::Path>>(path: P) -> MResult<u16> {
         {
           watcher
             .unwatch(path.as_ref())
-            .map_err(|e| ErrorResponse::from(e.to_string()).with_500_pub().build())?;
+            .map_err(|e| ServerError::from_private(e).with_500())?;
           return Ok(port);
         }
       }
       Err(e) => {
         tracing::error!("Watch error: {:?}", e);
-        return Err(ErrorResponse::from(e.to_string()).with_500_pub().build());
+        ServerError::from_private(e).with_500().bail()?;
       }
       _ => {}
     }
   }
 
-  Err(ErrorResponse::from("Event channel is broken!").with_500_pub().build())
+  ServerError::from_private_str("Event channel is broken!")
+    .with_500()
+    .bail()
 }
 
 /// Loads the config from YAML file (`{app_name}.yaml`).
@@ -186,18 +185,22 @@ pub async fn load_generic_config<T: DeserializeOwned + GenericSetup + Default>(a
   if file.is_err() {
     file = std::fs::File::open(format!("/etc/{}.yaml", app_name));
   }
-  let mut file = file.consider(Some(E500), Some("The server configuration could not be found."), true)?;
+  let mut file = file.map_err(|e| {
+    ServerError::from_private(e)
+      .with_public("The server configuration could not be found.")
+      .with_500()
+  })?;
 
   let mut buffer = String::new();
-  file.read_to_string(&mut buffer).consider(
-    Some(E500),
-    Some("Failed to read the contents of the server configuration file."),
-    true,
-  )?;
-  let mut config: T = serde_yaml::from_str(&buffer).map_err(|_| {
-    ErrorResponse::from("Failed to parse the contents of the server configuration file.")
-      .with_500_pub()
-      .build()
+  file.read_to_string(&mut buffer).map_err(|e| {
+    ServerError::from_private(e)
+      .with_public("Failed to read the contents of the server configuration file.")
+      .with_500()
+  })?;
+  let mut config: T = serde_yaml::from_str(&buffer).map_err(|e| {
+    ServerError::from_private(e)
+      .with_public("Failed to parse the contents of the server configuration file.")
+      .with_500()
   })?;
 
   let data = config.generic_values_mut();
@@ -206,25 +209,19 @@ pub async fn load_generic_config<T: DeserializeOwned + GenericSetup + Default>(a
   #[cfg(feature = "oapi")]
   if data.allow_oapi_access.is_some_and(|v| v) {
     if data.oapi_name.is_none() {
-      return Err(
-        ErrorResponse::from("The API name for OAPI is not specified.")
-          .with_500_pub()
-          .build(),
-      );
+      ServerError::from_public("The API name for OAPI is not specified.")
+        .with_500()
+        .bail()?;
     }
     if data.oapi_ver.is_none() {
-      return Err(
-        ErrorResponse::from("The API version for OAPI is not specified.")
-          .with_500_pub()
-          .build(),
-      );
+      ServerError::from_public("The API version for OAPI is not specified.")
+        .with_500()
+        .bail()?;
     }
     if data.oapi_api_addr.is_none() {
-      return Err(
-        ErrorResponse::from("The path to OAPI was not specified.")
-          .with_500_pub()
-          .build(),
-      );
+      ServerError::from_public("The path to OAPI was not specified.")
+        .with_500()
+        .bail()?;
     }
   }
 
@@ -259,46 +256,92 @@ pub async fn load_generic_state<T: GenericSetup>(setup: &T) -> MResult<GenericSe
   let state = GenericServerState {
     startup_variant: match &*data.startup_type {
       "http_localhost" => {
-        if data.server_host.is_some() { return Err(ErrorResponse::from("Server will only listen `127.0.0.1` address because of `http_localhost` startup variant. Consider to move to `https_only` or `quinn`.").with_500_pub().build()) }
+        if data.server_host.is_some() {
+          ServerError::from_public("Server will only listen `127.0.0.1` address because of `http_localhost` startup variant. Consider to move to `https_only` or `quinn`.").with_500().bail()?;
+        }
         StartupVariant::HttpLocalhost
-      },
+      }
       "unsafe_http" => {
-        if data.server_host.is_none() { return Err(ErrorResponse::from("Choose server's host, e.g. `0.0.0.0`.").with_500_pub().build()) }
+        if data.server_host.is_none() {
+          ServerError::from_public("Choose server's host, e.g. `0.0.0.0`.")
+            .with_500()
+            .bail()?;
+        }
         StartupVariant::UnsafeHttp
       }
       #[cfg(feature = "acme")]
       "https_acme" => {
-        if data.server_host.is_none() { return Err(ErrorResponse::from("Choose server's host, e.g. `0.0.0.0`.").with_500_pub().build()) }
-        if data.acme_domain.is_none() { return Err(ErrorResponse::from("Choose ACME's domain!").with_500_pub().build()) }
+        if data.server_host.is_none() {
+          ServerError::from_public("Choose server's host, e.g. `0.0.0.0`.")
+            .with_500()
+            .bail()?;
+        }
+        if data.acme_domain.is_none() {
+          ServerError::from_public("Choose ACME's domain!").with_500().bail()?;
+        }
         StartupVariant::HttpsAcme
-      },
+      }
       "https_only" => {
-        if data.server_host.is_none() { return Err(ErrorResponse::from("Choose server's host, e.g. `0.0.0.0`.").with_500_pub().build()) }
-        if data.ssl_key_path.is_none() { return Err(ErrorResponse::from("Choose SSL key path.").with_500_pub().build()) }
-        if data.ssl_crt_path.is_none() { return Err(ErrorResponse::from("Choose SSL cert path.").with_500_pub().build()) }
+        if data.server_host.is_none() {
+          ServerError::from_public("Choose server's host, e.g. `0.0.0.0`.")
+            .with_500()
+            .bail()?;
+        }
+        if data.ssl_key_path.is_none() {
+          ServerError::from_public("Choose SSL key path.").with_500().bail()?;
+        }
+        if data.ssl_crt_path.is_none() {
+          ServerError::from_public("Choose SSL cert path.").with_500().bail()?;
+        }
         StartupVariant::HttpsOnly
-      },
+      }
       #[cfg(all(feature = "http3", feature = "acme"))]
       "quinn_acme" => {
-        if data.server_host.is_none() { return Err(ErrorResponse::from("Choose server's host, e.g. `0.0.0.0`.").with_500_pub().build()) }
-        if data.acme_domain.is_none() { return Err(ErrorResponse::from("Choose ACME's domain!").with_500_pub().build()) }
+        if data.server_host.is_none() {
+          ServerError::from_public("Choose server's host, e.g. `0.0.0.0`.")
+            .with_500()
+            .bail()?;
+        }
+        if data.acme_domain.is_none() {
+          ServerError::from_public("Choose ACME's domain!").with_500().bail()?;
+        }
         StartupVariant::QuinnAcme
-      },
+      }
       #[cfg(feature = "http3")]
       "quinn" => {
-        if data.server_host.is_none() { return Err(ErrorResponse::from("Choose server's host, e.g. `0.0.0.0`.").with_500_pub().build()) }
-        if data.ssl_key_path.is_none() { return Err(ErrorResponse::from("Choose SSL key path.").with_500_pub().build()) }
-        if data.ssl_crt_path.is_none() { return Err(ErrorResponse::from("Choose SSL cert path.").with_500_pub().build()) }
+        if data.server_host.is_none() {
+          ServerError::from_public("Choose server's host, e.g. `0.0.0.0`.")
+            .with_500()
+            .bail()?;
+        }
+        if data.ssl_key_path.is_none() {
+          ServerError::from_public("Choose SSL key path.").with_500().bail()?;
+        }
+        if data.ssl_crt_path.is_none() {
+          ServerError::from_public("Choose SSL cert path.").with_500().bail()?;
+        }
         StartupVariant::Quinn
-      },
+      }
       #[cfg(feature = "http3")]
       "quinn_only" => {
-        if data.server_host.is_none() { return Err(ErrorResponse::from("Choose server's host, e.g. `0.0.0.0`.").with_500_pub().build()) }
-        if data.ssl_key_path.is_none() { return Err(ErrorResponse::from("Choose SSL key path.").with_500_pub().build()) }
-        if data.ssl_crt_path.is_none() { return Err(ErrorResponse::from("Choose SSL cert path.").with_500_pub().build()) }
+        if data.server_host.is_none() {
+          ServerError::from_public("Choose server's host, e.g. `0.0.0.0`.")
+            .with_500()
+            .bail()?;
+        }
+        if data.ssl_key_path.is_none() {
+          ServerError::from_public("Choose SSL key path.").with_500().bail()?;
+        }
+        if data.ssl_crt_path.is_none() {
+          ServerError::from_public("Choose SSL cert path.").with_500().bail()?;
+        }
         StartupVariant::QuinnOnly
-      },
-      _ => return Err(ErrorResponse::from("The server deployment method could not be determined. Read the documentation on the `startup_variant` field.").with_500_pub().build()),
+      }
+      _ => ServerError::from_public(
+        "The server deployment method could not be determined. Read the documentation on the `startup_variant` field.",
+      )
+      .with_500()
+      .bail()?,
     },
     _file_log_guard: file_log_guard.map(Arc::new),
   };
@@ -313,12 +356,12 @@ fn match_log_level(log_level: &Option<String>) -> MResult<tracing::Level> {
       "info" => tracing::Level::INFO,
       "debug" => tracing::Level::DEBUG,
       "trace" => tracing::Level::TRACE,
-      _ => return Err(ErrorResponse::from("Incorrect logging level.").with_500_pub().build()),
+      _ => ServerError::from_public("Incorrect logging level.").with_500().bail()?,
     })
   } else if cfg!(debug_assertions) {
     Ok(tracing::Level::DEBUG)
   } else {
-    Err(ErrorResponse::from("Logging is disabled").with_500_pub().build())
+    ServerError::from_public("Logging is disabled").with_500().bail()
   }
 }
 
@@ -329,15 +372,11 @@ fn match_log_file_rolling(log_rolling: &Option<String>) -> MResult<tracing_appen
       "daily" => tracing_appender::rolling::Rotation::DAILY,
       "hourly" => tracing_appender::rolling::Rotation::HOURLY,
       "minutely" => tracing_appender::rolling::Rotation::MINUTELY,
-      _ => {
-        return Err(
-          ErrorResponse::from(
-            "Incorrect level of log rotation. Choose one of the options: `never`, `daily`, `hourly`, `minutely`.",
-          )
-          .with_500()
-          .build(),
-        );
-      }
+      _ => ServerError::from_public(
+        "Incorrect level of log rotation. Choose one of the options: `never`, `daily`, `hourly`, `minutely`.",
+      )
+      .with_500()
+      .bail()?,
     })
   } else {
     Ok(tracing_appender::rolling::Rotation::NEVER)
@@ -407,10 +446,10 @@ fn init_logging(
       .filename_suffix(app_name)
       .max_log_files(log_rolling_max_files.unwrap_or(5) as usize)
       .build("logs")
-      .map_err(|_| {
-        ErrorResponse::from("Failed to initialize logging to file!")
-          .with_500_pub()
-          .build()
+      .map_err(|e| {
+        ServerError::from_private(e)
+          .with_public("Failed to initialize logging to file!")
+          .with_500()
       })?;
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
@@ -443,7 +482,11 @@ fn init_logging(
       .with_tonic()
       .with_endpoint(open_telemetry_endpoint.as_str())
       .build()
-      .map_err(|_| ErrorResponse::from("Failed to initialize OTEL telemetry!"))?;
+      .map_err(|e| {
+        ServerError::from_private(e)
+          .with_public("Failed to initialize OTEL telemetry!")
+          .with_500()
+      })?;
     let otel_provider = opentelemetry_sdk::trace::SdkTracerProvider::builder()
       .with_simple_exporter(otel_span_exporter)
       .with_id_generator(RandomIdGenerator::default())
@@ -473,7 +516,11 @@ fn init_logging(
   #[cfg(not(feature = "otel"))]
   let collector = registry().with(file_tracer).with(io_tracer);
 
-  tracing::subscriber::set_global_default(collector)?;
+  tracing::subscriber::set_global_default(collector).map_err(|e| {
+    ServerError::from_private(e)
+      .with_public("Can't init global default log collector!")
+      .with_500()
+  })?;
 
   Ok(guard)
 }

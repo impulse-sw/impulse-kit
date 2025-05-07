@@ -1,11 +1,11 @@
-//! Result types for `ErrorResponse` (`salvo`) and `CliError` (`reqwest`) errors.
+//! Result types for `ServerError` (`cc-server-kit`) and `CliError` (`cc-ui-kit`) errors.
 
 #[cfg(feature = "mresult")]
-use crate::errors::ErrorResponse;
+use crate::errors::ServerError;
 
 /// Simple backend result type.
 #[cfg(feature = "mresult")]
-pub type MResult<T> = Result<T, ErrorResponse>;
+pub type MResult<T> = Result<T, ServerError>;
 
 #[cfg(feature = "cresult")]
 use crate::errors::CliError;

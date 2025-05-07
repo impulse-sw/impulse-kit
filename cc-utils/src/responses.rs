@@ -82,7 +82,7 @@ impl_oapi_endpoint_out!(OK, "text/plain");
 #[macro_export]
 macro_rules! ok {
   () => {
-    Ok::<cc_utils::responses::OK, cc_utils::errors::ErrorResponse>(cc_utils::responses::OK($crate::fn_name!()))
+    Ok::<cc_utils::responses::OK, cc_utils::errors::ServerError>(cc_utils::responses::OK($crate::fn_name!()))
   };
 }
 
@@ -111,7 +111,7 @@ impl_oapi_endpoint_out!(Plain, "text/plain");
 #[macro_export]
 macro_rules! plain {
   ($plain_text:expr) => {
-    Ok::<cc_utils::responses::Plain, cc_utils::errors::ErrorResponse>(cc_utils::responses::Plain(
+    Ok::<cc_utils::responses::Plain, cc_utils::errors::ServerError>(cc_utils::responses::Plain(
       $plain_text,
       $crate::fn_name!(),
     ))
@@ -144,7 +144,7 @@ impl_oapi_endpoint_out!(Html, "text/html");
 #[macro_export]
 macro_rules! html {
   ($html_data:expr) => {
-    Ok::<cc_utils::responses::Html, cc_utils::errors::ErrorResponse>(cc_utils::responses::Html(
+    Ok::<cc_utils::responses::Html, cc_utils::errors::ServerError>(cc_utils::responses::Html(
       $html_data,
       $crate::fn_name!(),
     ))
@@ -190,7 +190,7 @@ impl_oapi_endpoint_out!(File, "application/octet-stream");
 #[macro_export]
 macro_rules! file_upload {
   ($filepath:expr, $attached_filename:expr) => {
-    Ok::<cc_utils::responses::File, cc_utils::errors::ErrorResponse>(cc_utils::responses::File(
+    Ok::<cc_utils::responses::File, cc_utils::errors::ServerError>(cc_utils::responses::File(
       $filepath,
       $attached_filename,
       $crate::fn_name!(),
@@ -234,7 +234,7 @@ impl_oapi_endpoint_out_t!(Json, "application/json");
 #[macro_export]
 macro_rules! json {
   ($json_data:expr) => {
-    Ok::<cc_utils::responses::Json<_>, cc_utils::errors::ErrorResponse>(cc_utils::responses::Json(
+    Ok::<cc_utils::responses::Json<_>, cc_utils::errors::ServerError>(cc_utils::responses::Json(
       $json_data,
       $crate::fn_name!(),
     ))
@@ -258,9 +258,9 @@ impl<T: serde::Serialize + Send> ServerResponseWriter for Json<T> {
       }
       Err(e) => {
         tracing::error!("[{}] => Failed to serialize data: {:?}", e, self.1);
-        crate::prelude::ErrorResponse::from("Failed to serialize data.")
+        crate::prelude::ServerError::from_private(e)
+          .with_public("Failed to serialize data.")
           .with_500()
-          .build()
           .write(req, depot, res)
           .await;
       }
@@ -281,7 +281,7 @@ impl_oapi_endpoint_out_t!(MsgPack, "application/msgpack");
 #[macro_export]
 macro_rules! msgpack {
   ($msgpack_data:expr) => {
-    Ok::<cc_utils::responses::MsgPack<_>, cc_utils::errors::ErrorResponse>(cc_utils::responses::MsgPack(
+    Ok::<cc_utils::responses::MsgPack<_>, cc_utils::errors::ServerError>(cc_utils::responses::MsgPack(
       $msgpack_data,
       $crate::fn_name!(),
     ))
@@ -305,9 +305,9 @@ impl<T: serde::Serialize + Send> ServerResponseWriter for MsgPack<T> {
       }
       Err(e) => {
         tracing::error!("[{}] => Failed to serialize data: {:?}", e, self.1);
-        crate::prelude::ErrorResponse::from("Failed to serialize data.")
+        crate::prelude::ServerError::from_private(e)
+          .with_public("Failed to serialize data.")
           .with_500()
-          .build()
           .write(req, depot, res)
           .await;
       }
@@ -326,9 +326,7 @@ pub trait MsgPackResponse {
 #[cfg(all(feature = "reqwest", feature = "cresult"))]
 impl MsgPackResponse for reqwest::Response {
   async fn msgpack<T: serde::de::DeserializeOwned>(self) -> crate::prelude::CResult<T> {
-    use crate::errors::ConsiderCli;
-
     let full = self.bytes().await?;
-    rmp_serde::from_slice(&full).consider_cli(None)
+    rmp_serde::from_slice(&full).map_err(|e| e.into())
   }
 }

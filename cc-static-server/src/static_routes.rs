@@ -16,7 +16,7 @@ pub async fn get_filepath_from_dist(filename: impl Into<String>) -> MResult<Stri
   } else {
     tracing::debug!("There is no such file as {:?}", filepath);
   }
-  let mut filepath = std::env::current_exe()?;
+  let mut filepath = std::env::current_exe().map_err(|e| ServerError::from_private(e).with_500())?;
   filepath.pop();
   let filepath = filepath.join(LOCAL_FRONTEND_DISTRIBUTABLE).join(&filename);
   if tokio::fs::try_exists(&filepath).await.is_ok_and(|v| v) {
@@ -25,11 +25,9 @@ pub async fn get_filepath_from_dist(filename: impl Into<String>) -> MResult<Stri
     tracing::debug!("There is no such file as {:?}", filepath);
   }
 
-  Err(
-    ErrorResponse::from(format!(r#"Can't open file "{}""#, filename))
-      .with_404_pub()
-      .build(),
-  )
+  ServerError::from_public(format!(r#"Can't open file "{}""#, filename))
+    .with_404()
+    .bail()
 }
 
 pub async fn get_from_dist(filename: impl Into<String>) -> MResult<File> {
@@ -42,23 +40,27 @@ pub async fn get_from_dist(filename: impl Into<String>) -> MResult<File> {
 #[tracing::instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]
 pub async fn frontend(req: &Request) -> MResult<Html> {
   let filepath = get_filepath_from_dist("index.html").await?;
-  let site = tokio::fs::read_to_string(&filepath).await?;
+  let site = tokio::fs::read_to_string(&filepath)
+    .await
+    .map_err(|e| ServerError::from_private(e).with_500())?;
   html!(site)
 }
 
 #[handler]
 #[tracing::instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]
 pub async fn get_uikit_app_internals(req: &Request) -> MResult<AnyOf> {
-  let rest_path = req.param::<String>("rest_path").ok_or("Can't get the rest path.")?;
+  let rest_path = req
+    .param::<String>("rest_path")
+    .ok_or(ServerError::from_public("Can't get the rest path.").with_400())?;
   match get_from_dist(rest_path.as_str()).await {
     Ok(file) => Ok(AnyOf::File(file)),
     Err(_) => {
       if rest_path.contains(".") {
-        return Err(ErrorResponse::from("There is no such file!").with_404_pub().build());
+        ServerError::from_public("There is no such file!").with_404().bail()?;
       }
       match frontend::frontend(req).await {
         Ok(html) => Ok(AnyOf::Html(html)),
-        Err(mut e) => Err(e.with_404_pub().build()),
+        Err(e) => Err(e.with_404()),
       }
     }
   }

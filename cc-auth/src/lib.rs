@@ -25,7 +25,7 @@
 use bb8_redis::redis::{AsyncCommands, LposOptions};
 
 #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
-use cc_utils::{errors::ErrorResponse, results::MResult};
+use cc_utils::{errors::ServerError, results::MResult};
 
 #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use chrono::Duration;
@@ -103,28 +103,31 @@ pub async fn log_in(
   cacher: &bb8_redis::bb8::Pool<bb8_redis::RedisConnectionManager>,
 ) -> MResult<UserToken> {
   if !hashes_eq(user_login.as_bytes(), salt_db, hash_db) {
-    return Err("Hashes are not equal.".into());
+    ServerError::from_public("Hashes are not equal.").with_401().bail()?;
   };
   let utl_name = get_user_tokens_list_name(possible_user_id);
   let mut cacher_conn = cacher
     .get()
     .await
-    .map_err(|e| ErrorResponse::from(e.to_string()).build())?;
+    .map_err(|e| ServerError::from_private(e).with_500())?;
   let user_tokens_list_len: isize = cacher_conn
     .llen(&utl_name)
     .await
-    .map_err(|e| ErrorResponse::from(e.to_string()).build())?;
+    .map_err(|e| ServerError::from_private(e).with_500())?;
   let token = generate_token(possible_user_id)?;
   if user_tokens_list_len >= MAX_TOKENS_PER_USER {
     () = cacher_conn
       .ltrim(&utl_name, 0, MAX_TOKENS_PER_USER - 1)
       .await
-      .map_err(|e| ErrorResponse::from(e.to_string()).build())?;
+      .map_err(|e| ServerError::from_private(e).with_500())?;
   }
   () = cacher_conn
-    .lpush(&utl_name, &serde_json::to_string(&token)?)
+    .lpush(
+      &utl_name,
+      &serde_json::to_string(&token).map_err(|e| ServerError::from_private(e).with_500())?,
+    )
     .await
-    .map_err(|e| ErrorResponse::from(e.to_string()).build())?;
+    .map_err(|e| ServerError::from_private(e).with_500())?;
   Ok(token)
 }
 
@@ -134,26 +137,26 @@ pub async fn check_token(
   token: &ApiToken,
   cacher: &bb8_redis::bb8::Pool<bb8_redis::RedisConnectionManager>,
 ) -> MResult<UserId> {
-  let token_data = serde_json::from_str::<UserToken>(token)?;
+  let token_data = serde_json::from_str::<UserToken>(token).map_err(|e| ServerError::from_private(e).with_400())?;
   let user_tokens_list = get_user_tokens_list_name(token_data.user_id);
   let mut cacher_conn = cacher
     .get()
     .await
-    .map_err(|e| ErrorResponse::from(e.to_string()).build())?;
+    .map_err(|e| ServerError::from_private(e).with_500())?;
   let idx: Option<i32> = cacher_conn
     .lpos(&user_tokens_list, token, LposOptions::default())
     .await
-    .map_err(|e| ErrorResponse::from(e.to_string()).build())?;
+    .map_err(|e| ServerError::from_private(e).with_500())?;
   if idx.is_none() {
-    return Err("There is no such tokens.".into());
+    ServerError::from_public("There is no such token.").with_401().bail()?;
   }
   let duration: Duration = Utc::now() - token_data.birth;
   if duration.num_days() >= DAYS_VALID {
     () = cacher_conn
       .lrem(user_tokens_list, 1, token)
       .await
-      .map_err(|e| ErrorResponse::from(e.to_string()).build())?;
-    return Err("The token is expired.".into());
+      .map_err(|e| ServerError::from_private(e).with_500())?;
+    ServerError::from_public("The token is expired.").with_401().bail()?;
   }
   Ok(token_data.user_id)
 }
@@ -164,23 +167,23 @@ pub async fn check_and_remove_token(
   token: &ApiToken,
   cacher: &bb8_redis::bb8::Pool<bb8_redis::RedisConnectionManager>,
 ) -> MResult<()> {
-  let token_data = serde_json::from_str::<UserToken>(token)?;
+  let token_data = serde_json::from_str::<UserToken>(token).map_err(|e| ServerError::from_private(e).with_400())?;
   let user_tokens_list = get_user_tokens_list_name(token_data.user_id);
   let mut cacher_conn = cacher
     .get()
     .await
-    .map_err(|e| ErrorResponse::from(e.to_string()).build())?;
+    .map_err(|e| ServerError::from_private(e).with_500())?;
   let idx: Option<i32> = cacher_conn
     .lpos(&user_tokens_list, token, LposOptions::default())
     .await
-    .map_err(|e| ErrorResponse::from(e.to_string()).build())?;
+    .map_err(|e| ServerError::from_private(e).with_500())?;
   if idx.is_none() {
-    return Err("There is no such tokens.".into());
+    ServerError::from_public("There is no such token.").with_401().bail()?;
   }
   () = cacher_conn
     .lrem(user_tokens_list, 1, token)
     .await
-    .map_err(|e| ErrorResponse::from(e.to_string()).build())?;
+    .map_err(|e| ServerError::from_private(e).with_500())?;
   Ok(())
 }
 
@@ -204,7 +207,9 @@ fn get_password_generator(length: usize) -> PasswordGenerator {
 pub fn generate_token(user_id: UserId) -> MResult<UserToken> {
   Ok(UserToken {
     user_id,
-    token_str: get_password_generator(TOKEN_LENGTH).generate_one()?,
+    token_str: get_password_generator(TOKEN_LENGTH)
+      .generate_one()
+      .map_err(|e| ServerError::from_private_str(e).with_500())?,
     birth: Utc::now(),
   })
 }
@@ -212,5 +217,7 @@ pub fn generate_token(user_id: UserId) -> MResult<UserToken> {
 /// Generates salt for new user.
 #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 pub fn generate_salt() -> MResult<String> {
-  Ok(get_password_generator(16).generate_one()?)
+  get_password_generator(16)
+    .generate_one()
+    .map_err(|e| ServerError::from_private_str(e).with_500())
 }
