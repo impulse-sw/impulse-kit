@@ -7,6 +7,7 @@
 //! server.await
 //! ```
 
+use cc_utils::errors::ServerError;
 use cc_utils::prelude::MResult;
 use salvo::prelude::*;
 
@@ -145,7 +146,9 @@ pub async fn start_with_service(
   let app_config = app_config.generic_values();
 
   if let Some(bin) = app_config.auto_migrate_bin.as_ref() {
-    Command::new(bin).spawn()?;
+    Command::new(bin)
+      .spawn()
+      .map_err(|e| ServerError::from_private(e).with_500())?;
   }
 
   #[cfg(feature = "oapi")]
@@ -276,8 +279,10 @@ pub async fn start_with_service(
     StartupVariant::HttpsOnly => {
       let rustls_config = RustlsConfig::new(
         Keycert::new()
-          .cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())?
-          .key_from_path(app_config.ssl_key_path.as_ref().unwrap())?,
+          .cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())
+          .map_err(|e| ServerError::from_private(e).with_500())?
+          .key_from_path(app_config.ssl_key_path.as_ref().unwrap())
+          .map_err(|e| ServerError::from_private(e).with_500())?,
       );
       let listener = TcpListener::new(format!(
         "{}:{}",
@@ -317,8 +322,10 @@ pub async fn start_with_service(
     StartupVariant::Quinn => {
       let rustls_config = RustlsConfig::new(
         Keycert::new()
-          .cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())?
-          .key_from_path(app_config.ssl_key_path.as_ref().unwrap())?,
+          .cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())
+          .map_err(|e| ServerError::from_private(e).with_500())?
+          .key_from_path(app_config.ssl_key_path.as_ref().unwrap())
+          .map_err(|e| ServerError::from_private(e).with_500())?,
       );
       let listener = TcpListener::new(format!(
         "{}:{}",
@@ -329,11 +336,14 @@ pub async fn start_with_service(
 
       let quinn_config = RustlsConfig::new(
         Keycert::new()
-          .cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())?
-          .key_from_path(app_config.ssl_key_path.as_ref().unwrap())?,
+          .cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())
+          .map_err(|e| ServerError::from_private(e).with_500())?
+          .key_from_path(app_config.ssl_key_path.as_ref().unwrap())
+          .map_err(|e| ServerError::from_private(e).with_500())?,
       )
       .alpn_protocols(vec!["h3".as_bytes().to_owned()])
-      .build_quinn_config()?;
+      .build_quinn_config()
+      .map_err(|e| ServerError::from_private(e).with_500())?;
       let acceptor = QuinnListener::new(
         quinn_config,
         format!(
@@ -354,11 +364,14 @@ pub async fn start_with_service(
     StartupVariant::QuinnOnly => {
       let quinn_config = RustlsConfig::new(
         Keycert::new()
-          .cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())?
-          .key_from_path(app_config.ssl_key_path.as_ref().unwrap())?,
+          .cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())
+          .map_err(|e| ServerError::from_private(e).with_500())?
+          .key_from_path(app_config.ssl_key_path.as_ref().unwrap())
+          .map_err(|e| ServerError::from_private(e).with_500())?,
       )
       .alpn_protocols(vec!["h3".as_bytes().to_owned()])
-      .build_quinn_config()?;
+      .build_quinn_config()
+      .map_err(|e| ServerError::from_private(e).with_500())?;
       let acceptor = QuinnListener::new(
         quinn_config,
         format!(

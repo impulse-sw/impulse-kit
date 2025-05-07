@@ -63,10 +63,6 @@ pipelines:
             - rust
           commands:
             - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package cc-utils --target x86_64-unknown-linux-gnu
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
       - title: Lint `cc-utils` on wasm32
         desc: Получено из `Cargo Clippy`.
         info: cargo-clippy@0.1.0
@@ -80,10 +76,6 @@ pipelines:
             - rust
           commands:
             - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package cc-utils --target wasm32-unknown-unknown --no-default-features --features=reqwest
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
       - title: Lint `cc-auth` on x86-64
         desc: Получено из `Cargo Clippy`.
         info: cargo-clippy@0.1.0
@@ -97,10 +89,6 @@ pipelines:
             - rust
           commands:
             - bash_c: cargo clippy --package cc-auth --target x86_64-unknown-linux-gnu
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
       - title: Lint `cc-auth` on wasm32
         desc: Получено из `Cargo Clippy`.
         info: cargo-clippy@0.1.0
@@ -114,10 +102,6 @@ pipelines:
             - rust
           commands:
             - bash_c: cargo clippy --package cc-auth --target wasm32-unknown-unknown
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
       - title: Lint `cc-ui-kit`
         desc: Получено из `Cargo Clippy`.
         info: cargo-clippy@0.1.0
@@ -131,10 +115,6 @@ pipelines:
             - rust
           commands:
             - bash_c: cargo clippy --package cc-ui-kit --target wasm32-unknown-unknown
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
       - title: Lint `cc-ui-kit-leptos-test`
         desc: Получено из `Cargo Clippy`.
         info: cargo-clippy@0.1.0
@@ -148,10 +128,6 @@ pipelines:
             - rust
           commands:
             - bash_c: cargo clippy --package cc-ui-kit-leptos-test --target wasm32-unknown-unknown
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
       - title: Lint `cc-error-pages`
         desc: Получено из `Cargo Clippy`.
         info: cargo-clippy@0.1.0
@@ -165,10 +141,6 @@ pipelines:
             - rust
           commands:
             - bash_c: cargo clippy --package cc-error-pages --target wasm32-unknown-unknown
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
       - title: Lint `cc-server-kit`
         desc: Получено из `Cargo Clippy`.
         info: cargo-clippy@0.1.0
@@ -182,10 +154,6 @@ pipelines:
             - rust
           commands:
             - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package cc-server-kit --target x86_64-unknown-linux-gnu
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
       - title: Lint `cc-static-server`
         desc: Получено из `Cargo Clippy`.
         info: cargo-clippy@0.1.0
@@ -199,10 +167,6 @@ pipelines:
             - rust
           commands:
             - bash_c: cargo clippy --package cc-static-server --target x86_64-unknown-linux-gnu
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
       - title: Format
         desc: Получено из `Format `.rs` files`.
         info: cargo-fmt@0.1.0
@@ -214,10 +178,6 @@ pipelines:
             - rust
           commands:
             - bash_c: cargo fmt -- --config tab_spaces=2,max_width=120 */**/*.rs
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
       - title: Test docs
         desc: ''
         info: cargo-doc@0.1.0

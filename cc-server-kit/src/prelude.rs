@@ -3,7 +3,7 @@
 #[cfg(feature = "cc-utils")]
 pub use cc_utils::{
   self,
-  prelude::{Consider, ErrorResponse, Json, MResult, MsgPack, MsgPackParser, OK, json, msgpack, ok},
+  prelude::{Json, MResult, MsgPack, MsgPackParser, OK, ServerError, json, msgpack, ok},
 };
 
 pub use crate::generic_setup::{GenericSetup, GenericValues, load_generic_config, load_generic_state};

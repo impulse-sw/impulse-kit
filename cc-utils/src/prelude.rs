@@ -22,10 +22,10 @@ pub use crate::{file_upload, html, json, msgpack, ok, plain};
 pub use crate::responses::MsgPackResponse;
 
 #[cfg(feature = "mresult")]
-pub use crate::errors::{Consider, ErrorResponse};
+pub use crate::errors::ServerError;
 
 #[cfg(feature = "cresult")]
-pub use crate::errors::{CliError, ConsiderCli};
+pub use crate::errors::CliError;
 
 #[cfg(feature = "salvo")]
 pub use salvo::oapi::endpoint;

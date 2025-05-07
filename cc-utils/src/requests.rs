@@ -33,23 +33,25 @@ impl MsgPackParser for Request {
   #[inline]
   async fn parse_msgpack_with_max_size<'de, T: Deserialize<'de>>(&'de mut self, max_size: usize) -> MResult<T> {
     let ctype = self.content_type();
-    if let Some(ctype) = ctype {
-      if ctype.subtype() == salvo::http::mime::MSGPACK {
-        let payload = self.payload_with_max_size(max_size).await?;
-        let payload = if payload.is_empty() {
-          "null".as_bytes()
-        } else {
-          payload.as_ref()
-        };
-        tracing::debug!("{:?}", payload);
-        return rmp_serde::from_slice::<T>(payload).consider(Some(StatusCode::BAD_REQUEST), None::<String>, true);
-      }
+    if ctype.is_some_and(|ct| ct.subtype() == salvo::http::mime::MSGPACK) {
+      let payload = self.payload_with_max_size(max_size).await.map_err(|e| {
+        ServerError::from_private(e)
+          .with_public("Payload parse error")
+          .with_400()
+      })?;
+      let payload = if payload.is_empty() {
+        "null".as_bytes()
+      } else {
+        payload.as_ref()
+      };
+      tracing::debug!("{:?}", payload);
+      rmp_serde::from_slice::<T>(payload).map_err(|e| {
+        ServerError::from_private(e)
+          .with_public("Payload parse error")
+          .with_400()
+      })
+    } else {
+      Err(ServerError::from_public("Bad content type, must be `application/msgpack`.").with_400())
     }
-    Err(ErrorResponse {
-      status_code: Some(StatusCode::BAD_REQUEST),
-      error_text: "Bad content type, must be `application/msgpack`.".into(),
-      original_text: None,
-      public_error: true,
-    })
   }
 }
