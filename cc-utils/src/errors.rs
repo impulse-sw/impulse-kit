@@ -190,6 +190,17 @@ impl ServerError {
       private_msg: Some(vec![err.into()]),
     }
   }
+  
+  /// Adds a private message to the ServerError.
+  pub fn with_private_str(mut self, new_private_msg: impl Into<String>) -> Self {
+    if let Some(privates) = self.private_msg.as_mut() {
+      privates.insert(0, new_private_msg.into());
+    } else {
+      self.private_msg = Some(vec![new_private_msg.into()]);
+    }
+    
+    self
+  }
 
   /// Adds a public message to the ServerError.
   ///
