@@ -19,6 +19,7 @@ use salvo::Writer as ServerResponseWriter;
 use salvo::fs::NamedFile;
 
 /// Macro to define the function that called the response.
+#[cfg(feature = "salvo")]
 #[macro_export]
 macro_rules! fn_name {
   () => {{
@@ -70,6 +71,14 @@ macro_rules! impl_oapi_endpoint_out_t {
   };
 }
 
+#[cfg(feature = "salvo")]
+#[allow(async_fn_in_trait)]
+/// Trait that utilizes only mutable reference to `Response` and makes no need for `Request`/`Depot`.
+pub trait ExplicitServerWrite {
+  /// Write an actual response in a `Response` object.
+  async fn explicit_write(self, res: &mut Response);
+}
+
 /// Sends 200 without data.
 #[cfg(feature = "salvo")]
 pub struct OK(pub &'static str);
@@ -87,12 +96,19 @@ macro_rules! ok {
 }
 
 #[cfg(feature = "salvo")]
-#[salvo::async_trait]
-impl ServerResponseWriter for OK {
-  async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+impl ExplicitServerWrite for OK {
+  async fn explicit_write(self, res: &mut Response) {
     res.status_code(salvo::http::StatusCode::OK);
     res.render("");
     tracing::trace!("[{}] => Received and sent result 200", self.0);
+  }
+}
+
+#[cfg(feature = "salvo")]
+#[salvo::async_trait]
+impl ServerResponseWriter for OK {
+  async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+    ExplicitServerWrite::explicit_write(self, res).await
   }
 }
 
@@ -119,28 +135,32 @@ macro_rules! plain {
 }
 
 #[cfg(feature = "salvo")]
-#[salvo::async_trait]
-impl ServerResponseWriter for Plain {
-  async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+impl ExplicitServerWrite for Plain {
+  async fn explicit_write(self, res: &mut Response) {
     res.status_code(salvo::http::StatusCode::OK);
     res.render(&self.0);
     tracing::trace!("[{}] => Received and sent result 200 with text: {}", self.1, self.0);
   }
 }
 
+#[cfg(feature = "salvo")]
+#[salvo::async_trait]
+impl ServerResponseWriter for Plain {
+  async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+    ExplicitServerWrite::explicit_write(self, res).await
+  }
+}
+
 /// Sends 200 and HTML.
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[derive(Debug)]
 pub struct Html(pub String, pub &'static str);
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_oapi_endpoint_out!(Html, "text/html");
 
 /// Returns given HTML code.
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[macro_export]
 macro_rules! html {
   ($html_data:expr) => {
@@ -152,24 +172,28 @@ macro_rules! html {
 }
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
-#[salvo::async_trait]
-impl ServerResponseWriter for Html {
-  async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+impl ExplicitServerWrite for Html {
+  async fn explicit_write(self, res: &mut Response) {
     res.status_code(salvo::http::StatusCode::OK);
     res.render(salvo::writing::Text::Html(&self.0));
     tracing::trace!("[{}] => Received and sent result 200 with HTML", self.1);
   }
 }
 
+#[cfg(feature = "salvo")]
+#[salvo::async_trait]
+impl ServerResponseWriter for Html {
+  async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+    ExplicitServerWrite::explicit_write(self, res).await
+  }
+}
+
 /// Sends 200 and file.
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[derive(Debug)]
 pub struct File(pub std::path::PathBuf, pub String, pub &'static str);
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_oapi_endpoint_out!(File, "application/octet-stream");
 
 /// File response.
@@ -186,7 +210,6 @@ impl_oapi_endpoint_out!(File, "application/octet-stream");
 /// }
 /// ```
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[macro_export]
 macro_rules! file_upload {
   ($filepath:expr, $attached_filename:expr) => {
@@ -199,7 +222,6 @@ macro_rules! file_upload {
 }
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[salvo::async_trait]
 impl ServerResponseWriter for File {
   async fn write(self, req: &mut Request, _depot: &mut Depot, res: &mut Response) {
@@ -220,17 +242,14 @@ impl ServerResponseWriter for File {
 
 /// Sends 200 and JSON.
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[derive(Debug)]
 pub struct Json<T>(pub T, pub &'static str);
 
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_oapi_endpoint_out_t!(Json, "application/json");
 
 /// Serializes to JSON and returns given object.
 #[cfg(feature = "salvo")]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[macro_export]
 macro_rules! json {
   ($json_data:expr) => {
@@ -242,9 +261,8 @@ macro_rules! json {
 }
 
 #[cfg(all(feature = "salvo", feature = "mresult"))]
-#[salvo::async_trait]
-impl<T: serde::Serialize + Send> ServerResponseWriter for Json<T> {
-  async fn write(self, req: &mut Request, depot: &mut Depot, res: &mut Response) {
+impl<T: serde::Serialize + Send> ExplicitServerWrite for Json<T> {
+  async fn explicit_write(self, res: &mut Response) {
     res.status_code(salvo::http::StatusCode::OK);
     match serde_json::to_string(&self.0) {
       Ok(s) => {
@@ -261,10 +279,18 @@ impl<T: serde::Serialize + Send> ServerResponseWriter for Json<T> {
         crate::prelude::ServerError::from_private(e)
           .with_public("Failed to serialize data.")
           .with_500()
-          .write(req, depot, res)
+          .explicit_write(res)
           .await;
       }
     }
+  }
+}
+
+#[cfg(all(feature = "salvo", feature = "mresult"))]
+#[salvo::async_trait]
+impl<T: serde::Serialize + Send> ServerResponseWriter for Json<T> {
+  async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+    ExplicitServerWrite::explicit_write(self, res).await
   }
 }
 
@@ -289,9 +315,8 @@ macro_rules! msgpack {
 }
 
 #[cfg(all(feature = "salvo", feature = "mresult"))]
-#[salvo::async_trait]
-impl<T: serde::Serialize + Send> ServerResponseWriter for MsgPack<T> {
-  async fn write(self, req: &mut Request, depot: &mut Depot, res: &mut Response) {
+impl<T: serde::Serialize + Send> ExplicitServerWrite for MsgPack<T> {
+  async fn explicit_write(self, res: &mut Response) {
     res.status_code(salvo::http::StatusCode::OK);
     match rmp_serde::to_vec(&self.0) {
       Ok(bytes) => {
@@ -308,10 +333,18 @@ impl<T: serde::Serialize + Send> ServerResponseWriter for MsgPack<T> {
         crate::prelude::ServerError::from_private(e)
           .with_public("Failed to serialize data.")
           .with_500()
-          .write(req, depot, res)
+          .explicit_write(res)
           .await;
       }
     }
+  }
+}
+
+#[cfg(all(feature = "salvo", feature = "mresult"))]
+#[salvo::async_trait]
+impl<T: serde::Serialize + Send> ServerResponseWriter for MsgPack<T> {
+  async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+    ExplicitServerWrite::explicit_write(self, res).await
   }
 }
 

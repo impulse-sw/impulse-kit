@@ -83,10 +83,8 @@ impl std::fmt::Display for CliError {
 }
 
 #[cfg(all(feature = "salvo", feature = "mresult"))]
-#[salvo::async_trait]
-impl ServerResponseWriter for ServerError {
-  /// Method for sending an error message to the client.
-  async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+impl crate::responses::ExplicitServerWrite for ServerError {
+  async fn explicit_write(self, res: &mut Response) {
     res.status_code(self.status_code.unwrap_or(StatusCode::INTERNAL_SERVER_ERROR));
     tracing::error!("{}", self);
 
@@ -98,6 +96,15 @@ impl ServerResponseWriter for ServerError {
         .unwrap_or(r#"{"err":"Unknown server error"}"#.to_string()),
       )
       .ok();
+  }
+}
+
+#[cfg(all(feature = "salvo", feature = "mresult"))]
+#[salvo::async_trait]
+impl ServerResponseWriter for ServerError {
+  /// Method for sending an error message to the client.
+  async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+    crate::responses::ExplicitServerWrite::explicit_write(self, res).await
   }
 }
 
@@ -189,6 +196,17 @@ impl ServerError {
       public_msg: None,
       private_msg: Some(vec![err.into()]),
     }
+  }
+
+  /// Adds a private message to the ServerError.
+  pub fn with_private_str(mut self, new_private_msg: impl Into<String>) -> Self {
+    if let Some(privates) = self.private_msg.as_mut() {
+      privates.insert(0, new_private_msg.into());
+    } else {
+      self.private_msg = Some(vec![new_private_msg.into()]);
+    }
+
+    self
   }
 
   /// Adds a public message to the ServerError.
