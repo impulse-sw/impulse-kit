@@ -27,7 +27,7 @@ pub struct ServerError {
 }
 
 /// Public error message.
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct ErrorResponse {
   /// Public error message.
   pub err: String,
