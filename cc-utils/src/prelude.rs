@@ -27,6 +27,8 @@ pub use crate::errors::ServerError;
 #[cfg(feature = "cresult")]
 pub use crate::errors::CliError;
 
+pub use crate::errors::ErrorResponse;
+
 #[cfg(feature = "salvo")]
 pub use salvo::oapi::endpoint;
 
