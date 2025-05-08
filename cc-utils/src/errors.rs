@@ -56,6 +56,9 @@ impl std::fmt::Display for ServerError {
   }
 }
 
+#[cfg(feature = "mresult")]
+impl std::error::Error for ServerError {}
+
 impl std::fmt::Display for ErrorResponse {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str(&format!("Error: {}", self.err))
