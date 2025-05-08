@@ -182,7 +182,11 @@ pub fn init_test_logger(log_level: tracing::Level) -> cc_utils::results::MResult
     .with_filter(LevelFilter::from_level(log_level));
 
   let collector = registry().with(io_tracer);
-  tracing::subscriber::set_global_default(collector)?;
+  tracing::subscriber::set_global_default(collector).map_err(|e| {
+    cc_utils::errors::ServerError::from_private(e)
+      .with_public("Can't init global default log collector!")
+      .with_500()
+  })?;
 
   Ok(())
 }
