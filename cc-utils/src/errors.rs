@@ -37,7 +37,7 @@ pub struct ErrorResponse {
 impl std::fmt::Display for ServerError {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str(&format!(
-      "Error: `{}` status code\nError message: \"{}\"{}",
+      "Error: `{}` status code\n  Error message: \"{}\"{}",
       self.status_code.unwrap_or(StatusCode::INTERNAL_SERVER_ERROR).as_str(),
       self.decide_public_msg(),
       if let Some(privates) = self.private_msg.as_ref() {
@@ -45,7 +45,7 @@ impl std::fmt::Display for ServerError {
           "\n{}",
           privates
             .iter()
-            .map(|e| format!("  Caused by: {}", e))
+            .map(|e| format!("    Caused by: {}", e))
             .collect::<Vec<_>>()
             .join("\n")
         )
