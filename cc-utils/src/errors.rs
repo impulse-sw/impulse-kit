@@ -28,6 +28,7 @@ pub struct ServerError {
 
 /// Public error message.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "salvo", derive(salvo::oapi::ToSchema))]
 pub struct ErrorResponse {
   /// Public error message.
   pub err: String,
@@ -115,32 +116,33 @@ impl EndpointOutRegister for ServerError {
   fn register(components: &mut salvo::oapi::Components, operation: &mut salvo::oapi::Operation) {
     operation.responses.insert(
       "400",
-      salvo::oapi::Response::new("Bad request").add_content("application/json", String::to_schema(components)),
+      salvo::oapi::Response::new("Bad request").add_content("application/json", ErrorResponse::to_schema(components)),
     );
     operation.responses.insert(
       "401",
-      salvo::oapi::Response::new("Unauthorized").add_content("application/json", String::to_schema(components)),
+      salvo::oapi::Response::new("Unauthorized").add_content("application/json", ErrorResponse::to_schema(components)),
     );
     operation.responses.insert(
       "403",
-      salvo::oapi::Response::new("Forbidden").add_content("application/json", String::to_schema(components)),
+      salvo::oapi::Response::new("Forbidden").add_content("application/json", ErrorResponse::to_schema(components)),
     );
     operation.responses.insert(
       "404",
-      salvo::oapi::Response::new("Not found").add_content("application/json", String::to_schema(components)),
+      salvo::oapi::Response::new("Not found").add_content("application/json", ErrorResponse::to_schema(components)),
     );
     operation.responses.insert(
       "405",
-      salvo::oapi::Response::new("Method not allowed").add_content("application/json", String::to_schema(components)),
+      salvo::oapi::Response::new("Method not allowed")
+        .add_content("application/json", ErrorResponse::to_schema(components)),
     );
     operation.responses.insert(
       "423",
-      salvo::oapi::Response::new("Locked").add_content("application/json", String::to_schema(components)),
+      salvo::oapi::Response::new("Locked").add_content("application/json", ErrorResponse::to_schema(components)),
     );
     operation.responses.insert(
       "500",
       salvo::oapi::Response::new("Internal server error")
-        .add_content("application/json", String::to_schema(components)),
+        .add_content("application/json", ErrorResponse::to_schema(components)),
     );
   }
 }
