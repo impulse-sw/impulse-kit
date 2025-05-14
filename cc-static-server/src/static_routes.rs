@@ -1,7 +1,7 @@
 use cc_server_kit::cc_utils;
 use cc_server_kit::cc_utils::prelude::*;
 use cc_server_kit::prelude::*;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const LOCAL_FRONTEND_DISTRIBUTABLE: &str = "dist";
 const CONTAINER_FRONTEND_DISTRIBUTABLE: &str = "/usr/local/frontend-dist";
@@ -89,7 +89,54 @@ impl salvo::Writer for AnyOf {
 /// Make sure that `dist` folder is located in one folder with your application, not in current working
 /// directory provided by `$ pwd`.
 pub fn frontend_router() -> Router {
-  Router::new()
-    .get(frontend)
-    .push(Router::with_path("{**rest_path}").get(get_uikit_app_internals))
+  Router::with_path("{**rest_path}").get(get_uikit_app_internals)
+}
+
+/// Custom static router.
+struct CustomStaticRouter {
+  path: PathBuf,
+}
+
+impl CustomStaticRouter {
+  fn new(path: impl AsRef<Path>) -> Self {
+    Self {
+      path: path.as_ref().to_owned(),
+    }
+  }
+}
+
+#[salvo::async_trait]
+impl salvo::Handler for CustomStaticRouter {
+  #[tracing::instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]
+  async fn handle(&self, req: &mut Request, depot: &mut Depot, res: &mut Response, _: &mut salvo::FlowCtrl) {
+    use salvo::Writer;
+
+    let filename = req.param::<String>("rest_path").unwrap_or(String::from("index.html"));
+    let filepath = self.path.join(&filename);
+    if filepath.exists() {
+      match filename.split('.').collect::<Vec<_>>().last() {
+        Some(&"html") if let Ok(site) = tokio::fs::read_to_string(&filepath).await => {
+          html!(site).unwrap().write(req, depot, res).await
+        }
+        _ => file_upload!(filepath, filename).unwrap().write(req, depot, res).await,
+      }
+    } else if !filename.contains(".")
+      && let Ok(site) = tokio::fs::read_to_string(&filepath).await
+    {
+      html!(site).unwrap().write(req, depot, res).await;
+    } else {
+      ServerError::from_public("There is no such file!")
+        .with_404()
+        .write(req, depot, res)
+        .await;
+    }
+  }
+}
+
+/// Static router with given `dist` path.
+///
+/// Note that your `dist` folder must contains `index.html` file.
+#[allow(unused)]
+pub fn frontend_router_from_given_dist(dist: &Path) -> Router {
+  Router::with_path("{**rest_path}").get(CustomStaticRouter::new(dist))
 }
