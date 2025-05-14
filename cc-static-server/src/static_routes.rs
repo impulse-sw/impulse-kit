@@ -111,7 +111,10 @@ impl salvo::Handler for CustomStaticRouter {
   async fn handle(&self, req: &mut Request, depot: &mut Depot, res: &mut Response, _: &mut salvo::FlowCtrl) {
     use salvo::Writer;
 
-    let filename = req.param::<String>("rest_path").unwrap_or(String::from("index.html"));
+    let mut filename = req.param::<String>("rest_path").unwrap_or(String::from("index.html"));
+    if filename.is_empty() {
+      filename = String::from("index.html");
+    }
     let filepath = self.path.join(&filename);
     if filepath.exists() {
       match filename.split('.').collect::<Vec<_>>().last() {
