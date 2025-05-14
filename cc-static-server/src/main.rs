@@ -1,4 +1,5 @@
 #![deny(warnings, clippy::todo, clippy::unimplemented)]
+#![feature(if_let_guard, let_chains)]
 
 mod static_routes;
 
