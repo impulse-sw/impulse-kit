@@ -30,12 +30,6 @@ pub async fn get_filepath_from_dist(filename: impl Into<String>) -> MResult<Stri
     .bail()
 }
 
-pub async fn get_from_dist(filename: impl Into<String>) -> MResult<File> {
-  let filename = filename.into();
-  let filepath = get_filepath_from_dist(&filename).await?;
-  file_upload!(filepath.into(), filename)
-}
-
 #[handler]
 #[tracing::instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]
 pub async fn frontend(req: &Request) -> MResult<Html> {
@@ -48,36 +42,34 @@ pub async fn frontend(req: &Request) -> MResult<Html> {
 
 #[handler]
 #[tracing::instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]
-pub async fn get_uikit_app_internals(req: &Request) -> MResult<AnyOf> {
-  let rest_path = req
-    .param::<String>("rest_path")
-    .ok_or(ServerError::from_public("Can't get the rest path.").with_400())?;
-  match get_from_dist(rest_path.as_str()).await {
-    Ok(file) => Ok(AnyOf::File(file)),
-    Err(_) => {
-      if rest_path.contains(".") {
-        ServerError::from_public("There is no such file!").with_404().bail()?;
-      }
-      match frontend::frontend(req).await {
-        Ok(html) => Ok(AnyOf::Html(html)),
-        Err(e) => Err(e.with_404()),
-      }
-    }
+pub async fn get_uikit_app_internals(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+  use salvo::Writer;
+
+  let mut filename = req.param::<String>("rest_path").unwrap_or(String::from("index.html"));
+  if filename.is_empty() {
+    filename = String::from("index.html");
   }
-}
-
-enum AnyOf {
-  Html(Html),
-  File(File),
-}
-
-#[salvo::async_trait]
-impl salvo::Writer for AnyOf {
-  async fn write(self, req: &mut Request, depot: &mut Depot, res: &mut salvo::Response) {
-    match self {
-      AnyOf::Html(html) => html.write(req, depot, res).await,
-      AnyOf::File(file) => file.write(req, depot, res).await,
+  let filepath = PathBuf::from(
+    get_filepath_from_dist(&filename)
+      .await
+      .unwrap_or(String::from("index.html")),
+  );
+  if filepath.exists() {
+    match filename.split('.').collect::<Vec<_>>().last() {
+      Some(&"html") if let Ok(site) = tokio::fs::read_to_string(&filepath).await => {
+        html!(site).unwrap().write(req, depot, res).await
+      }
+      _ => file_upload!(filepath, filename).unwrap().write(req, depot, res).await,
     }
+  } else if !filename.contains(".")
+    && let Ok(site) = tokio::fs::read_to_string(&filepath).await
+  {
+    html!(site).unwrap().write(req, depot, res).await;
+  } else {
+    ServerError::from_public("There is no such file!")
+      .with_404()
+      .write(req, depot, res)
+      .await;
   }
 }
 
