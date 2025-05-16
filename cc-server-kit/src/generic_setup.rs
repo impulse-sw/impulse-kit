@@ -480,7 +480,9 @@ fn init_logging(
   {
     let otel_span_exporter = opentelemetry_otlp::SpanExporter::builder()
       .with_tonic()
+      .with_protocol(opentelemetry_otlp::Protocol::Grpc)
       .with_endpoint(open_telemetry_endpoint.as_str())
+      .with_timeout(std::time::Duration::from_secs(5))
       .build()
       .map_err(|e| {
         ServerError::from_private(e)
@@ -488,7 +490,7 @@ fn init_logging(
           .with_500()
       })?;
     let otel_provider = opentelemetry_sdk::trace::SdkTracerProvider::builder()
-      .with_simple_exporter(otel_span_exporter)
+      .with_batch_exporter(otel_span_exporter)
       .with_id_generator(RandomIdGenerator::default())
       .with_max_events_per_span(32)
       .with_max_attributes_per_span(64)
