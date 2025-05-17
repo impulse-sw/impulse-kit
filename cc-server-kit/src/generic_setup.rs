@@ -99,6 +99,9 @@ pub struct GenericValues {
   #[cfg(feature = "otel")]
   /// Endpoint to export OpenTelemetry (e.g., Jaeger).
   pub open_telemetry_endpoint: Option<String>,
+  #[cfg(feature = "otel")]
+  /// OpenTelemetry log level.
+  pub open_telemetry_log_level: Option<String>,
 }
 
 impl Default for GenericValues {
@@ -130,6 +133,8 @@ impl Default for GenericValues {
       log_rolling_max_files: None,
       #[cfg(feature = "otel")]
       open_telemetry_endpoint: None,
+      #[cfg(feature = "otel")]
+      open_telemetry_log_level: None,
       server_port_achiever: None,
     }
   }
@@ -241,6 +246,10 @@ pub async fn load_generic_state<T: GenericSetup>(setup: &T) -> MResult<GenericSe
 
   let log_level = match_log_level(&data.log_level);
   let log_file_level = match_log_level(&data.log_file_level);
+
+  #[cfg(feature = "otel")]
+  let otel_log_level = match_log_level(&data.open_telemetry_log_level);
+
   let log_rolling = match_log_file_rolling(&data.log_rolling)?;
 
   let file_log_guard = init_logging(
@@ -251,6 +260,8 @@ pub async fn load_generic_state<T: GenericSetup>(setup: &T) -> MResult<GenericSe
     &data.log_rolling_max_files,
     #[cfg(feature = "otel")]
     &data.open_telemetry_endpoint,
+    #[cfg(feature = "otel")]
+    &otel_log_level,
   )?;
 
   let state = GenericServerState {
@@ -397,6 +408,7 @@ fn init_logging(
   log_rolling: tracing_appender::rolling::Rotation,
   log_rolling_max_files: &Option<u32>,
   #[cfg(feature = "otel")] open_telemetry_endpoint: &Option<String>,
+  #[cfg(feature = "otel")] open_telemetry_log_level: &MResult<tracing::Level>,
 ) -> MResult<Option<TracingFileGuard>> {
   use tracing_appender::rolling;
   #[allow(unused_imports)]
@@ -476,7 +488,7 @@ fn init_logging(
 
   #[cfg(feature = "otel")]
   let otel_tracer = if let Some(open_telemetry_endpoint) = open_telemetry_endpoint
-    && let Ok(log_level) = log_level
+    && let Ok(otel_log_level) = open_telemetry_log_level.as_ref().or(log_level.as_ref())
   {
     let otel_span_exporter = opentelemetry_otlp::SpanExporter::builder()
       .with_tonic()
@@ -501,12 +513,12 @@ fn init_logging(
     #[cfg(not(feature = "log-without-filtering"))]
     let opentelemetry = tracing_opentelemetry::layer()
       .with_tracer(otel_provider)
-      .with_filter(LevelFilter::from_level(*log_level))
+      .with_filter(LevelFilter::from_level(*otel_log_level))
       .with_filter(filter_fn(log_filter));
     #[cfg(feature = "log-without-filtering")]
     let opentelemetry = tracing_opentelemetry::layer()
       .with_tracer(otel_provider)
-      .with_filter(LevelFilter::from_level(*log_level));
+      .with_filter(LevelFilter::from_level(*otel_log_level));
 
     Some(opentelemetry)
   } else {

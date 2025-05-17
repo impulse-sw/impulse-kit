@@ -87,7 +87,7 @@ impl ResponseExt for Response {
 
   async fn take_json<T: DeserializeOwned>(&mut self) -> salvo::Result<T> {
     let full = self.take_bytes(Some(&mime::APPLICATION_JSON)).await?;
-    serde_json::from_slice(&full).map_err(Error::SerdeJson)
+    sonic_rs::from_slice(&full).map_err(Error::SerdeJson)
   }
 
   async fn take_msgpack<T: DeserializeOwned>(&mut self) -> salvo::Result<T> {

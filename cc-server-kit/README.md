@@ -1,6 +1,6 @@
 # CC Server Kit
 
-State-of-art simple and powerful web server based on `salvo`. Provides extended tracing, configuration-over-YAML, QUIC/HTTP3, MessagePack support, ACME, OpenAPI and OpenTelemetry features by default, with one step to CORS and WebSockets.
+State-of-art simple and powerful web server based on `salvo`. Provides extended tracing, configuration-over-YAML, QUIC/HTTP3, MessagePack support, ACME, OpenAPI and OpenTelemetry features *by default*, with one step to CORS and WebSockets.
 
 ## How's it work
 
@@ -11,8 +11,8 @@ State-of-art simple and powerful web server based on `salvo`. Provides extended 
 
 ## 4 Quick start steps
 
-1. Create `Setup` struct.
-2. Create simple endpoints.
+1. Create `Setup` struct with your setup data fields and `GenericValues` inside.
+2. Create simple endpoints - your HTTP requests' handlers.
 3. Create `server-example.yaml` file in crate root.
 4. Just setup your application in 5 lines in `main`.
 
@@ -74,6 +74,9 @@ struct HelloData {
   responses((status_code = 200, description = "Some MsgPack hello", body = HelloData, content_type = ["application/msgpack"]))
 )]
 #[instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]
+/// Convert hello from JSON to MsgPack
+///
+/// Simple endpoint which translates any given `HelloData` from JSON into MsgPack format.
 async fn json_to_msgpack(req: &mut Request, depot: &mut Depot) -> MResult<MsgPack<HelloData>> {
   let hello = req.parse_json::<HelloData>().await?;
   let app_name = depot.obtain::<Setup>()?.generic_values().app_name.as_str();
@@ -86,6 +89,9 @@ async fn json_to_msgpack(req: &mut Request, depot: &mut Depot) -> MResult<MsgPac
   responses((status_code = 200, description = "Some JSON hello", body = HelloData, content_type = ["application/json"]))
 )]
 #[instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]
+/// Convert hello from MsgPack to JSON
+///
+/// Simple endpoint which translates any given `HelloData` from MsgPack into Json format.
 async fn msgpack_to_json(req: &mut Request, depot: &mut Depot) -> MResult<Json<HelloData>> {
   let hello = req.parse_msgpack::<HelloData>().await?;
   let app_name = depot.obtain::<Setup>()?.generic_values().app_name.as_str();
@@ -108,7 +114,7 @@ async fn main() {
 }
 ```
 
-Here we go! You can now start the server with `cargo run --release`!
+Here we go! You can now start the server with `cargo run`!
 
 ## Configuring your server
 
@@ -205,13 +211,25 @@ oapi_ver: 0.1.0
 CC Server Kit uses `tracing` for logging inside routes' logic. Configuration example:
 
 ```yaml
-log_level: info       # error | warn | info | debug | trace
-log_file_level: debug # error | warn | info | debug | trace
-log_rolling: daily    # never | daily | hourly | minutely
+log_level: info        # error | warn | info | debug | trace
+log_file_level: debug  # error | warn | info | debug | trace
+log_rolling: daily     # never | daily | hourly | minutely
 log_rolling_max_files: 5
 ```
 
-You can also specify `open_telemetry_endpoint` to automatically send your metrics collected with `tracing` to anything like Prometheus or Jaeger.
+### OpenTelemetry
+
+CC Server Kit supports gRPC batch exporter. To activate OTLP, enable `otel` feature (enabled by default) and specify `open_telemetry_endpoint` field:
+
+```yaml
+open_telemetry_endpoint: http://127.0.0.1:4317  # Jaeger default gRPC write API endpoint
+```
+
+Also, you can specify log level (if none specified, goes back to `log_level` field):
+
+```yaml
+open_telemetry_log_level: info  # error | warn | info | debug | trace
+```
 
 ### Server port achieveing
 

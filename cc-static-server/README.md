@@ -2,7 +2,7 @@
 
 Simple static server. Features:
 
-- running on top of `cc-server-kit` (see [configuration example](https://github.com/markcda/cc-server-kit?tab=readme-ov-file#4-quick-start-steps))
+- running on top of `cc-server-kit` (see [configuration example](./../cc-server-kit/README.md))
 - serves all your files from `dist` or `/usr/local/frontend-dist/` folder
 - when receives any request other than `/`, it returns `index.html`, excluding files
 
