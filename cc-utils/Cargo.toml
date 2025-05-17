@@ -9,7 +9,7 @@ authors = { workspace = true }
 [features]
 default = ["salvo", "reqwest", "mresult", "cresult"]
 salvo = ["dep:salvo"]
-reqwest = ["dep:reqwest"]
+reqwest = ["dep:reqwest", "cresult"]
 mresult = ["salvo"]
 cresult = []
 
