@@ -1,6 +1,6 @@
 //! Error pages for CC Services.
 //!
-//! Works with 400, 401, 403, 404, 405, 423 & 500 status codes.
+//! Works with 400, 401, 403, 404, 405 & 500 status codes.
 //! Just redirect to `/{status-code}` or return `dist/index.html`
 //! instead of requested resource.
 
@@ -11,7 +11,6 @@ use cc_ui_kit::{
   router::{get_path, redirect},
 };
 use leptos_meta::*;
-use lucide_leptos::MoveLeft;
 
 leptos_i18n::load_locales!();
 use crate::i18n::*;
@@ -69,12 +68,6 @@ fn App() -> impl IntoView {
           }
             .into_any()
         }
-        "/423" => {
-          view! {
-            <ErrorPage err_num="423".to_string() err_msg=t_string!(i18n, locked).to_string() />
-          }
-            .into_any()
-        }
         "/500" => {
           view! {
             <ErrorPage err_num="500".to_string() err_msg=t_string!(i18n, internal).to_string() />
@@ -100,7 +93,7 @@ fn App() -> impl IntoView {
             .into_any()
         }
         _ => {
-          redirect("/oops".to_string()).unwrap();
+          redirect("/oops").unwrap();
           ().into_any()
         }
       }}
@@ -148,15 +141,21 @@ fn GoBack() -> impl IntoView {
       when=move || { !ref_is_empty }
       fallback=move || {
         view! {
-          <Button appearance=ButtonAppearance::Primary on_click=move |_| go_back_through_query()>
-            <MoveLeft size=24 stroke_width=2 />
+          <Button
+            appearance=ButtonAppearance::Primary
+            icon=icondata::LuMoveLeft
+            on_click=move |_| go_back_through_query()
+          >
             <p class="ml-2">{move || t_string!(i18n, go_back)}</p>
           </Button>
         }
       }
     >
-      <Button appearance=ButtonAppearance::Primary on_click=move |_| go_back()>
-        <MoveLeft size=24 stroke_width=2 />
+      <Button
+        appearance=ButtonAppearance::Primary
+        icon=icondata::LuMoveLeft
+        on_click=move |_| go_back()
+      >
         <p class="ml-2">{move || t_string!(i18n, go_back)}</p>
       </Button>
     </Show>
@@ -164,17 +163,13 @@ fn GoBack() -> impl IntoView {
   #[cfg(debug_assertions)]
   view! {
     <Show when=move || { !ref_is_empty } fallback=move || view! { <a href="/404">"Go to 404"</a> }>
-      <Button appearance=ButtonAppearance::Primary on_click=move |_| go_back()>
-        <MoveLeft size=24 stroke_width=2 />
+      <Button
+        appearance=ButtonAppearance::Primary
+        icon=icondata::LuMoveLeft
+        on_click=move |_| go_back()
+      >
         <p class="ml-2">{move || t_string!(i18n, go_back)}</p>
       </Button>
     </Show>
   }
-
-  // view! {
-  //   <Button appearance=ButtonAppearance::Primary on_click=move |_| go_back()>
-  //     <MoveLeft color="white" size=24 stroke_width=2 />
-  //     <p class="ml-2">{move || t_string!(i18n, go_back)}</p>
-  //   </Button>
-  // }
 }

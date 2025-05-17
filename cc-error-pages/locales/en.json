@@ -6,7 +6,6 @@
   "forbidden": "Access denied.",
   "not_found": "Oops! The page you're looking for doesn't exist.",
   "not_allowed": "This method is not allowed.",
-  "locked": "This resource is locked.",
   "internal": "Oops! Internal server error. Contact the administrator.",
   "specific": "Specific error. Check with the administrator for details."
 }

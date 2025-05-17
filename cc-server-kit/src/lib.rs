@@ -110,9 +110,6 @@ pub mod otel {
 #[cfg(feature = "reqwest-msgpack")]
 pub use reqwest;
 
-#[cfg(feature = "cc-auth")]
-pub use cc_auth;
-
 #[cfg(feature = "cc-utils")]
 pub use cc_utils;
 

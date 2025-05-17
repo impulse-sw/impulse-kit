@@ -264,7 +264,7 @@ macro_rules! json {
 impl<T: serde::Serialize + Send> ExplicitServerWrite for Json<T> {
   async fn explicit_write(self, res: &mut Response) {
     res.status_code(salvo::http::StatusCode::OK);
-    match serde_json::to_string(&self.0) {
+    match sonic_rs::to_string(&self.0) {
       Ok(s) => {
         res.headers_mut().insert(
           CONTENT_TYPE,
@@ -359,7 +359,9 @@ pub trait MsgPackResponse {
 #[cfg(all(feature = "reqwest", feature = "cresult"))]
 impl MsgPackResponse for reqwest::Response {
   async fn msgpack<T: serde::de::DeserializeOwned>(self) -> crate::prelude::CResult<T> {
-    let full = self.bytes().await?;
-    rmp_serde::from_slice(&full).map_err(|e| e.into())
+    use crate::errors::CliError;
+
+    let full = self.bytes().await.map_err(CliError::from)?;
+    rmp_serde::from_slice(&full).map_err(CliError::from)
   }
 }

@@ -1,10 +1,7 @@
 //! Fast access to nice things.
 
 #[cfg(feature = "salvo")]
-pub use crate::brotli;
-
-#[cfg(feature = "salvo")]
-pub use crate::requests::MsgPackParser;
+pub use crate::requests::{MsgPackParser, SimdJsonParser};
 
 #[cfg(feature = "mresult")]
 pub use crate::results::MResult;
@@ -34,5 +31,3 @@ pub use salvo::oapi::endpoint;
 
 #[cfg(feature = "salvo")]
 pub use salvo::http::StatusCode;
-
-pub use crate::tracing::Instrument as TracingInstrument;

@@ -84,6 +84,9 @@ impl std::fmt::Display for CliError {
   }
 }
 
+#[cfg(feature = "cresult")]
+impl std::error::Error for CliError {}
+
 #[cfg(all(feature = "salvo", feature = "mresult"))]
 impl crate::responses::ExplicitServerWrite for ServerError {
   async fn explicit_write(self, res: &mut Response) {
@@ -92,7 +95,7 @@ impl crate::responses::ExplicitServerWrite for ServerError {
 
     res
       .write_body(
-        serde_json::to_string(&ErrorResponse {
+        sonic_rs::to_string(&ErrorResponse {
           err: self.decide_public_msg(),
         })
         .unwrap_or(r#"{"err":"Unknown server error"}"#.to_string()),
@@ -136,10 +139,6 @@ impl EndpointOutRegister for ServerError {
         .add_content("application/json", ErrorResponse::to_schema(components)),
     );
     operation.responses.insert(
-      "423",
-      salvo::oapi::Response::new("Locked").add_content("application/json", ErrorResponse::to_schema(components)),
-    );
-    operation.responses.insert(
       "500",
       salvo::oapi::Response::new("Internal server error")
         .add_content("application/json", ErrorResponse::to_schema(components)),
@@ -159,7 +158,6 @@ impl ServerError {
         Some(StatusCode::FORBIDDEN) => "Access denied.",
         Some(StatusCode::NOT_FOUND) => "Page or method not found.",
         Some(StatusCode::METHOD_NOT_ALLOWED) => "Method not allowed.",
-        Some(StatusCode::LOCKED) => "Your actions is locked.",
         Some(StatusCode::INTERNAL_SERVER_ERROR) => "Internal server error. Contact the administrator.",
         _ => "Specific error. Check with the administrator for details.",
       }
@@ -273,17 +271,17 @@ impl ServerError {
     self
   }
 
-  /// Error LOCKED (423).
-  #[cfg(all(feature = "salvo", feature = "mresult"))]
-  pub fn with_423(mut self) -> Self {
-    self.status_code = Some(StatusCode::LOCKED);
-    self
-  }
-
   /// Error INTERNAL SERVER ERROR (500).
   #[cfg(all(feature = "salvo", feature = "mresult"))]
   pub fn with_500(mut self) -> Self {
     self.status_code = Some(StatusCode::INTERNAL_SERVER_ERROR);
+    self
+  }
+
+  /// Error LOCKED (423).
+  #[cfg(all(feature = "salvo", feature = "mresult"))]
+  pub fn with_code(mut self, code: StatusCode) -> Self {
+    self.status_code = Some(code);
     self
   }
 
@@ -293,42 +291,49 @@ impl ServerError {
   }
 }
 
-#[cfg(feature = "cresult")]
-impl From<String> for CliError {
-  /// Creates a new error from a string.
-  fn from(value: String) -> Self {
-    Self { message: value }
-  }
-}
+// #[cfg(feature = "cresult")]
+// impl From<String> for CliError {
+//   /// Creates a new error from a string.
+//   fn from(value: String) -> Self {
+//     Self { message: value }
+//   }
+// }
+//
+// #[cfg(feature = "cresult")]
+// impl From<&str> for CliError {
+//   /// Creates a new error from a string.
+//   fn from(value: &str) -> Self {
+//     Self {
+//       message: value.to_owned(),
+//     }
+//   }
+// }
 
 #[cfg(feature = "cresult")]
-impl From<&str> for CliError {
-  /// Creates a new error from a string.
-  fn from(value: &str) -> Self {
+impl CliError {
+  /// Converts any `std::error::Error` to `CliError`.
+  pub fn from<T: std::error::Error>(value: T) -> Self {
     Self {
-      message: value.to_owned(),
+      message: value.to_string(),
     }
+  }
+
+  /// Constructs `CliError` from string.
+  #[allow(clippy::should_implement_trait)]
+  pub fn from_str(value: impl Into<String>) -> Self {
+    Self { message: value.into() }
+  }
+
+  /// Adds some context with the string.
+  pub fn context(mut self, value: impl Into<String>) -> Self {
+    self.message = value.into() + "\n  Caused by: " + &self.message;
+    self
   }
 }
 
-/// Macro to simplify `ConsiderCli` trait implementation.
-macro_rules! impl_consider_cli {
-  ($e:ty) => {
-    #[cfg(feature = "cresult")]
-    impl From<$e> for CliError {
-      /// Создаёт `CliError` из данной ошибки.
-      fn from(value: $e) -> Self {
-        value.to_string().into()
-      }
-    }
-  };
+#[cfg(feature = "cresult")]
+impl AsRef<str> for CliError {
+  fn as_ref(&self) -> &str {
+    self.message.as_str()
+  }
 }
-
-impl_consider_cli!(rmp_serde::encode::Error);
-impl_consider_cli!(rmp_serde::decode::Error);
-impl_consider_cli!(std::io::Error);
-impl_consider_cli!(std::string::FromUtf8Error);
-impl_consider_cli!(serde_json::Error);
-
-#[cfg(feature = "reqwest")]
-impl_consider_cli!(reqwest::Error);

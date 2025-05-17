@@ -17,7 +17,6 @@ oapi = ["salvo/oapi"]
 proxy = ["salvo/proxy", "reqwest/stream"]
 reqwest-msgpack = ["dep:reqwest"]
 reqwest-http3 = ["reqwest/http3"]
-cc-auth = ["dep:cc-auth"]
 cc-utils = []
 log-without-filtering = []
 flash = ["salvo/flash"]
@@ -43,7 +42,7 @@ test = [
   "dep:flate2",
   "dep:mime",
   "dep:zstd",
-  "dep:serde_json",
+  "dep:sonic-rs",
   "dep:rmp-serde",
 ]
 timeout = ["salvo/timeout"]
@@ -53,7 +52,6 @@ tower-compat = ["salvo/tower-compat"]
 [dependencies]
 brotli = { optional = true, workspace = true, features = ["default"] }
 bytes = { optional = true, workspace = true }
-cc-auth = { optional = true, workspace = true }
 cc-utils = { workspace = true, features = ["salvo", "reqwest", "mresult"] }
 encoding_rs = { optional = true, workspace = true }
 flate2 = { optional = true, workspace = true, features = ["default"] }
@@ -67,8 +65,8 @@ reqwest = { optional = true, workspace = true, features = ["json", "rustls-tls"]
 rmp-serde = { optional = true, workspace = true }
 salvo = { workspace = true, features = ["affix-state", "compression", "rustls", "cookie", "server", "http1", "http2", "server-handle"] }
 serde = { workspace = true, features = ["derive"] }
-serde_json = { optional = true, workspace = true }
 serde_yaml = { workspace = true }
+sonic-rs = { optional = true, workspace = true }
 tokio = { workspace = true, features = ["signal"] }
 tracing = { workspace = true }
 tracing-appender = { workspace = true }
