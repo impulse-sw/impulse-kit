@@ -291,24 +291,6 @@ impl ServerError {
   }
 }
 
-// #[cfg(feature = "cresult")]
-// impl From<String> for CliError {
-//   /// Creates a new error from a string.
-//   fn from(value: String) -> Self {
-//     Self { message: value }
-//   }
-// }
-//
-// #[cfg(feature = "cresult")]
-// impl From<&str> for CliError {
-//   /// Creates a new error from a string.
-//   fn from(value: &str) -> Self {
-//     Self {
-//       message: value.to_owned(),
-//     }
-//   }
-// }
-
 #[cfg(feature = "cresult")]
 impl CliError {
   /// Converts any `std::error::Error` to `CliError`.
