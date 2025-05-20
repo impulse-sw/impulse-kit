@@ -10,6 +10,16 @@ Server Kit is a simply configurable backend framework based on [Salvo](https://g
 
 [Server Kit Documentation](./cc-server-kit/README.md)
 
+### CC Server Kit DSL
+
+Server Kit provides DSL-to-API prototype translator to simplify development:
+
+- automated version bumping on breaking changes
+- automated OpenAPI spec generation
+- automated OpenTelemetry instrumenting.
+
+[SK DSL Documentation](./cc-server-kit-dsl/README.md)
+
 ### CC Static Server
 
 Static Server is simple frontend-to-client provider built with Server Kit. You can edit `static-server.yaml` to specify Server Kit parameters.
@@ -81,3 +91,7 @@ fn main() {
 [CC UI Kit Documentation](./cc-ui-kit/README.md)
 
 [CC UI Kit Example](https://github.com/impulse-sw/cc-ui-kit-example)
+
+## Rust Toolchain
+
+**This repository actively uses `nightly` toolchain.** While these frameworks and libraries are battle-tested anyway, consider not to choose `cc-services` to use if you are not aware of `nightly` toolchain.

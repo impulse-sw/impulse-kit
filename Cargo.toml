@@ -2,6 +2,7 @@
 members = [
   "cc-utils",
   "cc-server-kit",
+  "cc-server-kit-dsl",
   "cc-static-server",
   "cc-ui-kit",
   "cc-error-pages",
@@ -9,7 +10,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.7.0-1"
+version = "0.8.0"
 edition = "2024"
 license = "MIT"
 authors = ["Klimenty Titov <aclo.create@gmail.com>"]
@@ -23,6 +24,7 @@ cc-ui-kit = { path = "cc-ui-kit" }
 anyhow = "1"
 brotli = { version = "7", default-features = false }
 bytes = "1"
+clap = { version = "4", features = ["derive"] }
 console_error_panic_hook = "0.1.7"
 console_log = "1"
 encoding_rs = "0.8"
