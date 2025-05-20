@@ -1,0 +1,13 @@
+startup_type: http_localhost
+server_port: 8801
+allow_oapi_access: true
+oapi_frontend_type: Scalar
+oapi_name: Server Test
+oapi_ver: 0.0.1
+oapi_api_addr: /api
+log_level: info
+log_file_level: debug
+log_rolling: daily
+log_rolling_max_files: 5
+open_telemetry_endpoint: http://127.0.0.1:4317
+open_telemetry_log_level: trace

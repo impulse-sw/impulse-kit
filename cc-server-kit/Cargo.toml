@@ -15,7 +15,6 @@ websocket = ["salvo/websocket"]
 otel = ["salvo/otel", "dep:opentelemetry", "dep:opentelemetry-otlp", "dep:opentelemetry_sdk", "dep:tracing-opentelemetry"]
 oapi = ["salvo/oapi"]
 proxy = ["salvo/proxy", "reqwest/stream"]
-reqwest-msgpack = ["dep:reqwest"]
 reqwest-http3 = ["reqwest/http3"]
 cc-utils = []
 log-without-filtering = []
@@ -48,6 +47,35 @@ test = [
 timeout = ["salvo/timeout"]
 trailing-slash = ["salvo/trailing-slash"]
 tower-compat = ["salvo/tower-compat"]
+full = [
+  "http3",
+  "acme",
+  "cors",
+  "websocket",
+  "otel",
+  "oapi",
+  "proxy",
+  "reqwest-http3",
+  "cc-utils",
+  "flash",
+  "force-https",
+  "jwt-auth",
+  "basic-auth",
+  "cache",
+  "caching-headers",
+  "catch-panic",
+  "compression",
+  "concurrency-limiter",
+  "csrf",
+  "request-id",
+  "session",
+  "size-limiter",
+  "sse",
+  "test",
+  "timeout",
+  "trailing-slash",
+  "tower-compat",
+]
 
 [dependencies]
 brotli = { optional = true, workspace = true, features = ["default"] }
@@ -75,4 +103,4 @@ tracing-subscriber = { workspace = true }
 zstd = { optional = true, workspace = true, features = ["default"] }
 
 [package.metadata.cargo-all-features]
-denylist = ["cc-auth", "flash", "cache", "compression", "csrf", "session", "jwt-auth", "basic-auth", "caching-headers", "catch-panic", "concurrency-limiter", "request-id", "size-limiter", "sse", "timeout", "trailing-slash", "tower-compat", "reqwest-msgpack", "reqwest-http3", "websocket", "proxy"]
+denylist = ["cc-auth", "flash", "cache", "compression", "csrf", "session", "jwt-auth", "basic-auth", "caching-headers", "catch-panic", "concurrency-limiter", "request-id", "size-limiter", "sse", "timeout", "trailing-slash", "tower-compat", "reqwest-http3", "websocket", "proxy"]

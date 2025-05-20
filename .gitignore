@@ -3,3 +3,4 @@
 **/artifacts/
 **/Cargo.lock
 **/dist/
+cc-server-kit-dsl/examples/api/v*/

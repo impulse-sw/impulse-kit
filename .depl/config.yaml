@@ -107,6 +107,19 @@ pipelines:
             - rust
           commands:
             - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package cc-server-kit --target x86_64-unknown-linux-gnu
+      - title: Lint `cc-server-kit-dsl`
+        desc: Получено из `Cargo Clippy`.
+        info: cargo-clippy@0.1.0
+        tags:
+          - cargo
+          - clippy
+        exec_in_project_dir: false
+        action:
+          type: pre_build
+          supported_langs:
+            - rust
+          commands:
+            - bash_c: cargo clippy --package skdsl --target x86_64-unknown-linux-gnu
       - title: Lint `cc-static-server`
         desc: Получено из `Cargo Clippy`.
         info: cargo-clippy@0.1.0
@@ -144,10 +157,6 @@ pipelines:
             - rust
           commands:
             - bash_c: cargo test --doc
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
       - title: Generate docs
         desc: ''
         info: cargo-doc@0.1.0
@@ -161,10 +170,6 @@ pipelines:
             - rust
           commands:
             - bash_c: cargo doc --target x86_64-unknown-linux-gnu --workspace --no-deps
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
   - title: build-static-server
     desc: Build `cc-static-server` and update content storage
     info: cc-services-static-server@0.1.0
@@ -412,3 +417,121 @@ pipelines:
               show_success_output: false
               show_bash_c: true
               only_when_fresh: false
+  - title: build-skdsl
+    desc: Build and install `skdsl`
+    info: cc-services-skdsl@0.1.0
+    tags:
+      - cargo
+      - clippy
+      - lint
+    default: true
+    actions:
+      - title: Lint
+        info: cargo-clippy@0.1.0
+        tags:
+          - cargo
+          - clippy
+        requirements:
+          - type: exists_any
+            paths:
+              - /bin/cargo
+              - ~/.cargo/bin/cargo
+        action:
+          type: pre_build
+          supported_langs:
+            - rust
+          commands:
+            - bash_c: cargo clippy --package skdsl --target x86_64-unknown-linux-gnu
+      - title: Format
+        info: cargo-fmt@0.1.0
+        tags:
+          - rust
+          - cargo
+          - fmt
+        exec_in_project_dir: true
+        action:
+          type: pre_build
+          supported_langs:
+            - rust
+          commands:
+            - bash_c: cd cc-server-kit-dsl && cargo fmt -- --config tab_spaces=2,max_width=120 */**/*.rs
+      - title: Cargo Build (Release)
+        desc: Build the Rust project with Cargo default settings in release mode
+        info: cargo-rel@0.1.0
+        tags:
+          - rust
+          - cargo
+        requirements:
+          - type: exists
+            path: /bin/cargo
+        action:
+          type: build
+          supported_langs:
+            - rust
+          commands:
+            - bash_c: cargo build --release --package skdsl --target x86_64-unknown-linux-gnu
+              ignore_fails: false
+              show_success_output: false
+              show_bash_c: true
+      - title: UPX Compress
+        desc: Compress the binary with UPX.
+        info: upx-compress@0.1.0
+        tags:
+          - upx
+        requirements:
+          - type: exists_any
+            paths:
+              - /usr/bin/upx
+              - ~/.local/bin/upx
+        exec_in_project_dir: false
+        action:
+          type: post_build
+          supported_langs:
+            - rust
+            - go
+            - c
+            - cpp
+          commands:
+            - bash_c: upx <af>
+              ignore_fails: false
+              show_success_output: false
+              show_bash_c: true
+              only_when_fresh: false
+              daemon: false
+              placeholders:
+                - <af>
+              replacements:
+                - group:
+                    - from: <af>
+                      to:
+                        title: target/x86_64-unknown-linux-gnu/release/skdsl
+                        is_secret: false
+                        value:
+                          type: plain
+                          value: target/x86_64-unknown-linux-gnu/release/skdsl
+      - title: Install to ~/.cargo/bin
+        info: install-to-cargo-bin@0.1.1
+        tags:
+          - cargo
+        action:
+          type: install
+          target:
+            arch: x86_64
+            os: linux
+            os_derivative: any
+            os_version:
+              type: no
+          commands:
+            - bash_c: cp -f <af> ~/.cargo/bin
+              show_bash_c: false
+              placeholders:
+                - <af>
+              replacements:
+                - group:
+                    - from: <af>
+                      to:
+                        title: target/x86_64-unknown-linux-gnu/release/skdsl
+                        is_secret: false
+                        value:
+                          type: plain
+                          value: target/x86_64-unknown-linux-gnu/release/skdsl

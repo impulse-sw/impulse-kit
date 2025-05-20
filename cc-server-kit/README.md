@@ -1,6 +1,6 @@
 # CC Server Kit
 
-State-of-art simple and powerful web server based on `salvo`. Provides extended tracing, configuration-over-YAML, QUIC/HTTP3, MessagePack support, ACME, OpenAPI and OpenTelemetry features *by default*, with one step to CORS and WebSockets.
+State-of-art simple and powerful web server based on [Salvo](https://github.com/salvo-rs/salvo). Provides extended tracing, configuration-over-YAML, QUIC/HTTP3, MessagePack support, ACME, OpenAPI and OpenTelemetry features *by default*, with one step to CORS and WebSockets.
 
 ## How's it work
 
@@ -58,7 +58,7 @@ struct Setup {
 
 impl GenericSetup for Setup {
   fn generic_values(&self) -> &GenericValues { &self.generic_values }
-  fn generic_values_mut(&mut self) -> &mut GenericValues { &mut self.generic_values; }
+  fn generic_values_mut(&mut self) -> &mut GenericValues { &mut self.generic_values }
 }
 
 #[derive(Deserialize, Serialize, Debug, salvo::oapi::ToSchema)]

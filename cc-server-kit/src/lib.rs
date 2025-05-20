@@ -107,9 +107,6 @@ pub mod otel {
   pub use tracing_opentelemetry as tracing_otel;
 }
 
-#[cfg(feature = "reqwest-msgpack")]
-pub use reqwest;
-
 #[cfg(feature = "cc-utils")]
 pub use cc_utils;
 

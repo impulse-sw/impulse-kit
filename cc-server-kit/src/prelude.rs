@@ -1,10 +1,7 @@
 //! Standard prelude to import needed tools at once.
 
 #[cfg(feature = "cc-utils")]
-pub use cc_utils::{
-  self,
-  prelude::{Json, MResult, MsgPack, MsgPackParser, OK, ServerError, json, msgpack, ok},
-};
+pub use cc_utils::{self, prelude::*};
 
 pub use crate::generic_setup::{GenericSetup, GenericValues, load_generic_config, load_generic_state};
 pub use crate::startup::{get_root_router, get_root_router_autoinject, start};

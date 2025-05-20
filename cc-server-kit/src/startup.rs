@@ -22,11 +22,6 @@ use salvo::http::HeaderValue;
 #[cfg(feature = "http3")]
 use salvo::http::header::ALT_SVC;
 
-#[cfg(feature = "oapi")]
-use salvo::oapi::SecurityScheme;
-#[cfg(feature = "oapi")]
-use salvo::oapi::security::Http;
-
 use crate::generic_setup::{GenericServerState, GenericSetup, StartupVariant};
 
 #[cfg(feature = "http3")]
@@ -156,10 +151,6 @@ pub async fn start_with_service(
     let doc = OpenApi::new(
       app_config.oapi_name.as_ref().unwrap(),
       app_config.oapi_ver.as_ref().unwrap(),
-    )
-    .add_security_scheme(
-      "bearer",
-      SecurityScheme::Http(Http::new(salvo::oapi::security::HttpAuthScheme::Bearer).bearer_format("JSON")),
     )
     .merge_router(&service.router);
 

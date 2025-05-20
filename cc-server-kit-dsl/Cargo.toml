@@ -1,0 +1,20 @@
+[package]
+name = "skdsl"
+description = "DSL-to-API translator"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+cc-utils = { workspace = true, features = ["mresult"] }
+regex = "1.11"
+serde = { workspace = true, features = ["derive"] }
+sonic-rs = { workspace = true }
+stringcase = "0.4.0"
+clap = { workspace = true }
+
+[dev-dependencies]
+cc-server-kit = { workspace = true, features = ["cc-utils", "oapi"] }
+salvo = { workspace = true }
+tokio = { workspace = true, features = ["macros"] }
