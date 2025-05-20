@@ -232,9 +232,28 @@ api req/master get/test                   -> ok c/C3A-Sign
 api req/slave  post/audio f/Vec<u8>/audio -> b/msgpack/ComplexAliasType
 ```
 
+You should specify complex requirements usage *after tag name* on tag definition, or *before all special requirements* on endpoint definition.
+
 > [!NOTE]
 > You cannot specify body, forms and path params at complex requirements!
 
 #### Hidden requirements
 
 If you have no need to use some requirements and only want to define them at OpenAPI spec, you can specify complex requirement as `req/hidden`.
+
+## OpenAPI specification
+
+You can generate single OpenAPI router with Server Kit just by configuration:
+
+```yaml
+oapi_frontend_type: Scalar  # or SwaggerUI
+oapi_name: My API
+oapi_ver: 0.1.0
+oapi_api_addr: /api         # path to OpenAPI specification frontend
+```
+
+## Breaking changes
+
+For no-breaking changes, you should only define new tags or new endpoints.
+
+You can also modify current endpoints to *remove* incoming requirements and *add* outgoing requirements. All other changes will be marked as breaking.

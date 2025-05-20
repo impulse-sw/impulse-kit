@@ -33,9 +33,9 @@ impl File {
         let (old_incoming, old_outgoing) = unite_requirements(old_endp_desc, old_tag, self)?;
         let (new_incoming, new_outgoing) = unite_requirements(new_endp_desc, new_tag, new_version)?;
 
-        for indata in old_incoming.iter() {
-          if !new_incoming.contains(indata) {
-            ServerError::from_public("There is no such requirement! Breaking change!").bail()?;
+        for indata in new_incoming.iter() {
+          if !old_incoming.contains(indata) {
+            ServerError::from_public("New requirement provided! Breaking change!").bail()?;
           }
         }
 

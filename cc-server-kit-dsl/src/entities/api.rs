@@ -256,10 +256,10 @@ pub fn generate_api_endpoint(endpoint: &Api, tag: &TaggedApi, api_desc: &File) -
     }
 
     if incoming.iter().any(|i| i.is_header() || i.is_query() || i.is_path()) {
-      endp_macro.push_str(&generate_endp_macro_params(&incoming));
+      endp_macro.push_str(&generate_endp_macro_params(&incoming.iter().collect::<Vec<_>>()));
     }
 
-    endp_macro.push_str(&generate_endp_macro_resp(&outgoing));
+    endp_macro.push_str(&generate_endp_macro_resp(&outgoing.iter().collect::<Vec<_>>()));
 
     endp_macro.push_str("\n)]");
     lines.push(endp_macro);
@@ -428,7 +428,7 @@ fn tag_name_normalize(tag_name: impl AsRef<str>) -> String {
   tag_name.replace(['_', '-'], " ")
 }
 
-pub fn generate_endp_macro_params(incoming: &[Incoming]) -> String {
+pub fn generate_endp_macro_params(incoming: &[&Incoming]) -> String {
   let param_cntr = incoming
     .iter()
     .filter(|i| i.is_header() || i.is_cookie() || i.is_query() || i.path_params_contains_any())
@@ -511,7 +511,7 @@ pub fn generate_endp_macro_params(incoming: &[Incoming]) -> String {
   }
 }
 
-pub fn generate_endp_macro_resp(outgoing: &[Outgoing]) -> String {
+pub fn generate_endp_macro_resp(outgoing: &[&Outgoing]) -> String {
   format!(
     ",\n  responses((\n    status_code = 200,\n    description = \"\"{}{}\n  ))",
     if let Some(Outgoing::Body(body)) = outgoing.iter().find(|o| o.is_body()) {

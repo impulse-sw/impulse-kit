@@ -82,7 +82,11 @@ pub fn parse_requirement_usage(requirement_str: &str) -> MResult<String> {
   Ok(parts[1].to_string())
 }
 
-pub fn unite_requirements(endpoint: &Api, tag: &TaggedApi, api_desc: &File) -> MResult<(Vec<Incoming>, Vec<Outgoing>)> {
+pub fn unite_requirements(
+  endpoint: &Api,
+  tag: &TaggedApi,
+  api_desc: &File,
+) -> MResult<(BTreeSet<Incoming>, BTreeSet<Outgoing>)> {
   let mut incoming = BTreeSet::new();
   let mut outcoming = BTreeSet::new();
 
@@ -115,8 +119,5 @@ pub fn unite_requirements(endpoint: &Api, tag: &TaggedApi, api_desc: &File) -> M
     }
   });
 
-  Ok((
-    incoming.into_iter().collect::<Vec<_>>(),
-    outcoming.into_iter().collect::<Vec<_>>(),
-  ))
+  Ok((incoming, outcoming))
 }
