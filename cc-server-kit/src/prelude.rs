@@ -1,6 +1,5 @@
 //! Standard prelude to import needed tools at once.
 
-#[cfg(feature = "cc-utils")]
 pub use cc_utils::{self, prelude::*};
 
 pub use crate::generic_setup::{GenericSetup, GenericValues, load_generic_config, load_generic_state};
@@ -14,6 +13,9 @@ pub use salvo::{Depot, Request, Response, Router};
 
 #[cfg(feature = "oapi")]
 pub use salvo::oapi::endpoint;
+
+#[cfg(feature = "otel")]
+pub use crate::otel;
 
 #[cfg(feature = "test")]
 pub use crate::test_exts::*;

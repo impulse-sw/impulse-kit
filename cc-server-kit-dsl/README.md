@@ -80,6 +80,23 @@ type MyType crate::types::ComplexRequest
 type MyType HashMap<String, u32>
 ```
 
+> [!NOTE]
+> Types you use in endpoint's OpenAPI descriptions should implement `salvo::oapi::ToSchema` trait (Salvo requirement) and `serde::{Deserialize, Serialize}`.
+> 
+> This done for standard library types and generally is easy enough:
+> 
+> ```rust
+> use cc_server_kit::salvo;
+> use salvo::oapi::ToSchema;
+> use serde::{Deserialize, Serialize};
+> 
+> #[derive(Deserialize, Serialize, ToSchema)]
+> pub struct YourOwnType {
+>   pub my_field1: String,
+>   pub my_field2: u64,
+> }
+> ```
+
 ### Requirements types
 
 `skdsl` provides six types of incoming requirements:

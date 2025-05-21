@@ -17,9 +17,9 @@ pub struct TaggedApi {
 
 #[derive(Deserialize, Serialize)]
 pub struct Api {
-  pub used_types: Vec<String>,
   pub name: String,
   pub hidden: bool,
+  pub used_types: Vec<String>,
   pub requirements: Vec<String>,
   pub incoming: Vec<Incoming>,
   pub outcoming: Vec<Outgoing>,

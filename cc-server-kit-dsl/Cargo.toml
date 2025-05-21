@@ -15,6 +15,5 @@ stringcase = "0.4.0"
 clap = { workspace = true }
 
 [dev-dependencies]
-cc-server-kit = { workspace = true, features = ["cc-utils", "oapi"] }
-salvo = { workspace = true }
+cc-server-kit = { workspace = true, features = ["oapi"] }
 tokio = { workspace = true, features = ["macros"] }

@@ -107,7 +107,6 @@ pub mod otel {
   pub use tracing_opentelemetry as tracing_otel;
 }
 
-#[cfg(feature = "cc-utils")]
 pub use cc_utils;
 
 #[cfg(feature = "test")]

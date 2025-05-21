@@ -28,3 +28,17 @@ cargo build --release
 
 > [!NOTE]
 > There is no need to specify working dir, static server must work with distribution files placed nearly.
+
+## Usage as a library
+
+Just include it into your `Cargo.toml`:
+
+```toml
+[dependencies]
+cc-static-server = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.8" }
+```
+
+and use one of these functions:
+
+- `frontend_router` - same behavior as the binary Static Server
+- `frontend_router_from_given_dist` - you can specify any dist folder you want

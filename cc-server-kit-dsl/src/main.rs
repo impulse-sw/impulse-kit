@@ -61,18 +61,22 @@ fn main() -> MResult<()> {
 
   let _ = fs::create_dir_all(PathBuf::from(&output_dir).join(&version));
   for file in generated_code {
-    let filename = output_dir.join(&version).join(file.filepath);
-    if !fs::exists(&filename).is_ok_and(|v| v) || regenerate {
+    let filename = output_dir.join(&version).join(&file.filepath);
+    if !fs::exists(&filename).is_ok_and(|v| v) {
+      println!("Writing file {:?}...", file.filepath);
+      fs::write(filename, file.content).map_err(ServerError::from_private)?;
+    } else if regenerate {
+      println!("Rewriting file {:?}...", file.filepath);
       fs::write(filename, file.content).map_err(ServerError::from_private)?;
     }
   }
   fs::write(
-    output_dir.join(version).join(".api.json"),
-    sonic_rs::to_string(&api_desc).map_err(ServerError::from_private)?,
+    output_dir.join(&version).join(".api.json"),
+    sonic_rs::to_string_pretty(&api_desc).map_err(ServerError::from_private)?,
   )
   .map_err(ServerError::from_private)?;
 
-  println!("Generated API code written.");
+  println!("Generated API code written. Version: {}.", version);
 
   Ok(())
 }
