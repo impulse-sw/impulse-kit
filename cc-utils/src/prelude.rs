@@ -3,6 +3,9 @@
 #[cfg(feature = "salvo")]
 pub use crate::requests::{MsgPackParser, SimdJsonParser};
 
+#[cfg(all(feature = "reqwest", feature = "cresult"))]
+pub use crate::requests::MsgPackRequest;
+
 #[cfg(feature = "mresult")]
 pub use crate::results::MResult;
 
