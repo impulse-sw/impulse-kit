@@ -265,6 +265,7 @@ pub async fn load_generic_state<T: GenericSetup>(setup: &T) -> MResult<GenericSe
     &data.log_rolling_max_files,
     #[cfg(feature = "otel")]
     &data.open_telemetry_grpc_endpoint,
+    #[cfg(feature = "otel")]
     &data.open_telemetry_http_endpoint,
     #[cfg(feature = "otel")]
     &otel_log_level,
