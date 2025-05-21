@@ -7,7 +7,7 @@ license = { workspace = true }
 authors = { workspace = true }
 
 [features]
-default = ["http3", "cors", "acme", "oapi", "cc-utils", "otel", "force-https"]
+default = ["http3", "cors", "acme", "oapi", "otel", "force-https"]
 http3 = ["salvo/quinn"]
 acme = ["salvo/acme"]
 cors = ["salvo/cors"]
@@ -16,7 +16,6 @@ otel = ["salvo/otel", "dep:opentelemetry", "dep:opentelemetry-otlp", "dep:opente
 oapi = ["salvo/oapi"]
 proxy = ["salvo/proxy", "reqwest/stream"]
 reqwest-http3 = ["reqwest/http3"]
-cc-utils = []
 log-without-filtering = []
 flash = ["salvo/flash"]
 force-https = ["salvo/force-https"]
@@ -56,7 +55,6 @@ full = [
   "oapi",
   "proxy",
   "reqwest-http3",
-  "cc-utils",
   "flash",
   "force-https",
   "jwt-auth",
@@ -86,7 +84,7 @@ flate2 = { optional = true, workspace = true, features = ["default"] }
 http-body-util = { optional = true, workspace = true }
 mime = { optional = true, workspace = true }
 notify = { workspace = true }
-opentelemetry = { optional = true, workspace = true }
+opentelemetry = { optional = true, workspace = true, features = ["metrics"] }
 opentelemetry-otlp = { optional = true, workspace = true, features = ["tonic", "trace", "http-proto", "grpc-tonic"] }
 opentelemetry_sdk = { optional = true, workspace = true, features = ["rt-tokio"] }
 reqwest = { optional = true, workspace = true, features = ["json", "rustls-tls"] }

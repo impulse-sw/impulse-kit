@@ -9,6 +9,25 @@ State-of-art simple and powerful web server based on [Salvo](https://github.com/
 3. You create your own `salvo::Router` and then generate server's `Future` and handle by `start` function.
 4. You manually start awaiting `server`.
 
+## Using Server Kit
+
+To use Server Kit, just include this line into your `Cargo.toml`:
+
+```toml
+[dependencies]
+cc-server-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.8" }
+```
+
+## Extended utilities
+
+Server Kit uses `cc-utils` to improve functionality by:
+
+- providing describeful `ServerError` and associated `MResult`
+- providing SIMD JSON and MsgPack support
+- easy response macros
+
+Read more: [`cc-utils`](./../cc-utils/README.md).
+
 ## 4 Quick start steps
 
 1. Create `Setup` struct with your setup data fields and `GenericValues` inside.
@@ -38,7 +57,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-cc-server-kit = { git = "https://github.com/markcda/cc-server-kit.git", default-features = false, features = ["oapi", "utils"] }
+cc-server-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.8" }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["macros"] }
 ```
@@ -115,6 +134,10 @@ async fn main() {
 ```
 
 Here we go! You can now start the server with `cargo run`!
+
+## Common Salvo documentation
+
+Server Kit is just a layer on top of Salvo framework. Use its [documentation and examples](https://salvo.rs/guide/quick-start.html) to know how to develop web servers in Server Kit.
 
 ## Configuring your server
 
@@ -219,10 +242,14 @@ log_rolling_max_files: 5
 
 ### OpenTelemetry
 
-CC Server Kit supports gRPC batch exporter. To activate OTLP, enable `otel` feature (enabled by default) and specify `open_telemetry_endpoint` field:
+CC Server Kit supports gRPC span exporter and HTTP binary metrics exporter.
+
+#### Span tracing
+
+To activate span tracing, enable `otel` feature (enabled by default) and specify `open_telemetry_grpc_endpoint` field:
 
 ```yaml
-open_telemetry_endpoint: http://127.0.0.1:4317  # Jaeger default gRPC write API endpoint
+open_telemetry_grpc_endpoint: http://localhost:4317  # Jaeger default gRPC write API endpoint
 ```
 
 Also, you can specify log level (if none specified, goes back to `log_level` field):
@@ -230,6 +257,54 @@ Also, you can specify log level (if none specified, goes back to `log_level` fie
 ```yaml
 open_telemetry_log_level: info  # error | warn | info | debug | trace
 ```
+
+And use spans in the code:
+
+```rust
+// Import `tracing` module
+use cc_server_kit::prelude::*;
+
+// Use `tracing::instrument` attribute macro to instrument your handler
+#[handler]
+#[tracing::instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]
+async fn my_handler() -> MResult<OK> {
+  // Use `tracing` instead of `log`
+  tracing::debug!("This is the DEBUG level log!");
+  
+  // Use `.instrument(...)` method over async functions to define spans
+  any_async_func
+    .instrument(tracing::info_span!("Executed any async function"))
+    .await;
+  
+  ok!()
+}
+```
+
+Read more about `tracing`: [`tracing` docs](https://docs.rs/tracing/latest/tracing/).
+
+#### Metrics
+
+To activate metrics collector, enable `otel` feature (enabled by default) and specify `open_telemetry_http_endpoint` field:
+
+```yaml
+open_telemetry_http_endpoint: http://localhost:9090/api/v1/otlp/v1/metrics  # Prometheus default write API endpoint
+```
+
+And use metrics in the code:
+
+```rust
+// Import `otel` module
+use cc_server_kit::prelude::*;
+
+// Get a meter
+let meter = otel::api::global::meter("my_meter");
+
+// Create a metric
+let counter = meter.u64_counter("my_counter").build();
+counter.add(1, &[KeyValue::new("key", "value")]);
+```
+
+Read more about `Meter`: [`opentelemetry` docs](https://docs.rs/opentelemetry/latest/opentelemetry/metrics/struct.Meter.html).
 
 ### Server port achieveing
 

@@ -1,3 +1,4 @@
+use cc_server_kit::salvo;
 use cc_server_kit::salvo::oapi::ToSchema;
 use serde::{Deserialize, Serialize};
 

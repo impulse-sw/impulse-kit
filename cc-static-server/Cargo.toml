@@ -7,6 +7,6 @@ license = { workspace = true }
 authors = { workspace = true }
 
 [dependencies]
-cc-server-kit = { workspace = true, features = ["http3", "cors", "acme", "oapi", "cc-utils", "otel", "force-https"] }
+cc-server-kit = { workspace = true, features = ["http3", "cors", "acme", "oapi", "otel", "force-https"] }
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["macros"] }

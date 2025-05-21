@@ -97,8 +97,11 @@ pub struct GenericValues {
   pub log_rolling_max_files: Option<u32>,
 
   #[cfg(feature = "otel")]
-  /// Endpoint to export OpenTelemetry (e.g., Jaeger).
-  pub open_telemetry_endpoint: Option<String>,
+  /// Endpoint to export OpenTelemetry via gRPC (e.g., Jaeger).
+  pub open_telemetry_grpc_endpoint: Option<String>,
+  #[cfg(feature = "otel")]
+  /// Endpoint to export OpenTelemetry via HTTP binary protocol (e.g., Prometheus).
+  pub open_telemetry_http_endpoint: Option<String>,
   #[cfg(feature = "otel")]
   /// OpenTelemetry log level.
   pub open_telemetry_log_level: Option<String>,
@@ -132,7 +135,9 @@ impl Default for GenericValues {
       log_rolling: None,
       log_rolling_max_files: None,
       #[cfg(feature = "otel")]
-      open_telemetry_endpoint: None,
+      open_telemetry_grpc_endpoint: None,
+      #[cfg(feature = "otel")]
+      open_telemetry_http_endpoint: None,
       #[cfg(feature = "otel")]
       open_telemetry_log_level: None,
       server_port_achiever: None,
@@ -259,7 +264,8 @@ pub async fn load_generic_state<T: GenericSetup>(setup: &T) -> MResult<GenericSe
     log_rolling,
     &data.log_rolling_max_files,
     #[cfg(feature = "otel")]
-    &data.open_telemetry_endpoint,
+    &data.open_telemetry_grpc_endpoint,
+    &data.open_telemetry_http_endpoint,
     #[cfg(feature = "otel")]
     &otel_log_level,
   )?;
@@ -401,13 +407,15 @@ fn log_filter(metadata: &tracing::Metadata) -> bool {
   })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn init_logging(
   app_name: &str,
   log_level: &MResult<tracing::Level>,
   log_file_level: &MResult<tracing::Level>,
   log_rolling: tracing_appender::rolling::Rotation,
   log_rolling_max_files: &Option<u32>,
-  #[cfg(feature = "otel")] open_telemetry_endpoint: &Option<String>,
+  #[cfg(feature = "otel")] open_telemetry_grpc_endpoint: &Option<String>,
+  #[cfg(feature = "otel")] open_telemetry_http_endpoint: &Option<String>,
   #[cfg(feature = "otel")] open_telemetry_log_level: &MResult<tracing::Level>,
 ) -> MResult<Option<TracingFileGuard>> {
   use tracing_appender::rolling;
@@ -487,21 +495,21 @@ fn init_logging(
   };
 
   #[cfg(feature = "otel")]
-  let otel_tracer = if let Some(open_telemetry_endpoint) = open_telemetry_endpoint
+  let otel_tracer = if let Some(otel_grpc_endpoint) = open_telemetry_grpc_endpoint
     && let Ok(otel_log_level) = open_telemetry_log_level.as_ref().or(log_level.as_ref())
   {
     let otel_span_exporter = opentelemetry_otlp::SpanExporter::builder()
       .with_tonic()
       .with_protocol(opentelemetry_otlp::Protocol::Grpc)
-      .with_endpoint(open_telemetry_endpoint.as_str())
+      .with_endpoint(otel_grpc_endpoint.as_str())
       .with_timeout(std::time::Duration::from_secs(5))
       .build()
       .map_err(|e| {
         ServerError::from_private(e)
-          .with_public("Failed to initialize OTEL telemetry!")
+          .with_public("Failed to initialize OTEL gRPC telemetry!")
           .with_500()
       })?;
-    let otel_provider = opentelemetry_sdk::trace::SdkTracerProvider::builder()
+    let otel_tracer_provider = opentelemetry_sdk::trace::SdkTracerProvider::builder()
       .with_batch_exporter(otel_span_exporter)
       .with_id_generator(RandomIdGenerator::default())
       .with_max_events_per_span(32)
@@ -512,18 +520,37 @@ fn init_logging(
 
     #[cfg(not(feature = "log-without-filtering"))]
     let opentelemetry = tracing_opentelemetry::layer()
-      .with_tracer(otel_provider)
+      .with_tracer(otel_tracer_provider)
       .with_filter(LevelFilter::from_level(*otel_log_level))
       .with_filter(filter_fn(log_filter));
     #[cfg(feature = "log-without-filtering")]
     let opentelemetry = tracing_opentelemetry::layer()
-      .with_tracer(otel_provider)
+      .with_tracer(otel_tracer_provider)
       .with_filter(LevelFilter::from_level(*otel_log_level));
 
     Some(opentelemetry)
   } else {
     None
   };
+
+  #[cfg(feature = "otel")]
+  if let Some(otel_http_endpoint) = open_telemetry_http_endpoint {
+    let otel_metric_exporter = opentelemetry_otlp::MetricExporter::builder()
+      .with_http()
+      .with_protocol(opentelemetry_otlp::Protocol::HttpBinary)
+      .with_endpoint(otel_http_endpoint.as_str())
+      .with_timeout(std::time::Duration::from_secs(5))
+      .build()
+      .map_err(|e| {
+        ServerError::from_private(e)
+          .with_public("Failed to initialize OTEL HTTP telemetry!")
+          .with_500()
+      })?;
+    let meter_provider = opentelemetry_sdk::metrics::SdkMeterProvider::builder()
+      .with_periodic_exporter(otel_metric_exporter)
+      .build();
+    opentelemetry::global::set_meter_provider(meter_provider.clone());
+  }
 
   #[cfg(feature = "otel")]
   let collector = registry().with(file_tracer).with(io_tracer).with(otel_tracer);

@@ -2,6 +2,15 @@
 
 Frontend framework with [`shadcn`-styled](https://ui.shadcn.com) [Thaw](https://thawui.vercel.app) components, based on [Leptos](https://leptos.dev/) v0.7.
 
+## Usage
+
+Just include it into your `Cargo.toml`:
+
+```toml
+[dependencies]
+cc-ui-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.8" }
+```
+
 ## Simple application entrypoint
 
 This is all you need to start Leptos application:
