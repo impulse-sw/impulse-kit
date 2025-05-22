@@ -12,7 +12,7 @@ http3 = ["salvo/quinn"]
 acme = ["salvo/acme"]
 cors = ["salvo/cors"]
 websocket = ["salvo/websocket"]
-otel = ["salvo/otel", "dep:opentelemetry", "dep:opentelemetry-otlp", "dep:opentelemetry_sdk", "dep:tracing-opentelemetry"]
+otel = ["salvo/otel", "dep:opentelemetry", "dep:reqwest", "dep:opentelemetry-otlp", "dep:opentelemetry_sdk", "dep:tracing-opentelemetry"]
 oapi = ["salvo/oapi"]
 proxy = ["salvo/proxy", "reqwest/stream"]
 reqwest-http3 = ["reqwest/http3"]
@@ -87,7 +87,7 @@ notify = { workspace = true }
 opentelemetry = { optional = true, workspace = true, features = ["metrics"] }
 opentelemetry-otlp = { optional = true, workspace = true, features = ["tonic", "trace", "http-proto", "grpc-tonic", "reqwest-rustls"] }
 opentelemetry_sdk = { optional = true, workspace = true, features = ["rt-tokio"] }
-reqwest = { optional = true, workspace = true, features = ["json", "rustls-tls"] }
+reqwest = { optional = true, workspace = true, features = ["http2", "json", "rustls-tls"] }
 rmp-serde = { optional = true, workspace = true }
 salvo = { workspace = true, features = ["affix-state", "compression", "rustls", "cookie", "server", "http1", "http2", "server-handle"] }
 serde = { workspace = true, features = ["derive"] }
