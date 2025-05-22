@@ -46,6 +46,26 @@ pub async fn h3_header(depot: &mut Depot, res: &mut Response) {
     .unwrap();
 }
 
+#[cfg(feature = "otel")]
+#[handler]
+async fn sk_default_metrics(req: &mut Request, res: &mut Response, ctrl: &mut FlowCtrl) {
+  let meter = crate::otel::api::global::meter("sk_metrics");
+  
+  let request_counter = meter.u64_counter("http_requests_total")
+    .with_description("Total number of requests")
+    .build();
+  
+  let request_duration = meter.f64_histogram("http_request_duration_seconds")
+    .with_description("HTTP request duration in seconds")
+    .build();
+
+  let active_connections = meter.i64_up_down_counter("http_active_connections")
+    .with_description("Number of active HTTP connections")
+    .build();
+  
+  
+}
+
 /// Returns preconfigured router with app state injected.
 ///
 /// To get your `app_config` inside handler/endpoint, call
