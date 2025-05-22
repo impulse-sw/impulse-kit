@@ -49,12 +49,20 @@ pub async fn get_uikit_app_internals(req: &mut Request, depot: &mut Depot, res: 
   if filename.is_empty() {
     filename = String::from("index.html");
   }
+
+  tracing::trace!("Got filename: {}", filename);
+
   let filepath = PathBuf::from(
-    get_filepath_from_dist(&filename)
-      .await
-      .unwrap_or(get_filepath_from_dist("index.html").await.unwrap_or(String::from("index.html")))
+    get_filepath_from_dist(&filename).await.unwrap_or(
+      get_filepath_from_dist("index.html")
+        .await
+        .unwrap_or(String::from("index.html")),
+    ),
   );
-  if filepath.exists() {
+
+  tracing::trace!("Got filepath: {:?}", filepath);
+
+  if filepath.exists() && filename.contains(".") {
     match filename.split('.').collect::<Vec<_>>().last() {
       Some(&"html") if let Ok(site) = tokio::fs::read_to_string(&filepath).await => {
         html!(site).unwrap().write(req, depot, res).await
@@ -108,7 +116,7 @@ impl salvo::Handler for CustomStaticRouter {
       filename = String::from("index.html");
     }
     let filepath = self.path.join(&filename);
-    if filepath.exists() {
+    if filepath.exists() && filename.contains(".") {
       match filename.split('.').collect::<Vec<_>>().last() {
         Some(&"html") if let Ok(site) = tokio::fs::read_to_string(&filepath).await => {
           html!(site).unwrap().write(req, depot, res).await
