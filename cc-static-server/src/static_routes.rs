@@ -52,7 +52,7 @@ pub async fn get_uikit_app_internals(req: &mut Request, depot: &mut Depot, res: 
   let filepath = PathBuf::from(
     get_filepath_from_dist(&filename)
       .await
-      .unwrap_or(String::from("index.html")),
+      .unwrap_or(get_filepath_from_dist("index.html").await.unwrap_or(String::new())),
   );
   if filepath.exists() {
     match filename.split('.').collect::<Vec<_>>().last() {

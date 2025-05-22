@@ -537,7 +537,7 @@ fn init_logging(
   #[cfg(feature = "otel")]
   if let Some(otel_http_endpoint) = open_telemetry_http_endpoint {
     use opentelemetry_otlp::WithHttpConfig;
-    
+
     let otel_metric_exporter = opentelemetry_otlp::MetricExporter::builder()
       .with_http()
       .with_http_client(reqwest::Client::new())
