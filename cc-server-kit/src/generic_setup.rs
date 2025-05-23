@@ -540,7 +540,7 @@ fn init_logging(
 
     let otel_metric_exporter = opentelemetry_otlp::MetricExporter::builder()
       .with_http()
-      .with_http_client(reqwest::Client::new())
+      .with_http_client(reqwest::blocking::Client::new())
       .with_protocol(opentelemetry_otlp::Protocol::HttpBinary)
       .with_endpoint(otel_http_endpoint.as_str())
       .with_timeout(std::time::Duration::from_secs(5))
