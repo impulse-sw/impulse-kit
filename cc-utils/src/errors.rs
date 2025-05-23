@@ -93,6 +93,7 @@ impl crate::responses::ExplicitServerWrite for ServerError {
     res.status_code(self.status_code.unwrap_or(StatusCode::INTERNAL_SERVER_ERROR));
     tracing::error!("{}", self);
 
+    res.add_header(salvo::http::header::CONTENT_TYPE, "application/json", true).ok();
     res
       .write_body(
         sonic_rs::to_string(&ErrorResponse {
