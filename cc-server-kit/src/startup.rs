@@ -72,16 +72,18 @@ pub async fn sk_default_metrics(req: &mut Request, depot: &mut Depot, res: &mut 
     .with_description("Number of active HTTP connections")
     .build();
 
+  let host = req.uri().host().map(String::from);
   let path = req.uri().path().to_string();
   let method = req.method().as_str().to_string();
 
   let attributes = vec![
-    opentelemetry::KeyValue::new("host", req.header("origin").unwrap_or("unknown").to_string()),
+    opentelemetry::KeyValue::new("host", host.unwrap_or(String::from("unknown"))),
     opentelemetry::KeyValue::new("path", path),
     opentelemetry::KeyValue::new("method", method),
     opentelemetry::KeyValue::new("user_agent", req.header("user-agent").unwrap_or("unknown").to_string()),
   ];
 
+  active_connections.add(1, &[]);
   active_connections.add(1, &attributes);
   let start = tokio::time::Instant::now();
 
