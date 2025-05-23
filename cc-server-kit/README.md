@@ -246,16 +246,16 @@ CC Server Kit supports gRPC span exporter and HTTP binary metrics exporter.
 
 #### Span tracing
 
-To activate span tracing, enable `otel` feature (enabled by default) and specify `open_telemetry_grpc_endpoint` field:
+To activate span tracing, enable `otel` feature (enabled by default) and specify `otel_grpc_endpoint` field:
 
 ```yaml
-open_telemetry_grpc_endpoint: http://localhost:4317  # Jaeger default gRPC write API endpoint
+otel_grpc_endpoint: http://localhost:4317  # Jaeger default gRPC write API endpoint
 ```
 
 Also, you can specify log level (if none specified, goes back to `log_level` field):
 
 ```yaml
-open_telemetry_log_level: info  # error | warn | info | debug | trace
+otel_log_level: info  # error | warn | info | debug | trace
 ```
 
 And use spans in the code:
@@ -284,10 +284,10 @@ Read more about `tracing`: [`tracing` docs](https://docs.rs/tracing/latest/traci
 
 #### Metrics
 
-To activate metrics collector, enable `otel` feature (enabled by default) and specify `open_telemetry_http_endpoint` field:
+To activate metrics collector, enable `otel` feature (enabled by default) and specify `otel_http_endpoint` field:
 
 ```yaml
-open_telemetry_http_endpoint: http://localhost:9090/api/v1/otlp/v1/metrics  # Prometheus default write API endpoint
+otel_http_endpoint: http://localhost:9090/api/v1/otlp/v1/metrics  # Prometheus default write API endpoint
 ```
 
 And use metrics in the code:

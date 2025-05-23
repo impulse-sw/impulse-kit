@@ -55,17 +55,20 @@ pub async fn sk_default_metrics(req: &mut Request, depot: &mut Depot, res: &mut 
   let meter = crate::otel::api::global::meter("sk_metrics");
 
   let request_counter = meter
-    .u64_counter("http_requests_total")
+    .u64_counter("requests")
+    .with_unit("1")
     .with_description("Total number of requests")
     .build();
 
   let request_duration = meter
-    .f64_histogram("http_request_duration_seconds")
+    .f64_histogram("request_duration")
+    .with_unit("s")
     .with_description("HTTP request duration in seconds")
     .build();
 
   let active_connections = meter
-    .i64_up_down_counter("http_active_connections")
+    .i64_up_down_counter("active_connections")
+    .with_unit("1")
     .with_description("Number of active HTTP connections")
     .build();
 
@@ -73,9 +76,9 @@ pub async fn sk_default_metrics(req: &mut Request, depot: &mut Depot, res: &mut 
   let method = req.method().as_str().to_string();
 
   let attributes = vec![
+    opentelemetry::KeyValue::new("host", req.header("origin").unwrap_or("unknown").to_string()),
     opentelemetry::KeyValue::new("path", path),
     opentelemetry::KeyValue::new("method", method),
-    opentelemetry::KeyValue::new("host", req.header("host").unwrap_or("unknown").to_string()),
     opentelemetry::KeyValue::new("user_agent", req.header("user-agent").unwrap_or("unknown").to_string()),
   ];
 
@@ -118,7 +121,7 @@ pub fn get_root_router_autoinject<T: GenericSetup + Send + Sync + Clone + 'stati
   }
 
   #[cfg(feature = "otel")]
-  if app_config.generic_values().open_telemetry_http_endpoint.is_some() {
+  if app_config.generic_values().otel_http_endpoint.is_some() {
     router = router.hoop(sk_default_metrics);
   }
 
