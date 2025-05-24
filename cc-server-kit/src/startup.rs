@@ -95,6 +95,7 @@ pub async fn sk_default_metrics(req: &mut Request, depot: &mut Depot, res: &mut 
   let status = res.status_code.unwrap_or(StatusCode::OK).as_u16().to_string();
   result_attributes.push(opentelemetry::KeyValue::new("status", status));
 
+  request_counter.add(1, &[]);
   request_counter.add(1, &result_attributes);
   request_duration.record(duration, &result_attributes);
 
