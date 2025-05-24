@@ -46,7 +46,63 @@ pub async fn h3_header(depot: &mut Depot, res: &mut Response) {
     .unwrap();
 }
 
-/// Returns preconfigured router with app state injected.
+#[cfg(feature = "otel")]
+#[handler]
+/// Default Server Kit OpenTelemetry metrics.
+///
+/// Installed by default with `get_root_router_autoinject` method.
+pub async fn sk_default_metrics(req: &mut Request, depot: &mut Depot, res: &mut Response, ctrl: &mut FlowCtrl) {
+  let meter = crate::otel::api::global::meter("sk_metrics");
+
+  let request_counter = meter
+    .u64_counter("requests")
+    .with_unit("1")
+    .with_description("Total number of requests")
+    .build();
+
+  let request_duration = meter
+    .f64_histogram("request_duration")
+    .with_unit("s")
+    .with_description("HTTP request duration in seconds")
+    .build();
+
+  let active_connections = meter
+    .i64_up_down_counter("active_connections")
+    .with_unit("1")
+    .with_description("Number of active HTTP connections")
+    .build();
+
+  let host = req.uri().host().map(String::from);
+  let path = req.uri().path().to_string();
+  let method = req.method().as_str().to_string();
+
+  let attributes = vec![
+    opentelemetry::KeyValue::new("host", host.unwrap_or(String::from("unknown"))),
+    opentelemetry::KeyValue::new("path", path),
+    opentelemetry::KeyValue::new("method", method),
+    opentelemetry::KeyValue::new("user_agent", req.header("user-agent").unwrap_or("unknown").to_string()),
+  ];
+
+  active_connections.add(1, &[]);
+  active_connections.add(1, &attributes);
+  let start = tokio::time::Instant::now();
+
+  ctrl.call_next(req, depot, res).await;
+
+  let duration = start.elapsed().as_secs_f64();
+
+  let mut result_attributes = attributes.clone();
+  let status = res.status_code.unwrap_or(StatusCode::OK).as_u16().to_string();
+  result_attributes.push(opentelemetry::KeyValue::new("status", status));
+
+  request_counter.add(1, &[]);
+  request_counter.add(1, &result_attributes);
+  request_duration.record(duration, &result_attributes);
+
+  active_connections.add(-1, &attributes);
+}
+
+/// Returns preconfigured router with app state and OpenTelemetry metrics injected.
 ///
 /// To get your `app_config` inside handler/endpoint, call
 /// `depot.obtain::<YourAppConfigType>().unwrap()`.
@@ -55,7 +111,7 @@ pub fn get_root_router_autoinject<T: GenericSetup + Send + Sync + Clone + 'stati
   app_config: T,
 ) -> Router {
   #[allow(unused_mut)]
-  let mut router = Router::new().hoop(affix_state::inject(app_state.clone()).inject(app_config));
+  let mut router = Router::new().hoop(affix_state::inject(app_state.clone()).inject(app_config.clone()));
 
   #[cfg(all(feature = "http3", feature = "acme"))]
   if app_state.startup_variant == StartupVariant::QuinnAcme {
@@ -65,6 +121,11 @@ pub fn get_root_router_autoinject<T: GenericSetup + Send + Sync + Clone + 'stati
   #[cfg(feature = "http3")]
   if app_state.startup_variant == StartupVariant::Quinn || app_state.startup_variant == StartupVariant::QuinnOnly {
     router = router.hoop(h3_header);
+  }
+
+  #[cfg(feature = "otel")]
+  if app_config.generic_values().otel_http_endpoint.is_some() {
+    router = router.hoop(sk_default_metrics);
   }
 
   router

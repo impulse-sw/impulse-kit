@@ -98,13 +98,13 @@ pub struct GenericValues {
 
   #[cfg(feature = "otel")]
   /// Endpoint to export OpenTelemetry via gRPC (e.g., Jaeger).
-  pub open_telemetry_grpc_endpoint: Option<String>,
+  pub otel_grpc_endpoint: Option<String>,
   #[cfg(feature = "otel")]
   /// Endpoint to export OpenTelemetry via HTTP binary protocol (e.g., Prometheus).
-  pub open_telemetry_http_endpoint: Option<String>,
+  pub otel_http_endpoint: Option<String>,
   #[cfg(feature = "otel")]
   /// OpenTelemetry log level.
-  pub open_telemetry_log_level: Option<String>,
+  pub otel_log_level: Option<String>,
 }
 
 impl Default for GenericValues {
@@ -135,11 +135,11 @@ impl Default for GenericValues {
       log_rolling: None,
       log_rolling_max_files: None,
       #[cfg(feature = "otel")]
-      open_telemetry_grpc_endpoint: None,
+      otel_grpc_endpoint: None,
       #[cfg(feature = "otel")]
-      open_telemetry_http_endpoint: None,
+      otel_http_endpoint: None,
       #[cfg(feature = "otel")]
-      open_telemetry_log_level: None,
+      otel_log_level: None,
       server_port_achiever: None,
     }
   }
@@ -253,7 +253,7 @@ pub async fn load_generic_state<T: GenericSetup>(setup: &T) -> MResult<GenericSe
   let log_file_level = match_log_level(&data.log_file_level);
 
   #[cfg(feature = "otel")]
-  let otel_log_level = match_log_level(&data.open_telemetry_log_level);
+  let otel_log_level = match_log_level(&data.otel_log_level);
 
   let log_rolling = match_log_file_rolling(&data.log_rolling)?;
 
@@ -264,9 +264,9 @@ pub async fn load_generic_state<T: GenericSetup>(setup: &T) -> MResult<GenericSe
     log_rolling,
     &data.log_rolling_max_files,
     #[cfg(feature = "otel")]
-    &data.open_telemetry_grpc_endpoint,
+    &data.otel_grpc_endpoint,
     #[cfg(feature = "otel")]
-    &data.open_telemetry_http_endpoint,
+    &data.otel_http_endpoint,
     #[cfg(feature = "otel")]
     &otel_log_level,
   )?;
@@ -536,8 +536,11 @@ fn init_logging(
 
   #[cfg(feature = "otel")]
   if let Some(otel_http_endpoint) = open_telemetry_http_endpoint {
+    use opentelemetry_otlp::WithHttpConfig;
+
     let otel_metric_exporter = opentelemetry_otlp::MetricExporter::builder()
       .with_http()
+      .with_http_client(reqwest::blocking::Client::new())
       .with_protocol(opentelemetry_otlp::Protocol::HttpBinary)
       .with_endpoint(otel_http_endpoint.as_str())
       .with_timeout(std::time::Duration::from_secs(5))
@@ -547,8 +550,12 @@ fn init_logging(
           .with_public("Failed to initialize OTEL HTTP telemetry!")
           .with_500()
       })?;
+    let otel_metric_reader = opentelemetry_sdk::metrics::PeriodicReader::builder(otel_metric_exporter)
+      .with_interval(std::time::Duration::from_secs(5))
+      .build();
     let meter_provider = opentelemetry_sdk::metrics::SdkMeterProvider::builder()
-      .with_periodic_exporter(otel_metric_exporter)
+      .with_resource(Resource::builder().with_service_name(app_name.to_string()).build())
+      .with_reader(otel_metric_reader)
       .build();
     opentelemetry::global::set_meter_provider(meter_provider.clone());
   }

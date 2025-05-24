@@ -94,6 +94,9 @@ impl crate::responses::ExplicitServerWrite for ServerError {
     tracing::error!("{}", self);
 
     res
+      .add_header(salvo::http::header::CONTENT_TYPE, "application/json", true)
+      .ok();
+    res
       .write_body(
         sonic_rs::to_string(&ErrorResponse {
           err: self.decide_public_msg(),
