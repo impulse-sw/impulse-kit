@@ -1,6 +1,6 @@
 # CC Server Kit
 
-State-of-art simple and powerful web server based on [Salvo](https://github.com/salvo-rs/salvo). Provides extended tracing, configuration-over-YAML, QUIC/HTTP3, MessagePack support, ACME, OpenAPI and OpenTelemetry features *by default*, with one step to CORS and WebSockets.
+State-of-art simple and powerful web server based on [Salvo](https://github.com/salvo-rs/salvo). Provides extended tracing, configuration-over-YAML, HTTP3, TLS v1.3, MessagePack + SIMD JSON ser/de support, ACME, OpenAPI and OpenTelemetry features *by default*.
 
 ## How's it work
 
@@ -305,6 +305,19 @@ counter.add(1, &[KeyValue::new("key", "value")]);
 ```
 
 Read more about `Meter`: [`opentelemetry` docs](https://docs.rs/opentelemetry/latest/opentelemetry/metrics/struct.Meter.html).
+
+Server Kit also provides these default metrics:
+
+- `sk_requests` - total number of requests
+- `sk_request_duration` - HTTP request duration in seconds
+- `sk_active_connections` - number of active HTTP connections
+
+These metrics are implied automatically by using `get_root_router_autoinject` function. You also can use it by hands:
+
+```rust
+Router::new()
+  .hoop(cc_server_kit::startup::sk_default_metrics)
+```
 
 ### Server port achieveing
 

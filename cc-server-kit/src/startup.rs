@@ -24,6 +24,8 @@ use salvo::http::header::ALT_SVC;
 
 use crate::generic_setup::{GenericServerState, GenericSetup, StartupVariant};
 
+static TLS13: &[&rustls::SupportedProtocolVersion] = &[&rustls::version::TLS13];
+
 #[cfg(feature = "http3")]
 #[handler]
 /// HTTP2-to-HTTP3 switching header.
@@ -46,6 +48,19 @@ pub async fn h3_header(depot: &mut Depot, res: &mut Response) {
     .unwrap();
 }
 
+fn tlsv13(certpath: impl AsRef<str>, keypath: impl AsRef<str>) -> MResult<RustlsConfig> {
+  Ok(
+    RustlsConfig::new(
+      Keycert::new()
+        .cert_from_path(certpath.as_ref())
+        .map_err(|e| ServerError::from_private(e).with_500())?
+        .key_from_path(keypath.as_ref())
+        .map_err(|e| ServerError::from_private(e).with_500())?,
+    )
+    .tls_versions(TLS13),
+  )
+}
+
 #[cfg(feature = "otel")]
 #[handler]
 /// Default Server Kit OpenTelemetry metrics.
@@ -55,19 +70,19 @@ pub async fn sk_default_metrics(req: &mut Request, depot: &mut Depot, res: &mut 
   let meter = crate::otel::api::global::meter("sk_metrics");
 
   let request_counter = meter
-    .u64_counter("requests")
+    .u64_counter("sk_requests")
     .with_unit("1")
     .with_description("Total number of requests")
     .build();
 
   let request_duration = meter
-    .f64_histogram("request_duration")
+    .f64_histogram("sk_request_duration")
     .with_unit("s")
     .with_description("HTTP request duration in seconds")
     .build();
 
   let active_connections = meter
-    .i64_up_down_counter("active_connections")
+    .i64_up_down_counter("sk_active_connections")
     .with_unit("1")
     .with_description("Number of active HTTP connections")
     .build();
@@ -329,19 +344,16 @@ pub async fn start_with_service(
       Box::pin(server.serve(service))
     }
     StartupVariant::HttpsOnly => {
-      let rustls_config = RustlsConfig::new(
-        Keycert::new()
-          .cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())
-          .map_err(|e| ServerError::from_private(e).with_500())?
-          .key_from_path(app_config.ssl_key_path.as_ref().unwrap())
-          .map_err(|e| ServerError::from_private(e).with_500())?,
-      );
+      let rustls_config = tlsv13(
+        app_config.ssl_crt_path.as_ref().unwrap(),
+        app_config.ssl_key_path.as_ref().unwrap(),
+      )?;
       let listener = TcpListener::new(format!(
         "{}:{}",
         app_config.server_host.as_ref().unwrap(),
         app_config.server_port.unwrap()
       ))
-      .rustls(rustls_config.clone())
+      .rustls(rustls_config)
       .bind()
       .await;
 
@@ -372,13 +384,10 @@ pub async fn start_with_service(
     }
     #[cfg(feature = "http3")]
     StartupVariant::Quinn => {
-      let rustls_config = RustlsConfig::new(
-        Keycert::new()
-          .cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())
-          .map_err(|e| ServerError::from_private(e).with_500())?
-          .key_from_path(app_config.ssl_key_path.as_ref().unwrap())
-          .map_err(|e| ServerError::from_private(e).with_500())?,
-      );
+      let rustls_config = tlsv13(
+        app_config.ssl_crt_path.as_ref().unwrap(),
+        app_config.ssl_key_path.as_ref().unwrap(),
+      )?;
       let listener = TcpListener::new(format!(
         "{}:{}",
         app_config.server_host.as_ref().unwrap(),
@@ -386,16 +395,9 @@ pub async fn start_with_service(
       ))
       .rustls(rustls_config.clone());
 
-      let quinn_config = RustlsConfig::new(
-        Keycert::new()
-          .cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())
-          .map_err(|e| ServerError::from_private(e).with_500())?
-          .key_from_path(app_config.ssl_key_path.as_ref().unwrap())
-          .map_err(|e| ServerError::from_private(e).with_500())?,
-      )
-      .alpn_protocols(vec!["h3".as_bytes().to_owned()])
-      .build_quinn_config()
-      .map_err(|e| ServerError::from_private(e).with_500())?;
+      let quinn_config = rustls_config
+        .build_quinn_config()
+        .map_err(|e| ServerError::from_private(e).with_500())?;
       let acceptor = QuinnListener::new(
         quinn_config,
         format!(
@@ -414,14 +416,10 @@ pub async fn start_with_service(
     }
     #[cfg(feature = "http3")]
     StartupVariant::QuinnOnly => {
-      let quinn_config = RustlsConfig::new(
-        Keycert::new()
-          .cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())
-          .map_err(|e| ServerError::from_private(e).with_500())?
-          .key_from_path(app_config.ssl_key_path.as_ref().unwrap())
-          .map_err(|e| ServerError::from_private(e).with_500())?,
-      )
-      .alpn_protocols(vec!["h3".as_bytes().to_owned()])
+      let quinn_config = tlsv13(
+        app_config.ssl_crt_path.as_ref().unwrap(),
+        app_config.ssl_key_path.as_ref().unwrap(),
+      )?
       .build_quinn_config()
       .map_err(|e| ServerError::from_private(e).with_500())?;
       let acceptor = QuinnListener::new(
