@@ -89,6 +89,7 @@ opentelemetry-otlp = { optional = true, workspace = true, features = ["tonic", "
 opentelemetry_sdk = { optional = true, workspace = true, features = ["rt-tokio"] }
 reqwest = { optional = true, workspace = true, features = ["http2", "json", "rustls-tls"] }
 rmp-serde = { optional = true, workspace = true }
+rustls = { workspace = true }
 salvo = { workspace = true, features = ["affix-state", "compression", "rustls", "cookie", "server", "http1", "http2", "server-handle"] }
 serde = { workspace = true, features = ["derive"] }
 serde_yaml = { workspace = true }
