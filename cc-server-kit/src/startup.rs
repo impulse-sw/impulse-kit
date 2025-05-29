@@ -214,6 +214,9 @@ pub async fn start_with_service(
 ) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)> {
   tracing::info!("Server is starting...");
 
+  rustls::crypto::aws_lc_rs::default_provider()
+    .install_default()
+    .map_err(|_| ServerError::from_private_str("Can't install default crypto provider!").with_500())?;
   let app_config = app_config.generic_values();
 
   if let Some(bin) = app_config.auto_migrate_bin.as_ref() {
