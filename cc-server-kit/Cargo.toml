@@ -98,6 +98,7 @@ tokio = { workspace = true, features = ["signal"] }
 tracing = { workspace = true }
 tracing-appender = { workspace = true }
 tracing-opentelemetry = { optional = true, workspace = true }
+tracing-rfc-5424 = { workspace = true }
 tracing-subscriber = { workspace = true }
 zstd = { optional = true, workspace = true, features = ["default"] }
 

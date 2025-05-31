@@ -6,6 +6,9 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing_appender::non_blocking::WorkerGuard as TracingFileGuard;
+use tracing_rfc_5424::transport::{
+  Error as SyslogError, TcpTransport, Transport, UdpTransport, UnixSocket, UnixSocketStream,
+};
 
 use cc_utils::prelude::*;
 
@@ -95,6 +98,10 @@ pub struct GenericValues {
   pub log_rolling: Option<String>,
   /// Files limitation for autoremove.
   pub log_rolling_max_files: Option<u32>,
+  /// Enable RFC 5424 logging and send them via TCP/UDP or into UNIX sockets.
+  pub syslog_addr: Option<String>,
+  /// Syslog's log level. Defaults to `log_level`.
+  pub syslog_log_level: Option<String>,
 
   #[cfg(feature = "otel")]
   /// Endpoint to export OpenTelemetry via gRPC (e.g., Jaeger).
@@ -103,7 +110,7 @@ pub struct GenericValues {
   /// Endpoint to export OpenTelemetry via HTTP binary protocol (e.g., Prometheus).
   pub otel_http_endpoint: Option<String>,
   #[cfg(feature = "otel")]
-  /// OpenTelemetry log level.
+  /// OpenTelemetry log level. Defaults to `log_level`.
   pub otel_log_level: Option<String>,
 }
 
@@ -134,6 +141,8 @@ impl Default for GenericValues {
       log_file_level: None,
       log_rolling: None,
       log_rolling_max_files: None,
+      syslog_addr: None,
+      syslog_log_level: None,
       #[cfg(feature = "otel")]
       otel_grpc_endpoint: None,
       #[cfg(feature = "otel")]
@@ -251,6 +260,7 @@ pub async fn load_generic_state<T: GenericSetup>(setup: &T) -> MResult<GenericSe
 
   let log_level = match_log_level(&data.log_level);
   let log_file_level = match_log_level(&data.log_file_level);
+  let syslog_level = match_log_level(&data.syslog_log_level);
 
   #[cfg(feature = "otel")]
   let otel_log_level = match_log_level(&data.otel_log_level);
@@ -263,6 +273,8 @@ pub async fn load_generic_state<T: GenericSetup>(setup: &T) -> MResult<GenericSe
     &log_file_level,
     log_rolling,
     &data.log_rolling_max_files,
+    &data.syslog_addr,
+    &syslog_level,
     #[cfg(feature = "otel")]
     &data.otel_grpc_endpoint,
     #[cfg(feature = "otel")]
@@ -401,6 +413,56 @@ fn match_log_file_rolling(log_rolling: &Option<String>) -> MResult<tracing_appen
   }
 }
 
+enum SyslogTransportWrapper {
+  Udp(UdpTransport),
+  Tcp(TcpTransport),
+  Unix(UnixSocket),
+  UnixStream(UnixSocketStream),
+}
+
+impl<F: tracing_rfc_5424::formatter::SyslogFormatter> Transport<F> for SyslogTransportWrapper {
+  type Error = SyslogError;
+
+  fn send(&self, buf: F::Output) -> Result<(), Self::Error> {
+    match self {
+      SyslogTransportWrapper::Udp(t) => {
+        <tracing_rfc_5424::transport::UdpTransport as tracing_rfc_5424::transport::Transport<F>>::send(t, buf)
+      }
+      SyslogTransportWrapper::Tcp(t) => {
+        <tracing_rfc_5424::transport::TcpTransport as tracing_rfc_5424::transport::Transport<F>>::send(t, buf)
+      }
+      SyslogTransportWrapper::Unix(t) => {
+        <tracing_rfc_5424::transport::UnixSocket as tracing_rfc_5424::transport::Transport<F>>::send(t, buf)
+      }
+      SyslogTransportWrapper::UnixStream(t) => {
+        <tracing_rfc_5424::transport::UnixSocketStream as tracing_rfc_5424::transport::Transport<F>>::send(t, buf)
+      }
+    }
+  }
+}
+
+fn match_syslog_addr(addr: impl AsRef<str>) -> MResult<SyslogTransportWrapper> {
+  use tracing_rfc_5424::transport::*;
+
+  match addr.as_ref() {
+    s if s.starts_with("udp://") => UdpTransport::new(&s[6..])
+      .map(SyslogTransportWrapper::Udp)
+      .map_err(ServerError::from_private),
+    s if s.starts_with("tcp://") => TcpTransport::new(&s[6..])
+      .map(SyslogTransportWrapper::Tcp)
+      .map_err(ServerError::from_private),
+    s if s.starts_with("unix://") => UnixSocket::new(&s[7..])
+      .map(SyslogTransportWrapper::Unix)
+      .map_err(ServerError::from_private),
+    s if s.starts_with("ustream://") => UnixSocketStream::new(&s[10..])
+      .map(SyslogTransportWrapper::UnixStream)
+      .map_err(ServerError::from_private),
+    _ => Err(ServerError::from_public(
+      "Can't init syslog because of incorrect address; your address should start with `udp://`, `tcp://`, `unix://` or `ustream://`.",
+    )),
+  }
+}
+
 #[allow(dead_code)]
 fn log_filter(metadata: &tracing::Metadata) -> bool {
   metadata.module_path().is_none_or(|p| {
@@ -415,6 +477,8 @@ fn init_logging(
   log_file_level: &MResult<tracing::Level>,
   log_rolling: tracing_appender::rolling::Rotation,
   log_rolling_max_files: &Option<u32>,
+  syslog_addr: &Option<String>,
+  syslog_log_level: &MResult<tracing::Level>,
   #[cfg(feature = "otel")] open_telemetry_grpc_endpoint: &Option<String>,
   #[cfg(feature = "otel")] open_telemetry_http_endpoint: &Option<String>,
   #[cfg(feature = "otel")] open_telemetry_log_level: &MResult<tracing::Level>,
@@ -495,6 +559,24 @@ fn init_logging(
     (None, None)
   };
 
+  let syslog_tracer = if let Some(syslog_addr) = syslog_addr
+    && let Ok(syslog_log_level) = syslog_log_level.as_ref().or(log_level.as_ref())
+  {
+    let transport = match_syslog_addr(syslog_addr)?;
+    let format = tracing_rfc_5424::rfc5424::Rfc5424::builder()
+      .appname_as_string(app_name.to_string())
+      .map_err(ServerError::from_private)?
+      .facility(tracing_rfc_5424::facility::Facility::LOG_USER)
+      .build();
+    let syslog_tracer = tracing_rfc_5424::layer::Layer::with_transport_and_syslog_formatter(transport, format)
+      .with_filter(LevelFilter::from_level(*syslog_log_level))
+      .with_filter(filter_fn(log_filter));
+
+    Some(syslog_tracer)
+  } else {
+    None
+  };
+
   #[cfg(feature = "otel")]
   let otel_tracer = if let Some(otel_grpc_endpoint) = open_telemetry_grpc_endpoint
     && let Ok(otel_log_level) = open_telemetry_log_level.as_ref().or(log_level.as_ref())
@@ -560,10 +642,9 @@ fn init_logging(
     opentelemetry::global::set_meter_provider(meter_provider.clone());
   }
 
+  let collector = registry().with(file_tracer).with(io_tracer).with(syslog_tracer);
   #[cfg(feature = "otel")]
-  let collector = registry().with(file_tracer).with(io_tracer).with(otel_tracer);
-  #[cfg(not(feature = "otel"))]
-  let collector = registry().with(file_tracer).with(io_tracer);
+  let collector = collector.with(otel_tracer);
 
   tracing::subscriber::set_global_default(collector).map_err(|e| {
     ServerError::from_private(e)
