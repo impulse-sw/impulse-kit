@@ -205,3 +205,38 @@ let resp = reqwest::Client::new()
   .error_for_status()
   .map_err(|e| CliError::from(e).context("Server error!"))?;
 ```
+
+## Redirect or collect server errors
+
+If you have several backends and communicate between them by `reqwest`, you may be considering of usage `redirect_server_error` method on `reqwest::Response` to directly redirect any error, especially `ErrorResponse` (public part of `ServerError`):
+
+```rust
+let resp = reqwest::Client::new()
+  .post("127.0.0.1:8080/post-data")
+  .json(&data)
+  .send()
+  .await
+  .redirect_server_error() // if status >= 400, it will throw `Err::<ServerError>`; if no, returns `Ok::<reqwest::Response>`
+  .await?
+  .json::<MyResponse>()
+  .await?;
+```
+
+But, if you're using `reqwest` on the client-side, you may want to use `collect_server_error` to collect `CResult` instead of `MResult`:
+
+```rust
+let resp = reqwest::Client::new()
+  .post("127.0.0.1:8080/post-data")
+  .json(&data)
+  .send()
+  .await
+  .collect_server_error() // if status >= 400, it will throw `Err::<CliError>`; if no, returns `Ok::<reqwest::Response>`
+  .await?
+  .json::<MyResponse>()
+  .await?;
+```
+
+> [!NOTE]
+> `redirect_server_error` method is available with `reqwest` and `mresult` features.
+> 
+> `collect_server_error` method is available with `reqwest` and `cresult` features.

@@ -149,22 +149,26 @@ impl EndpointOutRegister for ServerError {
   }
 }
 
+#[cfg(any(feature = "mresult", all(feature = "reqwest", feature = "cresult")))]
+pub(crate) fn public_msg_from(status_code: &Option<u16>) -> &'static str {
+  match status_code {
+    Some(400) => "Bad request.",
+    Some(401) => "Unauthorized request.",
+    Some(403) => "Access denied.",
+    Some(404) => "Page or method not found.",
+    Some(405) => "Method not allowed.",
+    Some(500) => "Internal server error. Contact the administrator.",
+    _ => "Specific error. Check with the administrator for details.",
+  }
+}
+
 #[cfg(feature = "mresult")]
 impl ServerError {
   fn decide_public_msg(&self) -> String {
     if let Some(public_msg) = self.public_msg.as_ref() {
       public_msg.to_owned()
     } else {
-      match self.status_code {
-        Some(StatusCode::BAD_REQUEST) => "Bad request.",
-        Some(StatusCode::UNAUTHORIZED) => "Unauthorized request.",
-        Some(StatusCode::FORBIDDEN) => "Access denied.",
-        Some(StatusCode::NOT_FOUND) => "Page or method not found.",
-        Some(StatusCode::METHOD_NOT_ALLOWED) => "Method not allowed.",
-        Some(StatusCode::INTERNAL_SERVER_ERROR) => "Internal server error. Contact the administrator.",
-        _ => "Specific error. Check with the administrator for details.",
-      }
-      .to_string()
+      public_msg_from(&self.status_code.as_ref().map(|v| v.as_u16())).to_string()
     }
   }
 
