@@ -21,8 +21,11 @@ pub use crate::{file_upload, html, json, msgpack, ok, plain};
 #[cfg(all(feature = "reqwest", feature = "cresult"))]
 pub use crate::responses::MsgPackResponse;
 
+#[cfg(all(feature = "reqwest", feature = "cresult"))]
+pub use crate::responses::CollectServerError;
+
 #[cfg(all(feature = "reqwest", feature = "mresult"))]
-pub use crate::requests::RedirectServerError;
+pub use crate::responses::RedirectServerError;
 
 #[cfg(feature = "mresult")]
 pub use crate::errors::ServerError;

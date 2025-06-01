@@ -365,3 +365,84 @@ impl MsgPackResponse for reqwest::Response {
     rmp_serde::from_slice(&full).map_err(CliError::from)
   }
 }
+
+/// Trait to recover public errors from server.
+#[cfg(all(feature = "reqwest", feature = "cresult"))]
+#[allow(async_fn_in_trait)]
+pub trait CollectServerError
+where
+  Self: Sized,
+{
+  /// Collects server error.
+  async fn collect_server_error(self) -> crate::prelude::CResult<Self>;
+}
+
+#[cfg(all(feature = "reqwest", feature = "cresult"))]
+impl CollectServerError for reqwest::Response {
+  async fn collect_server_error(self) -> crate::prelude::CResult<Self> {
+    use crate::errors::CliError;
+
+    let status_code = self.status().as_u16();
+    if status_code >= 400 {
+      let ctype = self
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(';').next())
+        .map(|v| v.to_string());
+
+      if ctype.as_ref().is_some_and(|ct| ct.as_str().eq("application/json")) {
+        let err_json = self
+          .json::<crate::errors::ErrorResponse>()
+          .await
+          .map_err(|_| CliError::from_str(crate::errors::public_msg_from(&Some(status_code))))?;
+        return Err(CliError::from_str(err_json.err));
+      }
+
+      Err(CliError::from_str(crate::errors::public_msg_from(&Some(status_code))))
+    } else {
+      Ok(self)
+    }
+  }
+}
+
+/// Trait to recover public errors from server.
+#[cfg(all(feature = "reqwest", feature = "mresult"))]
+#[allow(async_fn_in_trait)]
+pub trait RedirectServerError
+where
+  Self: Sized,
+{
+  /// Redirects server error.
+  async fn redirect_server_error(self) -> crate::prelude::MResult<Self>;
+}
+
+#[cfg(all(feature = "reqwest", feature = "mresult"))]
+impl RedirectServerError for reqwest::Response {
+  async fn redirect_server_error(self) -> crate::prelude::MResult<Self> {
+    use crate::errors::ServerError;
+
+    let status_code = self.status();
+    if status_code.as_u16() >= 400 {
+      let ctype = self
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(';').next())
+        .map(|v| v.to_string());
+
+      if ctype.as_ref().is_some_and(|ct| ct.as_str().eq("application/json")) {
+        let err_json = self.json::<crate::errors::ErrorResponse>().await.map_err(|e| {
+          ServerError::from_private(e)
+            .with_public(crate::errors::public_msg_from(&Some(status_code.as_u16())))
+            .with_code(status_code)
+        })?;
+        return Err(ServerError::from_public(err_json.err).with_code(status_code));
+      }
+
+      Err(ServerError::from_public(crate::errors::public_msg_from(&Some(status_code.as_u16()))).with_code(status_code))
+    } else {
+      Ok(self)
+    }
+  }
+}
