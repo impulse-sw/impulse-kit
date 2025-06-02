@@ -35,7 +35,7 @@ Just include it into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cc-static-server = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.8" }
+cc-static-server = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.9" }
 ```
 
 and use one of these functions:

@@ -97,6 +97,7 @@ sonic-rs = { optional = true, workspace = true }
 tokio = { workspace = true, features = ["signal"] }
 tracing = { workspace = true }
 tracing-appender = { workspace = true }
+tracing-ecs = { workspace = true }
 tracing-opentelemetry = { optional = true, workspace = true }
 tracing-rfc-5424 = { workspace = true }
 tracing-subscriber = { workspace = true }

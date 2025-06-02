@@ -21,7 +21,7 @@ impl GenericSetup for Setup {
 #[tokio::main]
 async fn main() {
   let setup = load_generic_config::<Setup>("proto-v1-server").await.unwrap();
-  let state = load_generic_state(&setup).await.unwrap();
+  let state = load_generic_state(&setup, true).await.unwrap();
   let router = get_root_router_autoinject(&state, setup.clone())
     .push(api::v1::users::users_router())
     .push(api::v1::test::test_router())

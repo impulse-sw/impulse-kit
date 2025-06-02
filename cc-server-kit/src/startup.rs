@@ -22,7 +22,7 @@ use salvo::http::HeaderValue;
 #[cfg(feature = "http3")]
 use salvo::http::header::ALT_SVC;
 
-use crate::generic_setup::{GenericServerState, GenericSetup, StartupVariant};
+use crate::setup::{GenericServerState, GenericSetup, StartupVariant};
 
 static TLS13: &[&rustls::SupportedProtocolVersion] = &[&rustls::version::TLS13];
 
@@ -32,7 +32,7 @@ static TLS13: &[&rustls::SupportedProtocolVersion] = &[&rustls::version::TLS13];
 ///
 /// Usage is `router.hoop(h3_header)`.
 pub async fn h3_header(depot: &mut Depot, res: &mut Response) {
-  use crate::generic_setup::GenericValues;
+  use crate::setup::GenericValues;
 
   let server_port = match depot.obtain::<GenericValues>() {
     Ok(app_config) => app_config.server_port.unwrap(),
@@ -139,7 +139,7 @@ pub fn get_root_router_autoinject<T: GenericSetup + Send + Sync + Clone + 'stati
   }
 
   #[cfg(feature = "otel")]
-  if app_config.generic_values().otel_http_endpoint.is_some() {
+  if app_config.generic_values().tracing_options.otel_http_endpoint.is_some() {
     router = router.hoop(sk_default_metrics);
   }
 
