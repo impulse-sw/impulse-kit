@@ -24,7 +24,7 @@ impl GenericSetup for Setup {
 #[tokio::main]
 async fn main() {
   let setup = load_generic_config::<Setup>("static-server").await.unwrap();
-  let state = load_generic_state(&setup).await.unwrap();
+  let state = load_generic_state(&setup, true).await.unwrap();
   let router = get_root_router(&state).push(static_routes::frontend_router());
   let (server, _handler) = start(state, &setup, router).await.unwrap();
   server.await

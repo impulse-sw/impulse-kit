@@ -8,7 +8,7 @@ Just include it into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cc-ui-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.8" }
+cc-ui-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.9" }
 ```
 
 ## Simple application entrypoint

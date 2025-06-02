@@ -11,12 +11,14 @@ State-of-art simple and powerful web server based on [Salvo](https://github.com/
 
 ## Using Server Kit
 
-To use Server Kit, just include this line into your `Cargo.toml`:
+To use Server Kit, include this line into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cc-server-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.8" }
+cc-server-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.9" }
 ```
+
+And create empty `{app-name}.yaml` to fill later (see [Configuration Overview](#configuration-overview) below).
 
 ## Extended utilities
 
@@ -57,7 +59,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-cc-server-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.8" }
+cc-server-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.9" }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["macros"] }
 ```
@@ -126,7 +128,7 @@ fn tests_router() -> Router {
 #[tokio::main]
 async fn main() {
   let setup = load_generic_config::<Setup>("server-example").await.unwrap();
-  let state = load_generic_state(&setup).await.unwrap();
+  let state = load_generic_state(&setup, true).await.unwrap();
   let router = get_root_router_autoinject(&state, setup.clone()).push(tests_router());
   let (server, _handler) = start(state, &setup, router).await.unwrap();
   server.await
@@ -139,11 +141,85 @@ Here we go! You can now start the server with `cargo run`!
 
 Server Kit is just a layer on top of Salvo framework. Use its [documentation and examples](https://salvo.rs/guide/quick-start.html) to know how to develop web servers in Server Kit.
 
-## Configuring your server
+## Code API Overview
 
-### Startup type
+> [!NOTE]
+> To setup these features, you have to write them in your code.
 
-You can select the startup type from this types:
+<a id="logging-inside-code"></a>
+### Logging
+
+To install log collector application-wide, make sure that you've loaded generic state with `true` second option:
+
+```rust
+let state = load_generic_state(&setup, true).await.unwrap();
+```
+
+And, for logs, use either provided or included by yours `tracing` crate:
+
+```rust
+use tracing;  // or `use cc_server_kit::prelude::*;
+
+// inside any function
+tracing::info!("There are {} available chickens!", chickens.len());
+```
+
+<a id="otel-inside-code"></a>
+### OpenTelemetry
+
+Spans example:
+
+```rust
+// Import `tracing` module
+use cc_server_kit::prelude::*;
+
+// Use `tracing::instrument` attribute macro to instrument your handler and automatically create `my_handler` span
+#[handler]
+#[tracing::instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]
+async fn my_handler() -> MResult<OK> {
+  // Use `tracing` instead of `log`
+  tracing::debug!("This is the DEBUG level log!");
+  
+  // Use `.instrument(...)` method over async functions to define spans
+  any_async_func
+    .instrument(tracing::info_span!("Executed any async function"))
+    .await;
+  
+  ok!()
+}
+```
+
+Metrics example:
+
+```rust
+// Import `otel` module
+use cc_server_kit::prelude::*;
+
+// Get a meter
+let meter = otel::api::global::meter("my_meter");
+
+// Create a metric
+let counter = meter.u64_counter("my_counter").build();
+counter.add(1, &[KeyValue::new("key", "value")]);
+```
+
+### Force HTTPS
+
+To enforce HTTPS, you should start another server via `start_force_https_redirect` function:
+
+```rust
+let (server, handler) = start_force_https_redirect(80, 443).await.unwrap();
+```
+
+<a id="configuration-overview"></a>
+## Configuration Overview
+
+> [!NOTE]
+> To setup these features, you have no need to edit code, just `{your-app}.yaml`.
+
+### Startup types
+
+There are several startup types:
 
 1. `http_localhost` - will listen `http://127.0.0.1:{port}` only
 2. `unsafe_http` - will listen `http://0.0.0.0:{port}`
@@ -153,13 +229,28 @@ You can select the startup type from this types:
 6. `quinn` (requires `http3` feature) - will listen `https://` and `quic://`
 7. `quinn_only` (requires `http3` feature) - will listen `quic://{host}:{port}`
 
+Any HTTPS connection will use TLS v1.3 only.
+
 Example:
 
 ```yaml
 startup_type: quinn
 ```
 
-### Server host & server port
+#### ACME domain
+
+Specify `acme_domain` to use [ACME] (TLS ALPN-01).
+
+Example:
+
+```yaml
+startup_type: quinn_acme
+server_host: 0.0.0.0
+server_port: 443
+acme_domain: tls-alpn-01.domain.com
+```
+
+#### Server host & server port
 
 Specify `server_host` as IP address to listen with server (except `http_localhost` and `unsafe_http` startup types).
 
@@ -175,20 +266,7 @@ server_host: 0.0.0.0
 server_port: 443
 ```
 
-### ACME domain
-
-Specify `acme_domain` to use [ACME] (TLS ALPN-01).
-
-Example:
-
-```yaml
-startup_type: quinn_acme
-server_host: 0.0.0.0
-server_port: 443
-acme_domain: tls-alpn-01.domain.com
-```
-
-### SSL key & certs
+#### SSL key & certs
 
 Example:
 
@@ -198,6 +276,18 @@ server_host: 0.0.0.0
 server_port: 443
 ssl_crt_path: certs/fullchain.pem
 ssl_key_path: certs/privkey.pem
+```
+
+#### Server port achieveing
+
+You can specify `server_port_achiever` field to any filepath to make server wait for file creation and writing actual server port to listen to it.
+
+Example:
+
+```yaml
+startup_type: quinn
+server_host: 0.0.0.0
+server_port_achiever: write/port/to/me.txt
 ```
 
 ### Auto-migrate binary
@@ -217,6 +307,14 @@ allow_cors_domain: "https://my-domain.com"
 
 ### Allow OAPI
 
+> [!NOTE]
+> Any OAPI config option requires `oapi` feature to be enabled:
+> 
+> ```rust
+> [dependencies]
+> cc-server-kit = { .., features = ["oapi"] }
+> ```
+
 Specify `allow_oapi_access` field to automatically generate OpenAPI specifications and provide to users.
 
 Example:
@@ -231,16 +329,93 @@ oapi_ver: 0.1.0
 
 ### Logging
 
-CC Server Kit uses `tracing` for logging inside routes' logic. Configuration example:
+CC Server Kit uses `tracing` for logging inside routes' logic. You can choose any of these log types:
+
+- I/O logs (terminal)
+- file logs
+- RFC 5424 (syslog) logs
+- ECS (Elastic Common Schema with disabled normalization) structured JSON logs
+
+See [how to use logging inside your code](#logging-inside-code)
+
+##### Log levels
+
+There are 5 log level types available:
+
+- `trace`
+- `debug`
+- `info`
+- `warn`
+- `error`
+
+##### File rotation types
+
+There are 4 log file rotation types available:
+
+- `never`
+- `daily`
+- `hourly`
+- `minutely`
+
+#### I/O logs
+
+Configuration example:
 
 ```yaml
-log_level: info        # error | warn | info | debug | trace
-log_file_level: debug  # error | warn | info | debug | trace
-log_rolling: daily     # never | daily | hourly | minutely
-log_rolling_max_files: 5
+enable_io_logs: true
+io_log_level: info    # error | warn | info | debug | trace
+```
+
+#### File logs
+
+Logs will be written in file(-s) inside `logs` folder.
+
+Configuration example:
+
+```yaml
+enable_file_logs: true
+file_log_level: info           # error | warn  | info   | debug    | trace
+file_log_rotation: daily       # never | daily | hourly | minutely
+file_log_max_rolling_files: 5  # by default
+```
+
+#### Syslog
+
+Logs produced by this connector will send by one of 4 transports:
+
+- TCP
+- UDP
+- Unix Socket (Datagram)
+- Unix Socket Stream
+
+You should configure `syslog_addr`. Configuration example:
+
+```yaml
+enable_syslog_logs: true
+syslog_addr: "udp://127.0.0.1:514"  # schemas: `tcp://` | `udp://` | `unix://` | `ustream://`
+syslog_log_level: info
+```
+
+#### ECS
+
+ECS logs will be also written in file(-s) (folder `ecs-logs`). Configuration example:
+
+```yaml
+enable_ecs_logs: true
+ecs_log_level: info       # error | warn  | info   | debug    | trace
+ecs_rotation: daily       # never | daily | hourly | minutely
+ecs_max_rolling_files: 5  # by default
 ```
 
 ### OpenTelemetry
+
+> [!NOTE]
+> Any OpenTelemetry config option requires `otel` feature to be enabled:
+> 
+> ```rust
+> [dependencies]
+> cc-server-kit = { .., features = ["otel"] }
+> ```
 
 CC Server Kit supports gRPC span exporter and HTTP binary metrics exporter.
 
@@ -258,27 +433,7 @@ Also, you can specify log level (if none specified, goes back to `log_level` fie
 otel_log_level: info  # error | warn | info | debug | trace
 ```
 
-And use spans in the code:
-
-```rust
-// Import `tracing` module
-use cc_server_kit::prelude::*;
-
-// Use `tracing::instrument` attribute macro to instrument your handler
-#[handler]
-#[tracing::instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]
-async fn my_handler() -> MResult<OK> {
-  // Use `tracing` instead of `log`
-  tracing::debug!("This is the DEBUG level log!");
-  
-  // Use `.instrument(...)` method over async functions to define spans
-  any_async_func
-    .instrument(tracing::info_span!("Executed any async function"))
-    .await;
-  
-  ok!()
-}
-```
+See [how can you use spans](#otel-inside-code).
 
 Read more about `tracing`: [`tracing` docs](https://docs.rs/tracing/latest/tracing/).
 
@@ -290,19 +445,7 @@ To activate metrics collector, enable `otel` feature (enabled by default) and sp
 otel_http_endpoint: http://localhost:9090/api/v1/otlp/v1/metrics  # Prometheus default write API endpoint
 ```
 
-And use metrics in the code:
-
-```rust
-// Import `otel` module
-use cc_server_kit::prelude::*;
-
-// Get a meter
-let meter = otel::api::global::meter("my_meter");
-
-// Create a metric
-let counter = meter.u64_counter("my_counter").build();
-counter.add(1, &[KeyValue::new("key", "value")]);
-```
+See [how can you use metrics](#otel-inside-code).
 
 Read more about `Meter`: [`opentelemetry` docs](https://docs.rs/opentelemetry/latest/opentelemetry/metrics/struct.Meter.html).
 
@@ -317,26 +460,6 @@ These metrics are implied automatically by using `get_root_router_autoinject` fu
 ```rust
 Router::new()
   .hoop(cc_server_kit::startup::sk_default_metrics)
-```
-
-### Server port achieveing
-
-You can specify `server_port_achiever` field to any filepath to make server wait for file creation and writing actual server port to listen to it.
-
-Example:
-
-```yaml
-startup_type: quinn
-server_host: 0.0.0.0
-server_port_achiever: write/port/to/me.txt
-```
-
-### Force HTTPS
-
-To enforce HTTPS, you should start another server via `start_force_https_redirect` function:
-
-```rust
-let (server, handler) = start_force_https_redirect(80, 443).await.unwrap();
 ```
 
 [ACME]: https://en.wikipedia.org/wiki/Automatic_Certificate_Management_Environment
