@@ -276,6 +276,7 @@ impl TracingOptions {
 
       let ecs_tracer = tracing_ecs::ECSLayerBuilder::default()
         .normalize_json(false)
+        .with_span_events(FmtSpan::CLOSE)
         .build_with_writer(non_blocking)
         .with_filter(LevelFilter::from_level(ecs_log_level))
         .with_filter(filter_fn(log_filter));
