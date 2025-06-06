@@ -38,7 +38,7 @@ fn main() -> MResult<()> {
       Arg::new("regenerate")
         .short('r')
         .long("regenerate")
-        .help("Don't bump the version and rewrite all generated files")
+        .help("Don't bump the version and rewrite all generated files (destructive)")
         .action(clap::ArgAction::SetTrue),
     )
     .get_matches();

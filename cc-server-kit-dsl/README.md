@@ -36,7 +36,7 @@ Options:
   -i, --input <FILE>       Input DSL file
   -o, --output <FOLDER>    Output folder
   -v, --version <VERSION>  API version (optional)
-  -r, --regenerate         Don't bump the version and rewrite all generated files
+  -r, --regenerate         Don't bump the version and rewrite all generated files (destructive)
   -h, --help               Print help
 ```
 
@@ -52,6 +52,9 @@ skdsl -i proto-v2.md -o api -v v3
 # regenerate `v3` from scratch
 skdsl -i proto-v3.md -o api -v v3 -r
 ```
+
+> [!NOTE]
+> `--regenerate` is a destructive operation. If you start to implement actual logic on any endpoints, this option will clear all your changes!
 
 ## DSL specification
 
@@ -271,6 +274,9 @@ oapi_api_addr: /api         # path to OpenAPI specification frontend
 
 ## Breaking changes
 
-For no-breaking changes, you should only define new tags or new endpoints.
+For non-breaking changes, you should only define new tags, types or endpoints.
 
 You can also modify current endpoints to *remove* incoming requirements and *add* outgoing requirements. All other changes will be marked as breaking.
+
+> [!NOTE]
+> New types and endpoints for existing API tag will be added *automatically*, router will be updated too. You should only care about endpoint requirements, because `skdsl` will never rewrite any edited content until you forced him to with `--regenerate` option.
