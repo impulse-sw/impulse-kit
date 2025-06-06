@@ -23,3 +23,16 @@ pub struct ChatData {
   pub users: Vec<String>,
   pub messages: Vec<String>,
 }
+
+#[derive(Deserialize, Serialize, ToSchema)]
+pub struct User {
+  pub id: String,
+  pub email: String,
+  pub name: String,
+}
+
+#[derive(Deserialize, Serialize, ToSchema)]
+pub struct UserCreateRequest {
+  pub email: String,
+  pub name: String,
+}

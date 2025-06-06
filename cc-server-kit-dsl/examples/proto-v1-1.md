@@ -7,6 +7,8 @@ type HelloData         crate::api::types::HelloData
 type AnswerData        crate::api::types::AnswerData
 type UserChangePassReq crate::api::types::UserChangePasswordRequest
 type ComplexAliasType  HashMap<String, u32>
+type User              crate::api::types::User
+type UserCreateRequest crate::api::types::UserCreateRequest
 ```
 
 So, now we must create our first API endpoints:
@@ -16,6 +18,7 @@ api tag users
 api post/sign-in h/str/X-Sign b/json/HelloData q/i64/user_id                                        -> b/json/AnswerData
 api patch/change-password h/str/X-Access h/str/X-Refresh h/str/X-Client b/msgpack/UserChangePassReq -> ok
 api post/logout h/str/X-Access h/str/X-Refresh h/str/X-Client                                       -> ok
+api delete/account h/str/X-Access h/str/X-Refresh h/str/X-Client b/json/User                        -> ok
 ```
 
 And our first requirement common to all API endpoints with `chat` tag:

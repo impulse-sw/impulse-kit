@@ -57,12 +57,14 @@ impl File {
 
     for tag in &self.tags {
       generated.push(Generated {
+        api_tag: Some(tag.tag.clone()),
         filepath: PathBuf::from(format!("{}.rs", tag.tag)),
         content: generate_api_tag(tag, self)?,
       });
     }
 
     generated.push(Generated {
+      api_tag: None,
       filepath: PathBuf::from("mod.rs"),
       content: self
         .tags
@@ -78,6 +80,7 @@ impl File {
 
 #[derive(Deserialize, Serialize)]
 pub struct Generated {
+  pub api_tag: Option<String>,
   pub filepath: PathBuf,
   pub content: String,
 }
