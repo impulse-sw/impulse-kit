@@ -223,6 +223,8 @@ pub fn generate_api_endpoint(endpoint: &Api, tag: &TaggedApi, api_desc: &File) -
       .collect::<Vec<_>>(),
   );
 
+  lines.push(format!("/// {}", tag_name_normalize(&endpoint.name)));
+
   lines.push(
     "#[instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]".to_string(),
   );

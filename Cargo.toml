@@ -10,7 +10,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.10.0-alpha.1"
+version = "0.10.0-alpha.2"
 edition = "2024"
 license = "MIT"
 authors = ["Klimenty Titov <aclo.create@gmail.com>"]
@@ -48,6 +48,7 @@ rustls = "0.23"
 salvo = { git = "https://github.com/salvo-rs/salvo.git", version = "0.79.0", default-features = false }
 serde = { version = "1", default-features = false }
 serde_yaml = "0.9"
+smart-patcher = { git = "https://github.com/impulse-sw/smart-patcher.git", tag = "0.2.1", default-features = false }
 sonic-rs = "0.5.1"
 thaw = { git = "https://github.com/impulse-sw/thaw.git", tag = "0.4.5-ui-kit-3", default-features = false }
 tokio = { version = "1", default-features = false }

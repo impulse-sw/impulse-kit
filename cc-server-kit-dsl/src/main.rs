@@ -10,8 +10,6 @@ mod entities;
 fn main() -> MResult<()> {
   let matches = Command::new("Server Kit DSL Translator")
     .disable_version_flag(true)
-    .version("1.0")
-    .author("Your Name")
     .about("Translates DSL to CC Server Kit's API code")
     .arg(
       Arg::new("input")
@@ -55,7 +53,19 @@ fn main() -> MResult<()> {
   let version = matches
     .get_one::<String>("version")
     .cloned()
-    .unwrap_or_else(|| crate::entities::versions::decide_version(&output_dir, &api_desc, regenerate));
+    .map(|version| {
+      println!("Selected API version: {}.", version);
+      version
+    })
+    .unwrap_or_else(|| {
+      let version = crate::entities::versions::decide_version(&output_dir, &api_desc, regenerate);
+      if regenerate {
+        println!("Regenerating existing API version: {}.", version);
+      } else {
+        println!("Decided API version: {}.", version);
+      }
+      version
+    });
 
   let generated_code = api_desc.generate_from_scratch()?;
 

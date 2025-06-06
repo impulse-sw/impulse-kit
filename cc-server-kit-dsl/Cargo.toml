@@ -10,6 +10,7 @@ authors = { workspace = true }
 cc-utils = { workspace = true, features = ["mresult"] }
 regex = "1.11"
 serde = { workspace = true, features = ["derive"] }
+smart-patcher = { workspace = true }
 sonic-rs = { workspace = true }
 stringcase = "0.4.0"
 clap = { workspace = true }
