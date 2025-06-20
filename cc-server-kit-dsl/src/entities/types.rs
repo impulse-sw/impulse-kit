@@ -77,6 +77,30 @@ pub fn select_typedef(typename: impl AsRef<str>, typedefs: &[Type]) -> HashSet<&
     .collect()
 }
 
+pub fn convert_typedefs_update(typedefs: &[&Type]) -> Vec<String> {
+  let mut typedef_strs = vec![];
+
+  for usage in typedefs.iter().filter_map(|v| match v {
+    Type::Usage(usage) => Some(usage),
+    _ => None,
+  }) {
+    if usage.rust_type.split("::").last().unwrap().eq(usage.name.as_str()) {
+      typedef_strs.push(format!("use {};", usage.rust_type));
+    } else {
+      typedef_strs.push(format!("use {} as {};", usage.rust_type, usage.name));
+    }
+  }
+
+  for alias in typedefs.iter().filter_map(|v| match v {
+    Type::Alias(alias) => Some(alias),
+    _ => None,
+  }) {
+    typedef_strs.push(format!("type {} = {};", alias.alias, alias.rust_type));
+  }
+
+  typedef_strs
+}
+
 pub fn convert_typedefs(typedefs: &[&Type]) -> String {
   let mut typedef_strs = vec![];
 

@@ -3,15 +3,13 @@
 
 use cc_utils::prelude::*;
 use clap::{Arg, Command};
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
-mod entities;
+use skdsl::generate;
 
 fn main() -> MResult<()> {
   let matches = Command::new("Server Kit DSL Translator")
     .disable_version_flag(true)
-    .version("1.0")
-    .author("Your Name")
     .about("Translates DSL to CC Server Kit's API code")
     .arg(
       Arg::new("input")
@@ -40,7 +38,7 @@ fn main() -> MResult<()> {
       Arg::new("regenerate")
         .short('r')
         .long("regenerate")
-        .help("Don't bump the version and rewrite all generated files")
+        .help("Don't bump the version and rewrite all generated files (destructive)")
         .action(clap::ArgAction::SetTrue),
     )
     .get_matches();
@@ -49,34 +47,11 @@ fn main() -> MResult<()> {
   let output_dir = matches.get_one::<String>("output").unwrap();
   let regenerate = matches.get_flag("regenerate");
 
-  let api_desc = crate::entities::file::parse_file(input_file)?;
+  let api_desc = skdsl::file::parse_file(input_file)?;
   let output_dir = PathBuf::from(&output_dir);
+  let version = matches.get_one::<String>("version").cloned();
 
-  let version = matches
-    .get_one::<String>("version")
-    .cloned()
-    .unwrap_or_else(|| crate::entities::versions::decide_version(&output_dir, &api_desc, regenerate));
-
-  let generated_code = api_desc.generate_from_scratch()?;
-
-  let _ = fs::create_dir_all(PathBuf::from(&output_dir).join(&version));
-  for file in generated_code {
-    let filename = output_dir.join(&version).join(&file.filepath);
-    if !fs::exists(&filename).is_ok_and(|v| v) {
-      println!("Writing file {:?}...", file.filepath);
-      fs::write(filename, file.content).map_err(ServerError::from_private)?;
-    } else if regenerate {
-      println!("Rewriting file {:?}...", file.filepath);
-      fs::write(filename, file.content).map_err(ServerError::from_private)?;
-    }
-  }
-  fs::write(
-    output_dir.join(&version).join(".api.json"),
-    sonic_rs::to_string_pretty(&api_desc).map_err(ServerError::from_private)?,
-  )
-  .map_err(ServerError::from_private)?;
-
-  println!("Generated API code written. Version: {}.", version);
+  generate(version, api_desc, regenerate, &output_dir)?;
 
   Ok(())
 }

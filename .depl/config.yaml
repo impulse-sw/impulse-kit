@@ -535,3 +535,70 @@ pipelines:
                         value:
                           type: plain
                           value: target/x86_64-unknown-linux-gnu/release/skdsl
+  - title: debug-skdsl
+    desc: Build and install `skdsl`
+    info: cc-services-skdsl-debug@0.1.0
+    tags:
+      - cargo
+    default: true
+    actions:
+      - title: Lint
+        info: cargo-clippy@0.1.0
+        tags:
+          - cargo
+          - clippy
+        requirements:
+          - type: exists_any
+            paths:
+              - /bin/cargo
+              - ~/.cargo/bin/cargo
+        action:
+          type: pre_build
+          supported_langs:
+            - rust
+          commands:
+            - bash_c: cargo clippy --package skdsl --target x86_64-unknown-linux-gnu
+      - title: Cargo Build
+        desc: Build the Rust project with Cargo default settings in release mode
+        info: cargo-build@0.1.0
+        tags:
+          - rust
+          - cargo
+        requirements:
+          - type: exists
+            path: /bin/cargo
+        action:
+          type: build
+          supported_langs:
+            - rust
+          commands:
+            - bash_c: cargo build --package skdsl --target x86_64-unknown-linux-gnu
+              ignore_fails: false
+              show_success_output: false
+              show_bash_c: true
+      - title: Install to ~/.cargo/bin
+        info: install-to-cargo-bin@0.1.1
+        tags:
+          - cargo
+        action:
+          type: install
+          target:
+            arch: x86_64
+            os: linux
+            os_derivative: any
+            os_version:
+              type: no
+          commands:
+            - bash_c: cp -f <af> ~/.cargo/bin
+              show_bash_c: false
+              placeholders:
+                - <af>
+              replacements:
+                - group:
+                    - from: <af>
+                      to:
+                        title: target/x86_64-unknown-linux-gnu/debug/skdsl
+                        is_secret: false
+                        value:
+                          type: plain
+                          value: target/x86_64-unknown-linux-gnu/debug/skdsl

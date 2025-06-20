@@ -15,7 +15,7 @@ pub struct TaggedApi {
   pub endpoints: Vec<Api>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, PartialEq)]
 pub struct Api {
   pub name: String,
   pub hidden: bool,
@@ -165,12 +165,12 @@ pub fn generate_api_tag(tag: &TaggedApi, api_desc: &File) -> MResult<String> {
     lines.push(typedefs);
   }
 
-  for endp in &endp_defs {
-    lines.extend_from_slice(&endp.1);
-  }
-
   if !endp_defs.is_empty() {
     lines.push(generate_router(tag)?);
+  }
+
+  for endp in &endp_defs {
+    lines.extend_from_slice(&endp.1);
   }
 
   Ok(lines.join("\n"))
@@ -222,6 +222,8 @@ pub fn generate_api_endpoint(endpoint: &Api, tag: &TaggedApi, api_desc: &File) -
       .flatten()
       .collect::<Vec<_>>(),
   );
+
+  lines.push(format!("/// {}", tag_name_normalize(&endpoint.name)));
 
   lines.push(
     "#[instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]".to_string(),
@@ -388,7 +390,7 @@ pub fn generate_api_endpoint(endpoint: &Api, tag: &TaggedApi, api_desc: &File) -
       }
       Outgoing::Cookie(cookie) if !cookie.hidden => {
         lines.push(format!(
-          "  res.add_cookie(CookieBuilder::new(\"{}\", {}));",
+          "  res.add_cookie(CookieBuilder::new(\"{}\", {}).build());",
           cookie.key,
           stringcase::snake_case_with_options(cookie.key.as_str(), &scopts),
         ));
