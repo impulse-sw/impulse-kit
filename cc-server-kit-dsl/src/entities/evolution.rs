@@ -59,7 +59,7 @@ pub fn evolve(old_desc: &File, new_desc: &File, api_tag: &str) -> MResult<Option
     .collect::<Vec<_>>();
 
   if new_types.is_empty() && new_api_endpoints.is_empty() {
-    println!("There is no new types or endpoints in tag `{}`", api_tag);
+    println!("There is no new types or endpoints in tag `{api_tag}`");
     return Ok(None);
   }
 

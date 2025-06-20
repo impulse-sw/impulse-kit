@@ -28,7 +28,7 @@ pub struct Api {
 pub fn parse_api_endpoint(api_line: &str) -> MResult<Api> {
   let parts = api_line.split_whitespace().collect::<Vec<_>>();
   if parts.len() < 4 {
-    return ServerError::from_public(format!("Invalid API description - insufficient data: `{}`", api_line)).bail();
+    return ServerError::from_public(format!("Invalid API description - insufficient data: `{api_line}`")).bail();
   }
 
   let hidden = match parts[0] {
@@ -119,7 +119,7 @@ pub fn parse_api_endpoint(api_line: &str) -> MResult<Api> {
 pub fn parse_api_tag(api_tag_line: &str) -> MResult<(String, Vec<String>)> {
   let parts = api_tag_line.split_whitespace().collect::<Vec<_>>();
   if parts.len() < 3 {
-    return ServerError::from_public(format!("Invalid API tag definition: `{}`", api_tag_line)).bail();
+    return ServerError::from_public(format!("Invalid API tag definition: `{api_tag_line}`")).bail();
   }
 
   let mut requirements = vec![];
@@ -341,19 +341,13 @@ pub fn generate_api_endpoint(endpoint: &Api, tag: &TaggedApi, api_desc: &File) -
       Incoming::Body(body) => {
         match body {
           super::incoming::InBody::File { key } => lines.push(format!(
-            "  let body = req\n    .file(\"{}\")\n    .await\n    .ok_or(ServerError::from_public(\"Can't find `{}` file!\").with_400())?;",
-            key,
-            key,
+            "  let body = req\n    .file(\"{key}\")\n    .await\n    .ok_or(ServerError::from_public(\"Can't find `{key}` file!\").with_400())?;"
           )),
           super::incoming::InBody::Json { rust_type } => lines.push(format!(
-            "  let body = req\n    .parse_json_simd::<{}>()\n    .await\n    .map_err(|e| ServerError::from_private(e).with_public(\"Can't find JSON with `{}` type!\").with_400())?;",
-            rust_type,
-            rust_type,
+            "  let body = req\n    .parse_json_simd::<{rust_type}>()\n    .await\n    .map_err(|e| ServerError::from_private(e).with_public(\"Can't find JSON with `{rust_type}` type!\").with_400())?;"
           )),
           super::incoming::InBody::MsgPack { rust_type } => lines.push(format!(
-            "  let body = req\n    .parse_msgpack::<{}>()\n    .await\n    .map_err(|e| ServerError::from_private(e).with_public(\"Can't find MsgPack with `{}` type!\").with_400())?;",
-            rust_type,
-            rust_type,
+            "  let body = req\n    .parse_msgpack::<{rust_type}>()\n    .await\n    .map_err(|e| ServerError::from_private(e).with_public(\"Can't find MsgPack with `{rust_type}` type!\").with_400())?;"
           )),
         }
         was_indata = true;
@@ -528,14 +522,12 @@ pub fn generate_endp_macro_resp(outgoing: &[&Outgoing]) -> String {
         crate::entities::outgoing::OutBody::File => {
           String::from(",\n    body = Vec<u8>,\n    content_type = [\"application/octet-stream\"]")
         }
-        crate::entities::outgoing::OutBody::Json { rust_type } => format!(
-          ",\n    body = {},\n    content_type = [\"application/json\"]",
-          rust_type
-        ),
-        crate::entities::outgoing::OutBody::MsgPack { rust_type } => format!(
-          ",\n    body = {},\n    content_type = [\"application/msgpack\"]",
-          rust_type
-        ),
+        crate::entities::outgoing::OutBody::Json { rust_type } => {
+          format!(",\n    body = {rust_type},\n    content_type = [\"application/json\"]")
+        }
+        crate::entities::outgoing::OutBody::MsgPack { rust_type } => {
+          format!(",\n    body = {rust_type},\n    content_type = [\"application/msgpack\"]")
+        }
       }
     } else {
       String::new()

@@ -17,15 +17,15 @@ use crate::entities::file::File;
 pub fn generate(version: Option<String>, api_desc: File, regenerate: bool, output_dir: &Path) -> MResult<()> {
   let version = version
     .map(|version| {
-      println!("Selected API version: {}.", version);
+      println!("Selected API version: {version}.");
       version
     })
     .unwrap_or_else(|| {
       let version = crate::entities::versions::decide_version(output_dir, &api_desc, regenerate);
       if regenerate {
-        println!("Regenerating existing API version: {}.", version);
+        println!("Regenerating existing API version: {version}.");
       } else {
-        println!("Decided API version: {}.", version);
+        println!("Decided API version: {version}.");
       }
       version
     });
@@ -97,7 +97,7 @@ pub fn generate(version: Option<String>, api_desc: File, regenerate: bool, outpu
   )
   .map_err(ServerError::from_private)?;
 
-  println!("Generated API code written. Version: {}.", version);
+  println!("Generated API code written. Version: {version}.");
 
   Ok(())
 }

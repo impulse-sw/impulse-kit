@@ -122,7 +122,7 @@ impl MsgPackRequest for reqwest::RequestBuilder {
     Ok(
       self
         .header(reqwest::header::CONTENT_TYPE, "application/msgpack")
-        .body(rmp_serde::to_vec(msgpack).map_err(|e| CliError::from_str(format!("Can't serialize body: {:?}", e)))?),
+        .body(rmp_serde::to_vec(msgpack).map_err(|e| CliError::from_str(format!("Can't serialize body: {e:?}")))?),
     )
   }
 }

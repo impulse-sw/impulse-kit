@@ -25,7 +25,7 @@ pub async fn get_filepath_from_dist(filename: impl Into<String>) -> MResult<Stri
     tracing::debug!("There is no such file as {:?}", filepath);
   }
 
-  ServerError::from_public(format!(r#"Can't open file "{}""#, filename))
+  ServerError::from_public(format!(r#"Can't open file "{filename}""#))
     .with_404()
     .bail()
 }

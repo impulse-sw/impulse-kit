@@ -3,7 +3,7 @@
 /// Utility function to combine classes
 pub fn cn(base: &str, additional: Option<&str>) -> String {
   match additional {
-    Some(class) => format!("{} {}", base, class),
+    Some(class) => format!("{base} {class}"),
     None => base.to_string(),
   }
 }

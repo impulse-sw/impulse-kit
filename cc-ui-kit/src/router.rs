@@ -11,7 +11,7 @@ pub fn get_host() -> CResult<String> {
     .location()
     .ok_or(CliError::from_str("Can't get document's location."))?
     .host()
-    .map_err(|e| CliError::from_str(format!("Can't get host: {:?}", e)))?
+    .map_err(|e| CliError::from_str(format!("Can't get host: {e:?}")))?
     .to_string();
   Ok(server_host)
 }
@@ -25,7 +25,7 @@ pub fn get_protocol() -> CResult<String> {
     .location()
     .ok_or(CliError::from_str("Can't get document's location."))?
     .protocol()
-    .map_err(|e| CliError::from_str(format!("Can't get protocol: {:?}", e)))?
+    .map_err(|e| CliError::from_str(format!("Can't get protocol: {e:?}")))?
     .to_string();
   Ok(server_proto)
 }
@@ -39,7 +39,7 @@ pub fn get_path() -> CResult<String> {
     .location()
     .ok_or(CliError::from_str("Can't get document's location."))?
     .pathname()
-    .map_err(|e| CliError::from_str(format!("Can't get pathname: {:?}", e)))?
+    .map_err(|e| CliError::from_str(format!("Can't get pathname: {e:?}")))?
     .to_string();
   Ok(path)
 }
@@ -53,7 +53,7 @@ pub fn redirect(url: impl AsRef<str>) -> CResult<()> {
     .location()
     .ok_or(CliError::from_str("Can't get document's location."))?
     .set_href(url.as_ref())
-    .map_err(|e| CliError::from_str(format!("Can't redirect: {:?}", e)))
+    .map_err(|e| CliError::from_str(format!("Can't redirect: {e:?}")))
 }
 
 /// Get endpoint to your backend server
