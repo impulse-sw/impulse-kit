@@ -20,7 +20,7 @@ pub fn parse_requirement(requirement_line: &str) -> MResult<Requirement> {
 
   let parts = requirement_line.split_whitespace().collect::<Vec<_>>();
   if parts.len() < 2 {
-    return ServerError::from_public(format!("Requirement doesn't contain a name: `{}`", requirement_line)).bail();
+    return ServerError::from_public(format!("Requirement doesn't contain a name: `{requirement_line}`")).bail();
   }
 
   let hidden = match parts[0] {
@@ -77,7 +77,7 @@ pub fn parse_requirement(requirement_line: &str) -> MResult<Requirement> {
 pub fn parse_requirement_usage(requirement_str: &str) -> MResult<String> {
   let parts = requirement_str.split('/').collect::<Vec<_>>();
   if parts.len() != 2 {
-    return ServerError::from_public(format!("Invalid requirement usage: `{}`", requirement_str)).bail();
+    return ServerError::from_public(format!("Invalid requirement usage: `{requirement_str}`")).bail();
   }
   Ok(parts[1].to_string())
 }

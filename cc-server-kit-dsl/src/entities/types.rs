@@ -31,7 +31,7 @@ pub fn parse_typedef(typedef_line: &str) -> MResult<Type> {
   let parts = typedef_line.split_whitespace().collect::<Vec<_>>();
 
   if parts.len() < 3 {
-    return ServerError::from_public(format!("Invalid type definition: `{}`", typedef_line)).bail();
+    return ServerError::from_public(format!("Invalid type definition: `{typedef_line}`")).bail();
   }
   assert_eq!(parts[0], "type");
 
@@ -276,7 +276,7 @@ mod complex_type_enumerator {
             continue;
           }
           Some('>') => break,
-          Some(c) => return Err(format!("Unexpected character '{}' in type parameters", c)),
+          Some(c) => return Err(format!("Unexpected character '{c}' in type parameters")),
           None => return Err("Unexpected end of input in type parameters".to_string()),
         }
       }
@@ -298,7 +298,7 @@ mod complex_type_enumerator {
   // Функция-хелпер для извлечения списка названий типов
   #[allow(dead_code)]
   pub fn extract_type_names(type_str: &str) -> Result<Vec<String>, String> {
-    let parser = TypeParser::new().map_err(|e| format!("Failed to create parser: {}", e))?;
+    let parser = TypeParser::new().map_err(|e| format!("Failed to create parser: {e}"))?;
     parser.parse(type_str)
   }
 

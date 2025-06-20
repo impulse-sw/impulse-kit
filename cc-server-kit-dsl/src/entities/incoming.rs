@@ -122,7 +122,7 @@ pub fn parse_incoming_data(incoming_data: &str) -> MResult<Incoming> {
   match parts[0] {
     "h" => {
       if parts.len() != 3 {
-        return ServerError::from_public(format!("Invalid header incoming data: `{}`", incoming_data)).bail();
+        return ServerError::from_public(format!("Invalid header incoming data: `{incoming_data}`")).bail();
       }
       Ok(Incoming::Header(Header {
         r#type: parse_typename(parts[1]),
@@ -133,7 +133,7 @@ pub fn parse_incoming_data(incoming_data: &str) -> MResult<Incoming> {
     "b" => match parts[1] {
       "file" => {
         if parts.len() != 3 {
-          return ServerError::from_public(format!("Invalid file body incoming data: `{}`", incoming_data)).bail();
+          return ServerError::from_public(format!("Invalid file body incoming data: `{incoming_data}`")).bail();
         }
         Ok(Incoming::Body(InBody::File {
           key: parts[2].to_owned(),
@@ -141,7 +141,7 @@ pub fn parse_incoming_data(incoming_data: &str) -> MResult<Incoming> {
       }
       "json" => {
         if parts.len() != 3 {
-          return ServerError::from_public(format!("Invalid JSON body incoming data: `{}`", incoming_data)).bail();
+          return ServerError::from_public(format!("Invalid JSON body incoming data: `{incoming_data}`")).bail();
         }
         Ok(Incoming::Body(InBody::Json {
           rust_type: parse_typename(parts[2]),
@@ -149,7 +149,7 @@ pub fn parse_incoming_data(incoming_data: &str) -> MResult<Incoming> {
       }
       "msgpack" => {
         if parts.len() != 3 {
-          return ServerError::from_public(format!("Invalid MsgPack body incoming data: `{}`", incoming_data)).bail();
+          return ServerError::from_public(format!("Invalid MsgPack body incoming data: `{incoming_data}`")).bail();
         }
         Ok(Incoming::Body(InBody::MsgPack {
           rust_type: parse_typename(parts[2]),
@@ -163,7 +163,7 @@ pub fn parse_incoming_data(incoming_data: &str) -> MResult<Incoming> {
     },
     "q" => {
       if parts.len() != 3 {
-        return ServerError::from_public(format!("Invalid query incoming data: `{}`", incoming_data)).bail();
+        return ServerError::from_public(format!("Invalid query incoming data: `{incoming_data}`")).bail();
       }
       Ok(Incoming::QueryParam(Query {
         r#type: parse_typename(parts[1]),
@@ -173,7 +173,7 @@ pub fn parse_incoming_data(incoming_data: &str) -> MResult<Incoming> {
     }
     "f" => {
       if parts.len() != 3 {
-        return ServerError::from_public(format!("Invalid form incoming data: `{}`", incoming_data)).bail();
+        return ServerError::from_public(format!("Invalid form incoming data: `{incoming_data}`")).bail();
       }
       Ok(Incoming::FormParam(Form {
         r#type: parse_typename(parts[1]),
@@ -182,7 +182,7 @@ pub fn parse_incoming_data(incoming_data: &str) -> MResult<Incoming> {
     }
     "c" => {
       if parts.len() != 2 {
-        return ServerError::from_public(format!("Invalid cookie incoming data: `{}`", incoming_data)).bail();
+        return ServerError::from_public(format!("Invalid cookie incoming data: `{incoming_data}`")).bail();
       }
       Ok(Incoming::CookieParam(Cookie {
         key: parts[1].to_owned(),
@@ -190,14 +190,14 @@ pub fn parse_incoming_data(incoming_data: &str) -> MResult<Incoming> {
       }))
     }
     method if ALLOWED_HTTP_METHODS.contains(&method) => Ok(Incoming::Path(parse_http_path(&parts)?)),
-    _ => ServerError::from_public(format!("Invalid incoming data: `{}`", incoming_data)).bail(),
+    _ => ServerError::from_public(format!("Invalid incoming data: `{incoming_data}`")).bail(),
   }
 }
 
 pub fn parse_incoming_data_except_path(incoming_data: &str) -> MResult<Incoming> {
   let incoming = parse_incoming_data(incoming_data)?;
   if let Incoming::Path(_) = &incoming {
-    ServerError::from_public(format!("Can't construct requirement with path: `{}`", incoming_data)).bail()
+    ServerError::from_public(format!("Can't construct requirement with path: `{incoming_data}`")).bail()
   } else {
     Ok(incoming)
   }

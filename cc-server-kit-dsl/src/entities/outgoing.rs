@@ -57,8 +57,8 @@ impl OutBody {
       Self::Plain => String::from("MResult<Plain>"),
       Self::Html => String::from("MResult<Html>"),
       Self::File => String::from("MResult<File>"),
-      Self::Json { rust_type } => format!("MResult<Json<{}>>", rust_type),
-      Self::MsgPack { rust_type } => format!("MResult<MsgPack<{}>>", rust_type),
+      Self::Json { rust_type } => format!("MResult<Json<{rust_type}>>"),
+      Self::MsgPack { rust_type } => format!("MResult<MsgPack<{rust_type}>>"),
     }
   }
 }
@@ -70,8 +70,7 @@ pub fn parse_outgoing_data(outgoing_data: &str) -> MResult<Outgoing> {
     "ok" => {
       if parts.len() != 1 {
         return ServerError::from_public(format!(
-          "Invalid HTTP 200 OK (without body) outgoing data: `{}`",
-          outgoing_data
+          "Invalid HTTP 200 OK (without body) outgoing data: `{outgoing_data}`"
         ))
         .bail();
       }
@@ -79,7 +78,7 @@ pub fn parse_outgoing_data(outgoing_data: &str) -> MResult<Outgoing> {
     }
     "h" => {
       if parts.len() != 3 {
-        return ServerError::from_public(format!("Invalid header outgoing data: `{}`", outgoing_data)).bail();
+        return ServerError::from_public(format!("Invalid header outgoing data: `{outgoing_data}`")).bail();
       }
       Ok(Outgoing::Header(Header {
         r#type: parse_typename(parts[1]),
@@ -89,7 +88,7 @@ pub fn parse_outgoing_data(outgoing_data: &str) -> MResult<Outgoing> {
     }
     "c" => {
       if parts.len() != 2 {
-        return ServerError::from_public(format!("Invalid cookie outgoing data: `{}`", outgoing_data)).bail();
+        return ServerError::from_public(format!("Invalid cookie outgoing data: `{outgoing_data}`")).bail();
       }
       Ok(Outgoing::Cookie(Cookie {
         key: parts[1].to_owned(),
@@ -99,25 +98,25 @@ pub fn parse_outgoing_data(outgoing_data: &str) -> MResult<Outgoing> {
     "b" => match parts[1] {
       "plain" => {
         if parts.len() != 2 {
-          return ServerError::from_public(format!("Invalid plain body outgoing data: `{}`", outgoing_data)).bail();
+          return ServerError::from_public(format!("Invalid plain body outgoing data: `{outgoing_data}`")).bail();
         }
         Ok(Outgoing::Body(OutBody::Plain))
       }
       "html" => {
         if parts.len() != 2 {
-          return ServerError::from_public(format!("Invalid HTML body outgoing data: `{}`", outgoing_data)).bail();
+          return ServerError::from_public(format!("Invalid HTML body outgoing data: `{outgoing_data}`")).bail();
         }
         Ok(Outgoing::Body(OutBody::Html))
       }
       "file" => {
         if parts.len() != 2 {
-          return ServerError::from_public(format!("Invalid file body outgoing data: `{}`", outgoing_data)).bail();
+          return ServerError::from_public(format!("Invalid file body outgoing data: `{outgoing_data}`")).bail();
         }
         Ok(Outgoing::Body(OutBody::File))
       }
       "json" => {
         if parts.len() != 3 {
-          return ServerError::from_public(format!("Invalid JSON body outgoing data: `{}`", outgoing_data)).bail();
+          return ServerError::from_public(format!("Invalid JSON body outgoing data: `{outgoing_data}`")).bail();
         }
         Ok(Outgoing::Body(OutBody::Json {
           rust_type: parse_typename(parts[2]),
@@ -125,26 +124,26 @@ pub fn parse_outgoing_data(outgoing_data: &str) -> MResult<Outgoing> {
       }
       "msgpack" => {
         if parts.len() != 3 {
-          return ServerError::from_public(format!("Invalid MsgPack body outgoing data: `{}`", outgoing_data)).bail();
+          return ServerError::from_public(format!("Invalid MsgPack body outgoing data: `{outgoing_data}`")).bail();
         }
         Ok(Outgoing::Body(OutBody::MsgPack {
           rust_type: parse_typename(parts[2]),
         }))
       }
       _ => ServerError::from_public(format!(
-        "Invalid body type `{}` in outgoing data `{}`",
-        parts[1], outgoing_data
+        "Invalid body type `{}` in outgoing data `{outgoing_data}`",
+        parts[1]
       ))
       .bail(),
     },
-    _ => ServerError::from_public(format!("Invalid outgoing data: `{}`", outgoing_data)).bail(),
+    _ => ServerError::from_public(format!("Invalid outgoing data: `{outgoing_data}`")).bail(),
   }
 }
 
 pub fn parse_outgoing_data_except_body(outgoing_data: &str) -> MResult<Outgoing> {
   let outgoing = parse_outgoing_data(outgoing_data)?;
   if let Outgoing::Body(_) = &outgoing {
-    ServerError::from_public(format!("Can't construct requirement with body: `{}`", outgoing_data)).bail()
+    ServerError::from_public(format!("Can't construct requirement with body: `{outgoing_data}`")).bail()
   } else {
     Ok(outgoing)
   }

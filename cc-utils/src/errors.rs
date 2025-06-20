@@ -46,7 +46,7 @@ impl std::fmt::Display for ServerError {
           "\n{}",
           privates
             .iter()
-            .map(|e| format!("    Caused by: {}", e))
+            .map(|e| format!("    Caused by: {e}"))
             .collect::<Vec<_>>()
             .join("\n")
         )

@@ -43,7 +43,7 @@ pub async fn h3_header(depot: &mut Depot, res: &mut Response) {
     .headers_mut()
     .insert(
       ALT_SVC,
-      HeaderValue::from_str(&format!(r##"h3=":{}"; ma=2592000"##, server_port)).unwrap(),
+      HeaderValue::from_str(&format!(r##"h3=":{server_port}"; ma=2592000"##)).unwrap(),
     )
     .unwrap();
 }
@@ -196,7 +196,7 @@ pub async fn start_force_https_redirect(
   redirect_port: u16,
 ) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)> {
   let service = Service::new(Router::new()).hoop(ForceHttps::new().https_port(redirect_port));
-  let acceptor = TcpListener::new(format!("0.0.0.0:{}", listen_port)).bind().await;
+  let acceptor = TcpListener::new(format!("0.0.0.0:{listen_port}")).bind().await;
   let server = Server::new(acceptor);
   let handle = server.handle();
   let server = Box::pin(server.serve(service));

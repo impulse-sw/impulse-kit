@@ -108,9 +108,9 @@ pub struct GenericServerState {
 
 /// Loads the config from YAML file (`{app_name}.yaml`).
 pub async fn load_generic_config<T: DeserializeOwned + GenericSetup + Default>(app_name: &str) -> MResult<T> {
-  let mut file = std::fs::File::open(format!("{}.yaml", app_name));
+  let mut file = std::fs::File::open(format!("{app_name}.yaml"));
   if file.is_err() {
-    file = std::fs::File::open(format!("/etc/{}.yaml", app_name));
+    file = std::fs::File::open(format!("/etc/{app_name}.yaml"));
   }
   let mut file = file.map_err(|e| {
     ServerError::from_private(e)
