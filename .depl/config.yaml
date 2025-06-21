@@ -1,5 +1,5 @@
 project_name: cc-monorepo
-version: 4
+version: 5
 langs:
   - rust
 targets:
@@ -18,20 +18,7 @@ cache_files:
   - .git
   - Cargo.lock
   - target
-artifacts:
-  - target/x86_64-unknown-linux-gnu/release/cc-static-server
-  - cc-static-server/static-server.yaml
-  - target/x86_64-unknown-linux-gnu/doc
 variables: []
-place_artifacts_into_project_root:
-  - from: target/x86_64-unknown-linux-gnu/release/cc-static-server
-    to: static-server/cc-static-server
-  - from: cc-static-server/static-server.yaml
-    to: static-server/static-server.yaml
-  - from: cc-error-pages/dist
-    to: cc-error-pages/dist
-  - from: target/x86_64-unknown-linux-gnu/doc
-    to: docs
 pipelines:
   - title: common-ops
     desc: Common monorepo operations
@@ -41,9 +28,13 @@ pipelines:
       - clippy
       - lint
     default: true
+    artifacts:
+      - target/x86_64-unknown-linux-gnu/doc
+    artifacts_placements:
+      - from: target/x86_64-unknown-linux-gnu/doc
+        to: docs
     actions:
       - title: Lint `cc-utils` on x86-64
-        desc: Получено из `Cargo Clippy`.
         info: cargo-clippy@0.1.0
         tags:
           - cargo
@@ -56,7 +47,6 @@ pipelines:
           commands:
             - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package cc-utils --target x86_64-unknown-linux-gnu
       - title: Lint `cc-utils` on wasm32
-        desc: Получено из `Cargo Clippy`.
         info: cargo-clippy@0.1.0
         tags:
           - cargo
@@ -69,7 +59,6 @@ pipelines:
           commands:
             - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package cc-utils --target wasm32-unknown-unknown --no-default-features --features=reqwest
       - title: Lint `cc-ui-kit`
-        desc: Получено из `Cargo Clippy`.
         info: cargo-clippy@0.1.0
         tags:
           - cargo
@@ -82,7 +71,6 @@ pipelines:
           commands:
             - bash_c: cargo clippy --package cc-ui-kit --target wasm32-unknown-unknown
       - title: Lint `cc-error-pages`
-        desc: Получено из `Cargo Clippy`.
         info: cargo-clippy@0.1.0
         tags:
           - cargo
@@ -95,7 +83,6 @@ pipelines:
           commands:
             - bash_c: cargo clippy --package cc-error-pages --target wasm32-unknown-unknown
       - title: Lint `cc-server-kit`
-        desc: Получено из `Cargo Clippy`.
         info: cargo-clippy@0.1.0
         tags:
           - cargo
@@ -108,7 +95,6 @@ pipelines:
           commands:
             - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package cc-server-kit --target x86_64-unknown-linux-gnu
       - title: Lint `cc-server-kit-dsl`
-        desc: Получено из `Cargo Clippy`.
         info: cargo-clippy@0.1.0
         tags:
           - cargo
@@ -121,7 +107,6 @@ pipelines:
           commands:
             - bash_c: cargo clippy --package skdsl --target x86_64-unknown-linux-gnu
       - title: Lint `cc-static-server`
-        desc: Получено из `Cargo Clippy`.
         info: cargo-clippy@0.1.0
         tags:
           - cargo
@@ -134,7 +119,6 @@ pipelines:
           commands:
             - bash_c: cargo clippy --package cc-static-server --target x86_64-unknown-linux-gnu
       - title: Format
-        desc: Получено из `Format `.rs` files`.
         info: cargo-fmt@0.1.0
         tags: []
         exec_in_project_dir: true
@@ -145,7 +129,6 @@ pipelines:
           commands:
             - bash_c: cargo fmt -- --config tab_spaces=2,max_width=120 */**/*.rs
       - title: Test docs
-        desc: ''
         info: cargo-doc@0.1.0
         tags:
           - cargo
@@ -158,7 +141,6 @@ pipelines:
           commands:
             - bash_c: cargo test --doc
       - title: Generate docs
-        desc: ''
         info: cargo-doc@0.1.0
         tags:
           - cargo
@@ -178,9 +160,16 @@ pipelines:
       - clippy
       - lint
     default: true
+    artifacts:
+      - target/x86_64-unknown-linux-gnu/release/cc-static-server
+      - cc-static-server/static-server.yaml
+    artifacts_placements:
+      - from: target/x86_64-unknown-linux-gnu/release/cc-static-server
+        to: static-server/cc-static-server
+      - from: cc-static-server/static-server.yaml
+        to: static-server/static-server.yaml
     actions:
       - title: Sync script to know Rust package version
-        desc: ""
         info: sync-rust-crate-ver@0.1.0
         tags: []
         exec_in_project_dir: false
@@ -188,7 +177,6 @@ pipelines:
           type: use_from_storage
           content_info: get-know-rust-package-version@latest
       - title: Cargo Build (Release)
-        desc: Build the Rust project with Cargo default settings in release mode
         info: cargo-rel@0.1.0
         tags:
           - rust
@@ -206,7 +194,6 @@ pipelines:
               show_success_output: false
               show_bash_c: true
       - title: UPX Compress
-        desc: Compress the binary with UPX.
         info: upx-compress@0.1.0
         tags:
           - upx
@@ -242,7 +229,6 @@ pipelines:
                           type: plain
                           value: target/x86_64-unknown-linux-gnu/release/cc-static-server
       - title: Auto-upload CC Static Server to Deployer's Storage
-        desc: ""
         info: auto-upload-static-server@0.1.0
         tags: []
         exec_in_project_dir: false
@@ -275,9 +261,13 @@ pipelines:
       - wasm
       - web
     default: true
+    artifacts:
+      - cc-error-pages/dist
+    artifacts_placements:
+      - from: cc-error-pages/dist
+        to: cc-error-pages/dist
     actions:
       - title: Format `leptos` macroses
-        desc: Format Leptos `.rs` files
         info: leptos-fmt@0.1.0
         tags:
           - rust
@@ -298,7 +288,6 @@ pipelines:
               show_bash_c: true
               only_when_fresh: false
       - title: Format Rust code
-        desc: Format `.rs` files
         info: cargo-fmt@0.1.0
         tags:
           - rust
@@ -316,7 +305,6 @@ pipelines:
               show_bash_c: true
               only_when_fresh: false
       - title: Compile Tailwind Styles
-        desc: Получено из `Compile Tailwind Styles`. Compile application style classes with `tailwindcss` JS util.
         info: tailwind-css@0.1.0
         tags:
           - rust
@@ -334,7 +322,6 @@ pipelines:
               show_bash_c: true
               only_when_fresh: false
       - title: Trunk Build
-        desc: Получено из `Trunk Build`. Build WASM application with `trunk` in release mode.
         info: trunk-release@0.1.0
         tags:
           - cargo
@@ -357,7 +344,6 @@ pipelines:
               show_bash_c: true
               only_when_fresh: false
       - title: Optimize WASM
-        desc: Run `wasm-opt` with `-Oz` argument inside `dist` folder
         info: wasm-opt@0.1.0
         tags:
           - wasm
@@ -388,7 +374,6 @@ pipelines:
                           type: plain
                           value: cc-error-pages/dist/cc-error-pages_bg.wasm
       - title: Add `tailwind.css` from `public` to `dist`
-        desc: ""
         info: add-tailwind-css-to-dist-folder@0.1.0
         tags: []
         exec_in_project_dir: false
@@ -403,7 +388,6 @@ pipelines:
               show_bash_c: true
               only_when_fresh: false
       - title: Add `favicon.ico` from `public` to `dist`
-        desc: ""
         info: add-favicon-to-dist-folder@0.1.0
         tags: []
         exec_in_project_dir: false
@@ -425,6 +409,11 @@ pipelines:
       - clippy
       - lint
     default: true
+    artifacts:
+      - target/x86_64-unknown-linux-gnu/release/skdsl
+    artifacts_placements:
+      - from: target/x86_64-unknown-linux-gnu/release/skdsl
+        to: skdsl
     actions:
       - title: Lint
         info: cargo-clippy@0.1.0
@@ -456,7 +445,6 @@ pipelines:
           commands:
             - bash_c: cd cc-server-kit-dsl && cargo fmt -- --config tab_spaces=2,max_width=120 */**/*.rs
       - title: Cargo Build (Release)
-        desc: Build the Rust project with Cargo default settings in release mode
         info: cargo-rel@0.1.0
         tags:
           - rust
@@ -474,7 +462,6 @@ pipelines:
               show_success_output: false
               show_bash_c: true
       - title: UPX Compress
-        desc: Compress the binary with UPX.
         info: upx-compress@0.1.0
         tags:
           - upx
@@ -540,7 +527,12 @@ pipelines:
     info: cc-services-skdsl-debug@0.1.0
     tags:
       - cargo
-    default: true
+    default: false
+    artifacts:
+      - target/x86_64-unknown-linux-gnu/debug/skdsl
+    artifacts_placements:
+      - from: target/x86_64-unknown-linux-gnu/debug/skdsl
+        to: skdsl-debug
     actions:
       - title: Lint
         info: cargo-clippy@0.1.0
@@ -559,7 +551,6 @@ pipelines:
           commands:
             - bash_c: cargo clippy --package skdsl --target x86_64-unknown-linux-gnu
       - title: Cargo Build
-        desc: Build the Rust project with Cargo default settings in release mode
         info: cargo-build@0.1.0
         tags:
           - rust
