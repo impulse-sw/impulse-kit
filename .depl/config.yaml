@@ -338,7 +338,11 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: trunk build --release --config cc-error-pages/Trunk.toml
+            - bash_c: >
+                RUSTFLAGS="-Zlocation-detail=none -Zfmt-debug=none" 
+                CARGO_UNSTABLE_BUILD_STD="std,panic_abort" 
+                CARGO_UNSTABLE_BUILD_STD_FEATURES="optimize_for_size,panic_immediate_abort" 
+                trunk build --release --config cc-error-pages/Trunk.toml
               ignore_fails: false
               show_success_output: false
               show_bash_c: true
