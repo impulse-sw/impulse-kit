@@ -361,7 +361,7 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: wasm-opt -Oz --all-features -o {file} {file}
+            - bash_c: wasm-opt -Oz --all-features --strip-debug -o {file} {file}
               ignore_fails: false
               show_success_output: false
               show_bash_c: true

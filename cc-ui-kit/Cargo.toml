@@ -13,6 +13,5 @@ console_log = { workspace = true }
 leptos = { workspace = true, features = ["csr"] }
 leptos-use = { workspace = true, features = ["use_color_mode"] }
 log = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
 thaw = { workspace = true, features = ["csr"] }
 web-sys = { workspace = true, features = ["Storage", "Window", "Navigator"] }
