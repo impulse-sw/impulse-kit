@@ -400,12 +400,12 @@ pub fn generate_api_endpoint(endpoint: &Api, tag: &TaggedApi, api_desc: &File) -
 
   if let Some(Outgoing::Body(body)) = outgoing.iter().find(|o| o.is_body()) {
     match body {
-      super::outgoing::OutBody::Ok => lines.push(String::from("  ok!()")),
-      super::outgoing::OutBody::Plain => lines.push(String::from("  plain!(text)")),
-      super::outgoing::OutBody::Html => lines.push(String::from("  html!(text)")),
-      super::outgoing::OutBody::File => lines.push(String::from("  file_upload!(filepath, filename)")),
-      super::outgoing::OutBody::Json { .. } => lines.push(String::from("  json!(data)")),
-      super::outgoing::OutBody::MsgPack { .. } => lines.push(String::from("  msgpack!(data)")),
+      super::outgoing::OutBody::Ok => lines.push(String::from("  // ok!()")),
+      super::outgoing::OutBody::Plain => lines.push(String::from("  // plain!(text)")),
+      super::outgoing::OutBody::Html => lines.push(String::from("  // html!(text)")),
+      super::outgoing::OutBody::File => lines.push(String::from("  // file_upload!(filepath, filename)")),
+      super::outgoing::OutBody::Json { .. } => lines.push(String::from("  // json!(data)")),
+      super::outgoing::OutBody::MsgPack { .. } => lines.push(String::from("  // msgpack!(data)")),
     }
   }
 
