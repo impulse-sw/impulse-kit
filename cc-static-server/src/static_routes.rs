@@ -39,7 +39,7 @@ impl CustomStaticRouter {
     }
 
     let cacher = CacheMap::new();
-    tokio::task::spawn_local({
+    tokio::task::spawn({
       let path = path.as_ref().to_path_buf();
       let cacher = cacher.clone();
 
