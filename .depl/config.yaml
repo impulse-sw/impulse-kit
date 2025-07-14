@@ -29,8 +29,6 @@ pipelines:
       - lint
     default: true
     artifacts:
-      - target/x86_64-unknown-linux-gnu/doc
-    artifacts_placements:
       - from: target/x86_64-unknown-linux-gnu/doc
         to: docs
     actions:
@@ -161,9 +159,6 @@ pipelines:
       - lint
     default: true
     artifacts:
-      - target/x86_64-unknown-linux-gnu/release/cc-static-server
-      - cc-static-server/static-server.yaml
-    artifacts_placements:
       - from: target/x86_64-unknown-linux-gnu/release/cc-static-server
         to: static-server/cc-static-server
       - from: cc-static-server/static-server.yaml
@@ -262,8 +257,6 @@ pipelines:
       - web
     default: true
     artifacts:
-      - cc-error-pages/dist
-    artifacts_placements:
       - from: cc-error-pages/dist
         to: cc-error-pages/dist
     actions:
@@ -414,8 +407,6 @@ pipelines:
       - lint
     default: true
     artifacts:
-      - target/x86_64-unknown-linux-gnu/release/skdsl
-    artifacts_placements:
       - from: target/x86_64-unknown-linux-gnu/release/skdsl
         to: skdsl
     actions:
@@ -533,8 +524,6 @@ pipelines:
       - cargo
     default: false
     artifacts:
-      - target/x86_64-unknown-linux-gnu/debug/skdsl
-    artifacts_placements:
       - from: target/x86_64-unknown-linux-gnu/debug/skdsl
         to: skdsl-debug
     actions:

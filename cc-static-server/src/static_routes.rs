@@ -4,7 +4,7 @@ use cc_server_kit::prelude::*;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::caching::{CacheMap, cache_runner};
+use crate::caching::{CacheMap, CachedFile, cache_runner};
 
 const LOCAL_FRONTEND_DISTRIBUTABLE: &str = "dist";
 const CONTAINER_FRONTEND_DISTRIBUTABLE: &str = "/usr/local/frontend-dist";
@@ -31,16 +31,16 @@ impl CustomStaticRouter {
   }
 
   /// Create static router from given path with in-memory cacher.
-  pub fn new_with_cacher(path: &Path) -> MResult<Self> {
-    if !path.exists() {
-      ServerError::from_private_str(format!("There is no such folder as {path:?}!"))
+  pub fn new_with_cacher(path: impl AsRef<Path>) -> MResult<Self> {
+    if !path.as_ref().exists() {
+      ServerError::from_private_str(format!("There is no such folder as {:?}!", path.as_ref()))
         .with_500()
         .bail()?;
     }
 
     let cacher = CacheMap::new();
     tokio::task::spawn_local({
-      let path = path.to_path_buf();
+      let path = path.as_ref().to_path_buf();
       let cacher = cacher.clone();
 
       async move {
@@ -51,9 +51,87 @@ impl CustomStaticRouter {
     });
 
     Ok(Self {
-      path: path.to_owned(),
+      path: path.as_ref().to_owned(),
       cacher: Some(cacher),
     })
+  }
+
+  /// Request given file either from in-memory cacher or from disk.
+  pub async fn send_file(
+    &self,
+    req: &mut Request,
+    depot: &mut Depot,
+    res: &mut Response,
+    filename: &str,
+    path: &Path,
+  ) -> MResult<()> {
+    use salvo::Writer;
+
+    if let Some(cacher) = self.cacher.as_ref() {
+      if let Ok(Some(cached)) = cacher.fetch(path) {
+        cached.send(req.headers(), res).await;
+      } else {
+        let length = tokio::fs::metadata(path)
+          .await
+          .map_err(|e| ServerError::from_private(e).with_404())?
+          .len();
+        if length > 16 * 1024 * 1024 {
+          file_upload!(path.to_path_buf(), filename.to_string())
+            .write(req, depot, res)
+            .await;
+        } else {
+          let cached = CachedFile::construct_from(filename, path, length).await?;
+          cacher.upsert(path, cached.clone())?;
+          cached.send(req.headers(), res).await;
+        }
+      }
+    } else {
+      file_upload!(path.to_path_buf(), filename.to_string())
+        .write(req, depot, res)
+        .await;
+    }
+    Ok(())
+  }
+
+  /// Request given HTML page either from in-memory cacher or from disk.
+  pub async fn send_html(
+    &self,
+    req: &mut Request,
+    depot: &mut Depot,
+    res: &mut Response,
+    filename: &str,
+    path: &Path,
+  ) -> MResult<()> {
+    use salvo::Writer;
+
+    if let Some(cacher) = self.cacher.as_ref() {
+      if let Ok(Some(cached)) = cacher.fetch(path) {
+        let site = String::from_utf8_lossy_owned(cached.bytes);
+        html!(site).unwrap().write(req, depot, res).await;
+      } else {
+        let length = tokio::fs::metadata(path)
+          .await
+          .map_err(|e| ServerError::from_private(e).with_404())?
+          .len();
+        if length > 16 * 1024 * 1024 {
+          let site = tokio::fs::read_to_string(path)
+            .await
+            .map_err(|e| ServerError::from_private(e).with_404())?;
+          html!(site).unwrap().write(req, depot, res).await;
+        } else {
+          let cached = CachedFile::construct_from(filename, path, length).await?;
+          cacher.upsert(path, cached.clone())?;
+          let site = String::from_utf8_lossy_owned(cached.bytes);
+          html!(site).unwrap().write(req, depot, res).await;
+        }
+      }
+    } else {
+      let site = tokio::fs::read_to_string(path)
+        .await
+        .map_err(|e| ServerError::from_private(e).with_404())?;
+      html!(site).unwrap().write(req, depot, res).await;
+    }
+    Ok(())
   }
 }
 
@@ -68,34 +146,37 @@ impl salvo::Handler for CustomStaticRouter {
       filename = String::from("index.html");
     }
     let filepath = self.path.join(&filename);
-    if filepath.exists() && filename.contains(".") {
+    if filename.contains(".") {
       match filename.split('.').collect::<Vec<_>>().last() {
         Some(&"html") => {
-          if let Some(cacher) = self.cacher.as_ref()
-            && let Ok(Some(data)) = cacher.fetch(&filepath)
-          {
-            let site = String::from_utf8_lossy_owned(data);
-            html!(site).unwrap().write(req, depot, res).await;
-          } else if let Ok(site) = tokio::fs::read_to_string(&filepath).await {
-            if let Some(cacher) = self.cacher.as_ref() {
-              let _ = cacher.upsert(&filepath, site.as_bytes().to_vec());
-            }
-            html!(site).unwrap().write(req, depot, res).await;
-          } else {
-            ServerError::from_public("There is no such file!")
+          if let Err(e) = self.send_html(req, depot, res, &filename, &filepath).await {
+            e.with_public("There is no such file!")
               .with_404()
               .write(req, depot, res)
               .await;
           }
         }
-        _ => file_upload!(filepath, filename).unwrap().write(req, depot, res).await,
+        _ => {
+          if let Err(e) = self.send_file(req, depot, res, &filename, &filepath).await {
+            e.with_public("There is no such file!")
+              .with_404()
+              .write(req, depot, res)
+              .await;
+          }
+        }
       }
-    } else if !filename.contains(".")
-      && let Ok(site) = tokio::fs::read_to_string(&self.path.join("index.html")).await
+    } else if filepath.exists() {
+      if let Err(e) = self.send_file(req, depot, res, &filename, &filepath).await {
+        e.with_public("There is no such file!")
+          .with_404()
+          .write(req, depot, res)
+          .await;
+      }
+    } else if let Err(e) = self
+      .send_html(req, depot, res, "index.html", &self.path.join("index.html"))
+      .await
     {
-      html!(site).unwrap().write(req, depot, res).await;
-    } else {
-      ServerError::from_public("There is no such file!")
+      e.with_public("There is no such file!")
         .with_404()
         .write(req, depot, res)
         .await;
@@ -110,7 +191,7 @@ impl salvo::Handler for CustomStaticRouter {
 /// Note that your `dist` folder must contains `index.html` file.
 #[allow(unused)]
 pub fn frontend_router_from_given_dist(dist: &Path) -> MResult<Router> {
-  Ok(Router::with_path("{**rest_path}").get(CustomStaticRouter::new(dist)?))
+  Ok(Router::with_path("{**rest_path}").get(CustomStaticRouter::new_with_cacher(dist)?))
 }
 
 /// Static router.
@@ -123,8 +204,8 @@ pub fn frontend_router_from_given_dist(dist: &Path) -> MResult<Router> {
 ///
 /// Returns error if neither `dist` nor `/usr/local/frontend-dist` folder exists.
 pub fn frontend_router() -> MResult<Router> {
-  let dist = CustomStaticRouter::new(LOCAL_FRONTEND_DISTRIBUTABLE)
-    .or(CustomStaticRouter::new(CONTAINER_FRONTEND_DISTRIBUTABLE))?;
+  let dist = CustomStaticRouter::new_with_cacher(LOCAL_FRONTEND_DISTRIBUTABLE)
+    .or(CustomStaticRouter::new_with_cacher(CONTAINER_FRONTEND_DISTRIBUTABLE))?;
 
   Ok(Router::with_path("{**rest_path}").get(dist))
 }

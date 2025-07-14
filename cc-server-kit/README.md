@@ -27,7 +27,7 @@ To use Server Kit, include this line into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cc-server-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.10" }
+cc-server-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.11" }
 ```
 
 And create empty `{app-name}.yaml` to fill later (see [Configuration Overview](#7) below).
@@ -74,7 +74,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-cc-server-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.10" }
+cc-server-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.11" }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["macros"] }
 tracing = "1"

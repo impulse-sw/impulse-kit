@@ -24,7 +24,7 @@
 //! ```rust,ignore
 //! // Cargo.toml dependencies:
 //! //
-//! // cc-server-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.10" }
+//! // cc-server-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.11" }
 //! // serde = { version = "1", features = ["derive"] }
 //! // tokio = { version = "1", features = ["macros"] }
 //! // tracing = "1"
