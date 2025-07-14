@@ -17,10 +17,18 @@
 //! oapi_name: Server Test OAPI
 //! oapi_ver: 0.0.1
 //! oapi_api_addr: /api
-//! log_level: debug
+//! enable_io_logs: true
+//! io_log_level: debug
 //! ```
 //!
 //! ```rust,ignore
+//! // Cargo.toml dependencies:
+//! //
+//! // cc-server-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.11" }
+//! // serde = { version = "1", features = ["derive"] }
+//! // tokio = { version = "1", features = ["macros"] }
+//! // tracing = "1"
+//!
 //! use cc_server_kit::prelude::*;
 //! use serde::{Deserialize, Serialize};
 //!

@@ -1,9 +1,7 @@
 #![deny(warnings, clippy::todo, clippy::unimplemented)]
-#![feature(if_let_guard, let_chains)]
-
-mod static_routes;
 
 use cc_server_kit::prelude::*;
+use cc_static_server::frontend_router;
 use serde::Deserialize;
 
 #[derive(Deserialize, Default, Clone)]
@@ -25,7 +23,7 @@ impl GenericSetup for Setup {
 async fn main() {
   let setup = load_generic_config::<Setup>("static-server").await.unwrap();
   let state = load_generic_state(&setup, true).await.unwrap();
-  let router = get_root_router(&state).push(static_routes::frontend_router());
+  let router = get_root_router(&state).push(frontend_router().unwrap());
   let (server, _handler) = start(state, &setup, router).await.unwrap();
   server.await
 }

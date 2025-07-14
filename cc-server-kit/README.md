@@ -2,6 +2,17 @@
 
 State-of-art simple and powerful web server based on [Salvo](https://github.com/salvo-rs/salvo). Provides extended tracing, configuration-over-YAML, HTTP3, TLS v1.3, MessagePack + SIMD JSON ser/de support, ACME, OpenAPI and OpenTelemetry features *by default*.
 
+Table of contents:
+
+- [How's it work](#1)
+- [Using Server Kit](#2)
+- [Extended utilities](#3)
+- [4 Quick start steps](#4)
+- [Common Salvo documentation](#5)
+- [Code API Overview](#6)
+- [Configuration Overview](#7)
+
+<a name="1"></a>
 ## How's it work
 
 1. You load configuration from the file on the startup via `load_generic_config` function.
@@ -9,17 +20,19 @@ State-of-art simple and powerful web server based on [Salvo](https://github.com/
 3. You create your own `salvo::Router` and then generate server's `Future` and handle by `start` function.
 4. You manually start awaiting `server`.
 
+<a name="2"></a>
 ## Using Server Kit
 
 To use Server Kit, include this line into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cc-server-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.9" }
+cc-server-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.11" }
 ```
 
-And create empty `{app-name}.yaml` to fill later (see [Configuration Overview](#configuration-overview) below).
+And create empty `{app-name}.yaml` to fill later (see [Configuration Overview](#7) below).
 
+<a name="3"></a>
 ## Extended utilities
 
 Server Kit uses `cc-utils` to improve functionality by:
@@ -30,6 +43,7 @@ Server Kit uses `cc-utils` to improve functionality by:
 
 Read more: [`cc-utils`](./../cc-utils/README.md).
 
+<a name="4"></a>
 ## 4 Quick start steps
 
 1. Create `Setup` struct with your setup data fields and `GenericValues` inside.
@@ -47,7 +61,8 @@ oapi_frontend_type: Scalar
 oapi_name: Server Test OAPI
 oapi_ver: 0.0.1
 oapi_api_addr: /api
-log_level: debug
+enable_io_logs: true
+io_log_level: debug
 ```
 
 `Cargo.toml`:
@@ -59,9 +74,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-cc-server-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.9" }
+cc-server-kit = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.11" }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["macros"] }
+tracing = "1"
 ```
 
 The code itself:
@@ -129,7 +145,12 @@ fn tests_router() -> Router {
 async fn main() {
   let setup = load_generic_config::<Setup>("server-example").await.unwrap();
   let state = load_generic_state(&setup, true).await.unwrap();
-  let router = get_root_router_autoinject(&state, setup.clone()).push(tests_router());
+  
+  // any setup, like DB or auth client
+  
+  let router = get_root_router_autoinject(&state, setup.clone())
+    // .hoop(salvo::affix_state::inject(my_db_client).inject(my_auth_client))
+    .push(tests_router());
   let (server, _handler) = start(state, &setup, router).await.unwrap();
   server.await
 }
@@ -137,10 +158,12 @@ async fn main() {
 
 Here we go! You can now start the server with `cargo run`!
 
+<a name="5"></a>
 ## Common Salvo documentation
 
 Server Kit is just a layer on top of Salvo framework. Use its [documentation and examples](https://salvo.rs/guide/quick-start.html) to know how to develop web servers in Server Kit.
 
+<a name="6"></a>
 ## Code API Overview
 
 > [!NOTE]
@@ -211,7 +234,7 @@ To enforce HTTPS, you should start another server via `start_force_https_redirec
 let (server, handler) = start_force_https_redirect(80, 443).await.unwrap();
 ```
 
-<a id="configuration-overview"></a>
+<a name="7"></a>
 ## Configuration Overview
 
 > [!NOTE]

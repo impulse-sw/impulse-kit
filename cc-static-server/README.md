@@ -5,6 +5,7 @@ Simple static server. Features:
 - running on top of `cc-server-kit` (see [configuration example](./../cc-server-kit/README.md))
 - serves all your files from `dist` or `/usr/local/frontend-dist/` folder
 - when receives any request other than `/`, it returns `index.html`, excluding files
+- provides in-memory cache for files less than 16 MiB via `CustomStaticRouter::new_with_cacher` or by default - with `ETag` and `Last-Modified`
 
 ## Build
 
@@ -35,7 +36,7 @@ Just include it into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cc-static-server = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.9" }
+cc-static-server = { git = "https://github.com/impulse-sw/cc-services.git", tag = "0.11" }
 ```
 
 and use one of these functions:
