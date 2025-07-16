@@ -31,7 +31,10 @@ pub struct ServerError {
 
 /// Public error message.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(all(feature = "salvo", not(any(target_arch = "wasm32", target_arch = "wasm64"))), derive(salvo::oapi::ToSchema))]
+#[cfg_attr(
+  all(feature = "salvo", not(any(target_arch = "wasm32", target_arch = "wasm64"))),
+  derive(salvo::oapi::ToSchema)
+)]
 pub struct ErrorResponse {
   /// Public error message.
   pub err: String,
