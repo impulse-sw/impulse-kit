@@ -196,7 +196,6 @@ impl ServerError {
     let err_data = Self::format_error(&err);
 
     Self {
-      #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
       status_code: None,
       public_msg: None,
       private_msg: Some(err_data),
@@ -206,7 +205,6 @@ impl ServerError {
   /// Makes a new ServerError with actual error provided by plain string.
   pub fn from_private_str(err: impl Into<String>) -> Self {
     Self {
-      #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
       status_code: None,
       public_msg: None,
       private_msg: Some(vec![err.into()]),
@@ -243,7 +241,6 @@ impl ServerError {
   /// Makes a new Server Error from public message.
   pub fn from_public(public_msg: impl Into<String>) -> Self {
     Self {
-      #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
       status_code: None,
       public_msg: Some(public_msg.into()),
       private_msg: None,
