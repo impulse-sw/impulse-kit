@@ -1,25 +1,32 @@
 //! Implementation of utilities for working with responses in `salvo` and `reqwest`.
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::http::HeaderValue;
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::hyper::header::CONTENT_TYPE;
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::oapi::{EndpointOutRegister, ToSchema};
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::{Depot, Request, Response};
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::Writer as ServerResponseWriter;
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::fs::NamedFile;
 
 /// Macro to define the function that called the response.
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[macro_export]
 macro_rules! fn_name {
   () => {{
@@ -39,6 +46,7 @@ macro_rules! fn_name {
 
 /// Macro for automating `EndpointOutRegister` implementations (for simple types)
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 macro_rules! impl_oapi_endpoint_out {
   ($t:tt, $c:expr) => {
     #[cfg(feature = "salvo")]
@@ -56,6 +64,7 @@ macro_rules! impl_oapi_endpoint_out {
 
 /// Macro for automating `EndpointOutRegister` implementations (for template types)
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 macro_rules! impl_oapi_endpoint_out_t {
   ($t:tt, $c:expr) => {
     #[cfg(feature = "salvo")]
@@ -72,6 +81,7 @@ macro_rules! impl_oapi_endpoint_out_t {
 }
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[allow(async_fn_in_trait)]
 /// Trait that utilizes only mutable reference to `Response` and makes no need for `Request`/`Depot`.
 pub trait ExplicitServerWrite {
@@ -81,13 +91,16 @@ pub trait ExplicitServerWrite {
 
 /// Sends 200 without data.
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 pub struct OK(pub &'static str);
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_oapi_endpoint_out!(OK, "text/plain");
 
 /// Returns empty `200 OK` response.
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[macro_export]
 macro_rules! ok {
   () => {
@@ -96,6 +109,7 @@ macro_rules! ok {
 }
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl ExplicitServerWrite for OK {
   async fn explicit_write(self, res: &mut Response) {
     res.status_code(salvo::http::StatusCode::OK);
@@ -105,6 +119,7 @@ impl ExplicitServerWrite for OK {
 }
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[salvo::async_trait]
 impl ServerResponseWriter for OK {
   async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
@@ -114,10 +129,12 @@ impl ServerResponseWriter for OK {
 
 /// Sends 200 and plain text.
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[derive(Debug)]
 pub struct Plain(pub String, pub &'static str);
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_oapi_endpoint_out!(Plain, "text/plain");
 
@@ -135,6 +152,7 @@ macro_rules! plain {
 }
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl ExplicitServerWrite for Plain {
   async fn explicit_write(self, res: &mut Response) {
     res.status_code(salvo::http::StatusCode::OK);
@@ -144,6 +162,7 @@ impl ExplicitServerWrite for Plain {
 }
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[salvo::async_trait]
 impl ServerResponseWriter for Plain {
   async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
@@ -153,14 +172,17 @@ impl ServerResponseWriter for Plain {
 
 /// Sends 200 and HTML.
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[derive(Debug)]
 pub struct Html(pub String, pub &'static str);
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_oapi_endpoint_out!(Html, "text/html");
 
 /// Returns given HTML code.
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[macro_export]
 macro_rules! html {
   ($html_data:expr) => {
@@ -172,6 +194,7 @@ macro_rules! html {
 }
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl ExplicitServerWrite for Html {
   async fn explicit_write(self, res: &mut Response) {
     res.status_code(salvo::http::StatusCode::OK);
@@ -181,6 +204,7 @@ impl ExplicitServerWrite for Html {
 }
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[salvo::async_trait]
 impl ServerResponseWriter for Html {
   async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
@@ -190,10 +214,12 @@ impl ServerResponseWriter for Html {
 
 /// Sends 200 and file.
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[derive(Debug)]
 pub struct File(pub std::path::PathBuf, pub String, pub &'static str);
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_oapi_endpoint_out!(File, "application/octet-stream");
 
 /// File response.
@@ -210,6 +236,7 @@ impl_oapi_endpoint_out!(File, "application/octet-stream");
 /// }
 /// ```
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[macro_export]
 macro_rules! file_upload {
   ($filepath:expr, $attached_filename:expr) => {
@@ -222,6 +249,7 @@ macro_rules! file_upload {
 }
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[salvo::async_trait]
 impl ServerResponseWriter for File {
   async fn write(self, req: &mut Request, _depot: &mut Depot, res: &mut Response) {
@@ -242,14 +270,17 @@ impl ServerResponseWriter for File {
 
 /// Sends 200 and JSON.
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[derive(Debug)]
 pub struct Json<T>(pub T, pub &'static str);
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_oapi_endpoint_out_t!(Json, "application/json");
 
 /// Serializes to JSON and returns given object.
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[macro_export]
 macro_rules! json {
   ($json_data:expr) => {
@@ -261,6 +292,7 @@ macro_rules! json {
 }
 
 #[cfg(all(feature = "salvo", feature = "mresult"))]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl<T: serde::Serialize + Send> ExplicitServerWrite for Json<T> {
   async fn explicit_write(self, res: &mut Response) {
     res.status_code(salvo::http::StatusCode::OK);
@@ -287,6 +319,7 @@ impl<T: serde::Serialize + Send> ExplicitServerWrite for Json<T> {
 }
 
 #[cfg(all(feature = "salvo", feature = "mresult"))]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[salvo::async_trait]
 impl<T: serde::Serialize + Send> ServerResponseWriter for Json<T> {
   async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
@@ -296,14 +329,17 @@ impl<T: serde::Serialize + Send> ServerResponseWriter for Json<T> {
 
 /// Sends 200 and MsgPack.
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[derive(Debug)]
 pub struct MsgPack<T>(pub T, pub &'static str);
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl_oapi_endpoint_out_t!(MsgPack, "application/msgpack");
 
 /// Serializes to MsgPack and returns given object.
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[macro_export]
 macro_rules! msgpack {
   ($msgpack_data:expr) => {
@@ -315,6 +351,7 @@ macro_rules! msgpack {
 }
 
 #[cfg(all(feature = "salvo", feature = "mresult"))]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl<T: serde::Serialize + Send> ExplicitServerWrite for MsgPack<T> {
   async fn explicit_write(self, res: &mut Response) {
     res.status_code(salvo::http::StatusCode::OK);
@@ -341,6 +378,7 @@ impl<T: serde::Serialize + Send> ExplicitServerWrite for MsgPack<T> {
 }
 
 #[cfg(all(feature = "salvo", feature = "mresult"))]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[salvo::async_trait]
 impl<T: serde::Serialize + Send> ServerResponseWriter for MsgPack<T> {
   async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {

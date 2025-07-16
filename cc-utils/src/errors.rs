@@ -1,15 +1,18 @@
 //! Implementation of optional private errors for `salvo` and client errors for `reqwest`.
 
-#[cfg(feature = "salvo")]
-use salvo::http::StatusCode;
+#[cfg(feature = "mresult")]
+use http::StatusCode;
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::oapi::{EndpointOutRegister, ToSchema};
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::{Depot, Request, Response};
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::Writer as ServerResponseWriter;
 
 /// Data structure responsible for server errors.
@@ -28,7 +31,7 @@ pub struct ServerError {
 
 /// Public error message.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "salvo", derive(salvo::oapi::ToSchema))]
+#[cfg_attr(all(feature = "salvo", not(any(target_arch = "wasm32", target_arch = "wasm64"))), derive(salvo::oapi::ToSchema))]
 pub struct ErrorResponse {
   /// Public error message.
   pub err: String,
@@ -88,6 +91,7 @@ impl std::fmt::Display for CliError {
 impl std::error::Error for CliError {}
 
 #[cfg(all(feature = "salvo", feature = "mresult"))]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl crate::responses::ExplicitServerWrite for ServerError {
   async fn explicit_write(self, res: &mut Response) {
     res.status_code(self.status_code.unwrap_or(StatusCode::INTERNAL_SERVER_ERROR));
@@ -108,6 +112,7 @@ impl crate::responses::ExplicitServerWrite for ServerError {
 }
 
 #[cfg(all(feature = "salvo", feature = "mresult"))]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[salvo::async_trait]
 impl ServerResponseWriter for ServerError {
   /// Method for sending an error message to the client.
@@ -117,6 +122,7 @@ impl ServerResponseWriter for ServerError {
 }
 
 #[cfg(all(feature = "salvo", feature = "mresult"))]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl EndpointOutRegister for ServerError {
   /// Registers error types for OpenAPI.
   fn register(components: &mut salvo::oapi::Components, operation: &mut salvo::oapi::Operation) {
@@ -244,49 +250,42 @@ impl ServerError {
   }
 
   /// Error BAD REQUEST (400).
-  #[cfg(all(feature = "salvo", feature = "mresult"))]
   pub fn with_400(mut self) -> Self {
     self.status_code = Some(StatusCode::BAD_REQUEST);
     self
   }
 
   /// Error UNAUTHORIZED (401).
-  #[cfg(all(feature = "salvo", feature = "mresult"))]
   pub fn with_401(mut self) -> Self {
     self.status_code = Some(StatusCode::UNAUTHORIZED);
     self
   }
 
   /// Error FORBIDDEN (403).
-  #[cfg(all(feature = "salvo", feature = "mresult"))]
   pub fn with_403(mut self) -> Self {
     self.status_code = Some(StatusCode::FORBIDDEN);
     self
   }
 
   /// Error NOT FOUND (404).
-  #[cfg(all(feature = "salvo", feature = "mresult"))]
   pub fn with_404(mut self) -> Self {
     self.status_code = Some(StatusCode::NOT_FOUND);
     self
   }
 
   /// Error METHOD NOT ALLOWED (405).
-  #[cfg(all(feature = "salvo", feature = "mresult"))]
   pub fn with_405(mut self) -> Self {
     self.status_code = Some(StatusCode::METHOD_NOT_ALLOWED);
     self
   }
 
   /// Error INTERNAL SERVER ERROR (500).
-  #[cfg(all(feature = "salvo", feature = "mresult"))]
   pub fn with_500(mut self) -> Self {
     self.status_code = Some(StatusCode::INTERNAL_SERVER_ERROR);
     self
   }
 
   /// Error LOCKED (423).
-  #[cfg(all(feature = "salvo", feature = "mresult"))]
   pub fn with_code(mut self, code: StatusCode) -> Self {
     self.status_code = Some(code);
     self
