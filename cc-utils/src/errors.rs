@@ -20,8 +20,6 @@ use salvo::Writer as ServerResponseWriter;
 #[derive(Debug)]
 pub struct ServerError {
   /// Status code to return.
-  #[cfg(feature = "salvo")]
-  #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
   pub status_code: Option<StatusCode>,
   /// Text to return (and hide error messages that leads to leak vulnerable data).
   pub public_msg: Option<String>,
