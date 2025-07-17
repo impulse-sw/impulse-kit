@@ -17,7 +17,7 @@ use salvo::Writer as ServerResponseWriter;
 
 /// Data structure responsible for server errors.
 #[cfg(feature = "mresult")]
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct ServerError {
   /// Status code to return.
   pub status_code: Option<StatusCode>,
@@ -25,6 +25,29 @@ pub struct ServerError {
   pub public_msg: Option<String>,
   /// Text that really describes error situation.
   pub private_msg: Option<Vec<String>>,
+}
+
+#[cfg(feature = "mresult")]
+impl std::fmt::Debug for ServerError {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_str(&format!(
+      "Error: `{}` status code\n  Error message: \"{}\"{}",
+      self.status_code.unwrap_or(StatusCode::INTERNAL_SERVER_ERROR).as_str(),
+      self.decide_public_msg(),
+      if let Some(privates) = self.private_msg.as_ref() {
+        format!(
+          "\n{}",
+          privates
+            .iter()
+            .map(|e| format!("    Caused by: {e}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+        )
+      } else {
+        String::new()
+      }
+    ))
+  }
 }
 
 /// Public error message.
@@ -75,7 +98,7 @@ impl std::error::Error for ErrorResponse {}
 
 /// Data structure responsible for client errors.
 #[cfg(feature = "cresult")]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CliError {
   /// Error message.
   pub message: String,
@@ -83,6 +106,13 @@ pub struct CliError {
 
 #[cfg(feature = "cresult")]
 impl std::fmt::Display for CliError {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_str(self.message.as_str())
+  }
+}
+
+#[cfg(feature = "cresult")]
+impl std::fmt::Debug for CliError {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str(self.message.as_str())
   }
