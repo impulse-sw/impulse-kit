@@ -8,10 +8,9 @@ authors = { workspace = true }
 
 [dependencies]
 cc-server-kit = { workspace = true, features = ["http3", "cors", "acme", "oapi", "otel", "force-https"] }
-dashmap = { workspace = true }
 fs-change-notifier = { workspace = true }
 headers = { workspace = true }
 mime = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-tokio = { workspace = true, features = ["macros"] }
+tokio = { workspace = true, features = ["macros", "sync"] }
 tracing = { workspace = true }

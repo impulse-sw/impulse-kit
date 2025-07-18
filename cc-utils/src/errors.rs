@@ -1,24 +1,25 @@
 //! Implementation of optional private errors for `salvo` and client errors for `reqwest`.
 
-#[cfg(feature = "salvo")]
-use salvo::http::StatusCode;
+#[cfg(feature = "mresult")]
+use http::StatusCode;
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::oapi::{EndpointOutRegister, ToSchema};
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::{Depot, Request, Response};
 
 #[cfg(feature = "salvo")]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 use salvo::Writer as ServerResponseWriter;
 
 /// Data structure responsible for server errors.
 #[cfg(feature = "mresult")]
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct ServerError {
   /// Status code to return.
-  #[cfg(feature = "salvo")]
-  #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
   pub status_code: Option<StatusCode>,
   /// Text to return (and hide error messages that leads to leak vulnerable data).
   pub public_msg: Option<String>,
@@ -26,9 +27,35 @@ pub struct ServerError {
   pub private_msg: Option<Vec<String>>,
 }
 
+#[cfg(feature = "mresult")]
+impl std::fmt::Debug for ServerError {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_str(&format!(
+      "Error: `{}` status code\n  Error message: \"{}\"{}",
+      self.status_code.unwrap_or(StatusCode::INTERNAL_SERVER_ERROR).as_str(),
+      self.decide_public_msg(),
+      if let Some(privates) = self.private_msg.as_ref() {
+        format!(
+          "\n{}",
+          privates
+            .iter()
+            .map(|e| format!("    Caused by: {e}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+        )
+      } else {
+        String::new()
+      }
+    ))
+  }
+}
+
 /// Public error message.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "salvo", derive(salvo::oapi::ToSchema))]
+#[cfg_attr(
+  all(feature = "salvo", not(any(target_arch = "wasm32", target_arch = "wasm64"))),
+  derive(salvo::oapi::ToSchema)
+)]
 pub struct ErrorResponse {
   /// Public error message.
   pub err: String,
@@ -71,7 +98,7 @@ impl std::error::Error for ErrorResponse {}
 
 /// Data structure responsible for client errors.
 #[cfg(feature = "cresult")]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CliError {
   /// Error message.
   pub message: String,
@@ -85,9 +112,17 @@ impl std::fmt::Display for CliError {
 }
 
 #[cfg(feature = "cresult")]
+impl std::fmt::Debug for CliError {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_str(self.message.as_str())
+  }
+}
+
+#[cfg(feature = "cresult")]
 impl std::error::Error for CliError {}
 
 #[cfg(all(feature = "salvo", feature = "mresult"))]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl crate::responses::ExplicitServerWrite for ServerError {
   async fn explicit_write(self, res: &mut Response) {
     res.status_code(self.status_code.unwrap_or(StatusCode::INTERNAL_SERVER_ERROR));
@@ -108,6 +143,7 @@ impl crate::responses::ExplicitServerWrite for ServerError {
 }
 
 #[cfg(all(feature = "salvo", feature = "mresult"))]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 #[salvo::async_trait]
 impl ServerResponseWriter for ServerError {
   /// Method for sending an error message to the client.
@@ -117,6 +153,7 @@ impl ServerResponseWriter for ServerError {
 }
 
 #[cfg(all(feature = "salvo", feature = "mresult"))]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 impl EndpointOutRegister for ServerError {
   /// Registers error types for OpenAPI.
   fn register(components: &mut salvo::oapi::Components, operation: &mut salvo::oapi::Operation) {
@@ -189,7 +226,6 @@ impl ServerError {
     let err_data = Self::format_error(&err);
 
     Self {
-      #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
       status_code: None,
       public_msg: None,
       private_msg: Some(err_data),
@@ -199,7 +235,6 @@ impl ServerError {
   /// Makes a new ServerError with actual error provided by plain string.
   pub fn from_private_str(err: impl Into<String>) -> Self {
     Self {
-      #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
       status_code: None,
       public_msg: None,
       private_msg: Some(vec![err.into()]),
@@ -236,7 +271,6 @@ impl ServerError {
   /// Makes a new Server Error from public message.
   pub fn from_public(public_msg: impl Into<String>) -> Self {
     Self {
-      #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
       status_code: None,
       public_msg: Some(public_msg.into()),
       private_msg: None,
@@ -244,49 +278,42 @@ impl ServerError {
   }
 
   /// Error BAD REQUEST (400).
-  #[cfg(all(feature = "salvo", feature = "mresult"))]
   pub fn with_400(mut self) -> Self {
     self.status_code = Some(StatusCode::BAD_REQUEST);
     self
   }
 
   /// Error UNAUTHORIZED (401).
-  #[cfg(all(feature = "salvo", feature = "mresult"))]
   pub fn with_401(mut self) -> Self {
     self.status_code = Some(StatusCode::UNAUTHORIZED);
     self
   }
 
   /// Error FORBIDDEN (403).
-  #[cfg(all(feature = "salvo", feature = "mresult"))]
   pub fn with_403(mut self) -> Self {
     self.status_code = Some(StatusCode::FORBIDDEN);
     self
   }
 
   /// Error NOT FOUND (404).
-  #[cfg(all(feature = "salvo", feature = "mresult"))]
   pub fn with_404(mut self) -> Self {
     self.status_code = Some(StatusCode::NOT_FOUND);
     self
   }
 
   /// Error METHOD NOT ALLOWED (405).
-  #[cfg(all(feature = "salvo", feature = "mresult"))]
   pub fn with_405(mut self) -> Self {
     self.status_code = Some(StatusCode::METHOD_NOT_ALLOWED);
     self
   }
 
   /// Error INTERNAL SERVER ERROR (500).
-  #[cfg(all(feature = "salvo", feature = "mresult"))]
   pub fn with_500(mut self) -> Self {
     self.status_code = Some(StatusCode::INTERNAL_SERVER_ERROR);
     self
   }
 
   /// Error LOCKED (423).
-  #[cfg(all(feature = "salvo", feature = "mresult"))]
   pub fn with_code(mut self, code: StatusCode) -> Self {
     self.status_code = Some(code);
     self

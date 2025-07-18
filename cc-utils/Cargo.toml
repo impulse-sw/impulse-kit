@@ -15,6 +15,7 @@ cresult = []
 
 [dependencies]
 anyhow = { workspace = true }
+http = { workspace = true }
 reqwest = { workspace = true, features = ["json", "rustls-tls"], optional = true }
 rmp-serde = { workspace = true }
 serde = { version = "1", features = ["derive"] }
