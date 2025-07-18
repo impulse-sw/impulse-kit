@@ -3,6 +3,7 @@ use cc_server_kit::cc_utils::prelude::*;
 use cc_server_kit::prelude::*;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use crate::caching::{CacheMap, CachedFile, cache_runner};
 
@@ -12,7 +13,7 @@ const CONTAINER_FRONTEND_DISTRIBUTABLE: &str = "/usr/local/frontend-dist";
 /// Custom static router.
 pub struct CustomStaticRouter {
   path: PathBuf,
-  cacher: Option<Arc<CacheMap>>,
+  cacher: Option<Arc<Mutex<CacheMap>>>,
 }
 
 impl CustomStaticRouter {
@@ -68,22 +69,28 @@ impl CustomStaticRouter {
     use salvo::Writer;
 
     if let Some(cacher) = self.cacher.as_ref() {
-      if let Ok(Some(cached)) = cacher.fetch(path) {
-        cached.send(req.headers(), res).await;
-      } else {
-        let length = tokio::fs::metadata(path)
-          .await
-          .map_err(|e| ServerError::from_private(e).with_404())?
-          .len();
-        if length > 16 * 1024 * 1024 {
-          file_upload!(path.to_path_buf(), filename.to_string())
-            .write(req, depot, res)
-            .await;
-        } else {
-          let cached = CachedFile::construct_from(filename, path, length).await?;
-          cacher.upsert(path, cached.clone())?;
+      {
+        let guard = cacher.lock().await;
+        if let Ok(Some(cached)) = guard.fetch(path) {
           cached.send(req.headers(), res).await;
+          return Ok(());
         }
+      }
+      let length = tokio::fs::metadata(path)
+        .await
+        .map_err(|e| ServerError::from_private(e).with_404())?
+        .len();
+      if length > 16 * 1024 * 1024 {
+        file_upload!(path.to_path_buf(), filename.to_string())
+          .write(req, depot, res)
+          .await;
+      } else {
+        let cached = CachedFile::construct_from(filename, path, length).await?;
+        {
+          let mut guard = cacher.lock().await;
+          guard.upsert(path, cached.clone())?;
+        }
+        cached.send(req.headers(), res).await;
       }
     } else {
       file_upload!(path.to_path_buf(), filename.to_string())
@@ -105,25 +112,31 @@ impl CustomStaticRouter {
     use salvo::Writer;
 
     if let Some(cacher) = self.cacher.as_ref() {
-      if let Ok(Some(cached)) = cacher.fetch(path) {
-        let site = String::from_utf8_lossy_owned(cached.bytes);
-        html!(site).unwrap().write(req, depot, res).await;
-      } else {
-        let length = tokio::fs::metadata(path)
-          .await
-          .map_err(|e| ServerError::from_private(e).with_404())?
-          .len();
-        if length > 16 * 1024 * 1024 {
-          let site = tokio::fs::read_to_string(path)
-            .await
-            .map_err(|e| ServerError::from_private(e).with_404())?;
-          html!(site).unwrap().write(req, depot, res).await;
-        } else {
-          let cached = CachedFile::construct_from(filename, path, length).await?;
-          cacher.upsert(path, cached.clone())?;
+      {
+        let guard = cacher.lock().await;
+        if let Ok(Some(cached)) = guard.fetch(path) {
           let site = String::from_utf8_lossy_owned(cached.bytes);
           html!(site).unwrap().write(req, depot, res).await;
+          return Ok(());
         }
+      }
+      let length = tokio::fs::metadata(path)
+        .await
+        .map_err(|e| ServerError::from_private(e).with_404())?
+        .len();
+      if length > 16 * 1024 * 1024 {
+        let site = tokio::fs::read_to_string(path)
+          .await
+          .map_err(|e| ServerError::from_private(e).with_404())?;
+        html!(site).unwrap().write(req, depot, res).await;
+      } else {
+        let cached = CachedFile::construct_from(filename, path, length).await?;
+        {
+          let mut guard = cacher.lock().await;
+          guard.upsert(path, cached.clone())?;
+        }
+        let site = String::from_utf8_lossy_owned(cached.bytes);
+        html!(site).unwrap().write(req, depot, res).await;
       }
     } else {
       let site = tokio::fs::read_to_string(path)

@@ -1,6 +1,5 @@
 use cc_server_kit::prelude::*;
 use cc_server_kit::salvo::http::HttpRange;
-use dashmap::DashMap;
 use fs_change_notifier::*;
 use headers::{
   AcceptRanges, ContentLength, ContentRange, ContentType, ETag, HeaderMapExt, IfMatch, IfModifiedSince, IfNoneMatch,
@@ -10,8 +9,10 @@ use salvo::fs::NamedFile;
 use salvo::http::header::{CONTENT_DISPOSITION, CONTENT_ENCODING, CONTENT_TYPE, IF_NONE_MATCH, RANGE};
 use salvo::http::{HeaderMap, HeaderValue};
 use std::cmp;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 const CHUNK_SIZE: u64 = 1024 * 1024;
 
@@ -197,21 +198,21 @@ impl CachedFile {
 }
 
 /// In-memory cache implementation for files based on `DashMap`.
-pub struct CacheMap(DashMap<PathBuf, CachedFile>);
+pub struct CacheMap(HashMap<PathBuf, CachedFile>);
 
 impl CacheMap {
   /// Create in-memory cache.
-  pub fn new() -> Arc<Self> {
-    Arc::new(Self(DashMap::new()))
+  pub fn new() -> Arc<Mutex<Self>> {
+    Arc::new(Mutex::new(Self(HashMap::new())))
   }
 
   /// Clear cache.
-  pub fn clear(&self) {
+  pub fn clear(&mut self) {
     self.0.clear();
   }
 
   /// Insert or update content by its path.
-  pub fn upsert(&self, path: impl AsRef<Path>, content: CachedFile) -> MResult<()> {
+  pub fn upsert(&mut self, path: impl AsRef<Path>, content: CachedFile) -> MResult<()> {
     let path = std::fs::canonicalize(path.as_ref()).map_err(ServerError::from_private)?;
     self.0.insert(path, content);
     Ok(())
@@ -220,11 +221,11 @@ impl CacheMap {
   /// Fetch content.
   pub fn fetch(&self, path: impl AsRef<Path>) -> MResult<Option<CachedFile>> {
     let path = std::fs::canonicalize(path.as_ref()).map_err(ServerError::from_private)?;
-    Ok(self.0.get(&path).map(|r#ref| r#ref.value().clone()))
+    Ok(self.0.get(&path).cloned())
   }
 
   /// Remove content due to invalidation.
-  pub fn invalidate(&self, path: impl AsRef<Path>) -> MResult<()> {
+  pub fn invalidate(&mut self, path: impl AsRef<Path>) -> MResult<()> {
     let path = std::fs::canonicalize(path.as_ref()).map_err(ServerError::from_private)?;
     self.0.remove(&path);
     Ok(())
@@ -232,7 +233,7 @@ impl CacheMap {
 }
 
 /// Cache invalidator runner.
-pub async fn cache_runner(path: impl AsRef<Path>, cache_map: Arc<CacheMap>) -> MResult<()> {
+pub async fn cache_runner(path: impl AsRef<Path>, cache_map: Arc<Mutex<CacheMap>>) -> MResult<()> {
   let empty = std::collections::HashSet::new();
   loop {
     let (mut wr, rx) = create_watcher(|e| tracing::error!("{e:?}")).map_err(|e| {
@@ -244,8 +245,11 @@ pub async fn cache_runner(path: impl AsRef<Path>, cache_map: Arc<CacheMap>) -> M
       .map_err(ServerError::from_private)?;
 
     let files = fetch_changed(path.as_ref(), rx, &empty).await;
-    for file in files {
-      cache_map.invalidate(file)?;
+    {
+      let mut guard = cache_map.lock().await;
+      for file in files {
+        guard.invalidate(file)?;
+      }
     }
   }
 }

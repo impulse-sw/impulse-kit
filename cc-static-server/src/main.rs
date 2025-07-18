@@ -23,6 +23,9 @@ impl GenericSetup for Setup {
 async fn main() {
   let setup = load_generic_config::<Setup>("static-server").await.unwrap();
   let state = load_generic_state(&setup, true).await.unwrap();
+
+  tracing::info!("Static Server (v{})", env!("CARGO_PKG_VERSION"));
+
   let router = get_root_router(&state).push(frontend_router().unwrap());
   let (server, _handler) = start(state, &setup, router).await.unwrap();
   server.await
