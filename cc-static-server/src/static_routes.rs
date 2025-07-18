@@ -112,13 +112,14 @@ impl CustomStaticRouter {
     use salvo::Writer;
 
     if let Some(cacher) = self.cacher.as_ref() {
-      {
+      let cached = {
         let guard = cacher.lock().await;
-        if let Ok(Some(cached)) = guard.fetch(path) {
-          let site = String::from_utf8_lossy_owned(cached.bytes);
-          html!(site).unwrap().write(req, depot, res).await;
-          return Ok(());
-        }
+        guard.fetch(path)
+      };
+      if let Ok(Some(cached)) = cached {
+        let site = String::from_utf8_lossy_owned(cached.bytes);
+        html!(site).unwrap().write(req, depot, res).await;
+        return Ok(());
       }
       let length = tokio::fs::metadata(path)
         .await
