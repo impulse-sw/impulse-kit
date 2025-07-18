@@ -245,6 +245,66 @@ pipelines:
                 to: cc-static-server
               - from: cc-static-server/static-server.yaml
                 to: static-server.yaml
+  - title: build-static-server-debug
+    desc: Build `cc-static-server` (debug) and update content storage
+    info: cc-services-static-server-debug@0.1.0
+    tags:
+      - cargo
+      - clippy
+      - lint
+    default: true
+    artifacts:
+      - from: target/x86_64-unknown-linux-gnu/debug/cc-static-server
+        to: static-server/cc-static-server-debug
+      - from: cc-static-server/static-server.yaml
+        to: static-server/static-server.yaml
+    actions:
+      - title: Sync script to know Rust package version
+        info: sync-rust-crate-ver@0.1.0
+        tags: []
+        exec_in_project_dir: false
+        action:
+          type: use_from_storage
+          content_info: get-know-rust-package-version@latest
+      - title: Cargo Build (Debug)
+        info: cargo-debug@0.1.0
+        tags:
+          - rust
+          - cargo
+        requirements:
+          - type: exists
+            path: /bin/cargo
+        action:
+          type: build
+          supported_langs:
+            - rust
+          commands:
+            - bash_c: cargo build --package cc-static-server --target x86_64-unknown-linux-gnu
+              ignore_fails: false
+              show_success_output: false
+              show_bash_c: true
+      - title: Auto-upload CC Static Server to Deployer's Storage
+        info: auto-upload-static-server@0.1.0
+        tags: []
+        exec_in_project_dir: false
+        action:
+          type: add_to_storage
+          short_name: static-server-debug
+          auto_version_rule:
+            type: cmd_stdout
+            cmd:
+              bash_c: python .depl/rust-crate-ver.py
+              ignore_fails: true
+              show_success_output: true
+              show_bash_c: false
+              only_when_fresh: false
+          content:
+            type: fixed_files
+            placements:
+              - from: target/x86_64-unknown-linux-gnu/debug/cc-static-server
+                to: cc-static-server
+              - from: cc-static-server/static-server.yaml
+                to: static-server.yaml
   - title: build-error-pages
     desc: Build `cc-error-pages`
     info: cc-ui-kit-frontend-app-build@0.1.0

@@ -11,4 +11,6 @@ mod caching;
 mod static_routes;
 
 pub use caching::CacheMap;
-pub use static_routes::{CustomStaticRouter, frontend_router, frontend_router_from_given_dist};
+pub use static_routes::{
+  NoRedirectStaticRouter, ProvidedRoutesStaticRouter, StaticRouter, frontend_router, frontend_router_from_given_dist,
+};

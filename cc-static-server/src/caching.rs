@@ -197,6 +197,97 @@ impl CachedFile {
   }
 }
 
+/// Request given file either from in-memory cacher or from disk.
+pub async fn send_file(
+  cacher: &Option<Arc<Mutex<CacheMap>>>,
+  req: &mut Request,
+  depot: &mut Depot,
+  res: &mut Response,
+  filename: &str,
+  path: &Path,
+) -> MResult<()> {
+  use salvo::Writer;
+
+  if let Some(cacher) = cacher.as_ref() {
+    {
+      let guard = cacher.lock().await;
+      if let Ok(Some(cached)) = guard.fetch(path) {
+        cached.send(req.headers(), res).await;
+        return Ok(());
+      }
+    }
+    let length = tokio::fs::metadata(path)
+      .await
+      .map_err(|e| ServerError::from_private(e).with_404())?
+      .len();
+    if length > 16 * 1024 * 1024 {
+      file_upload!(path.to_path_buf(), filename.to_string())
+        .write(req, depot, res)
+        .await;
+    } else {
+      let cached = CachedFile::construct_from(filename, path, length).await?;
+      {
+        let mut guard = cacher.lock().await;
+        guard.upsert(path, cached.clone())?;
+      }
+      cached.send(req.headers(), res).await;
+    }
+  } else {
+    file_upload!(path.to_path_buf(), filename.to_string())
+      .write(req, depot, res)
+      .await;
+  }
+  Ok(())
+}
+
+/// Request given HTML page either from in-memory cacher or from disk.
+pub async fn send_html(
+  cacher: &Option<Arc<Mutex<CacheMap>>>,
+  req: &mut Request,
+  depot: &mut Depot,
+  res: &mut Response,
+  filename: &str,
+  path: &Path,
+) -> MResult<()> {
+  use salvo::Writer;
+
+  if let Some(cacher) = cacher.as_ref() {
+    let cached = {
+      let guard = cacher.lock().await;
+      guard.fetch(path)
+    };
+    if let Ok(Some(cached)) = cached {
+      let site = String::from_utf8_lossy_owned(cached.bytes);
+      html!(site).unwrap().write(req, depot, res).await;
+      return Ok(());
+    }
+    let length = tokio::fs::metadata(path)
+      .await
+      .map_err(|e| ServerError::from_private(e).with_404())?
+      .len();
+    if length > 16 * 1024 * 1024 {
+      let site = tokio::fs::read_to_string(path)
+        .await
+        .map_err(|e| ServerError::from_private(e).with_404())?;
+      html!(site).unwrap().write(req, depot, res).await;
+    } else {
+      let cached = CachedFile::construct_from(filename, path, length).await?;
+      {
+        let mut guard = cacher.lock().await;
+        guard.upsert(path, cached.clone())?;
+      }
+      let site = String::from_utf8_lossy_owned(cached.bytes);
+      html!(site).unwrap().write(req, depot, res).await;
+    }
+  } else {
+    let site = tokio::fs::read_to_string(path)
+      .await
+      .map_err(|e| ServerError::from_private(e).with_404())?;
+    html!(site).unwrap().write(req, depot, res).await;
+  }
+  Ok(())
+}
+
 /// In-memory cache implementation for files based on `DashMap`.
 pub struct CacheMap(HashMap<PathBuf, CachedFile>);
 
