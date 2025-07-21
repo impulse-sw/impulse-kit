@@ -14,7 +14,7 @@ pub mod utils;
 pub mod prelude;
 
 use leptos::prelude::*;
-use thaw::ConfigProvider;
+use impulse_thaw::ConfigProvider;
 
 /// Application entrypoint.
 ///

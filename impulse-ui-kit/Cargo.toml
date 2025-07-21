@@ -9,9 +9,9 @@ authors = { workspace = true }
 [dependencies]
 console_error_panic_hook = { workspace = true }
 console_log = { workspace = true }
+impulse-thaw = { workspace = true, features = ["csr"] }
 impulse-utils = { workspace = true, features = ["cresult"] }
 leptos = { workspace = true, features = ["csr"] }
 leptos-use = { workspace = true, features = ["use_color_mode"] }
 log = { workspace = true }
-thaw = { workspace = true, features = ["csr"] }
 web-sys = { workspace = true, features = ["Storage", "Window", "Navigator"] }

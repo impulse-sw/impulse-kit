@@ -7,6 +7,6 @@ pub use leptos::prelude::*;
 pub use console_log;
 pub use log;
 
-pub use thaw::*;
+pub use impulse_thaw::*;
 
 pub use crate::setup_app;

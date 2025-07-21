@@ -16,11 +16,13 @@ license = "MIT"
 authors = ["Klimenty Titov <aclo.create@gmail.com>"]
 
 [workspace.dependencies]
-impulse-server-kit = { path = "impulse-server-kit", default-features = false }
-impulse-static-server = { path = "impulse-static-server" }
+impulse-server-kit = { version = "0.12.0-alpha.3", path = "impulse-server-kit", default-features = false }
+impulse-static-server = { version = "0.12.0-alpha.3", path = "impulse-static-server" }
+impulse-utils = { version = "0.12.0-alpha.3", path = "impulse-utils", default-features = false }
+impulse-ui-kit = { version = "0.12.0-alpha.3", path = "impulse-ui-kit" }
+
+impulse-thaw = { version = "0.4.5-ui-kit-3", default-features = false }
 impulse-tracing-ecs = "0.4.2"
-impulse-utils = { path = "impulse-utils", default-features = false }
-impulse-ui-kit = { path = "impulse-ui-kit" }
 
 anyhow = "1"
 brotli = { version = "7", default-features = false }
@@ -54,7 +56,6 @@ serde = { version = "1", default-features = false }
 serde_yaml = "0.9"
 smart-patcher = { version = "0.3.0-1", default-features = false }
 sonic-rs = "0.5.1"
-thaw = { git = "https://github.com/impulse-sw/thaw.git", tag = "0.4.5-ui-kit-3", default-features = false }
 tokio = { version = "1", default-features = false }
 tracing = "0.1"
 tracing-appender = "0.2"

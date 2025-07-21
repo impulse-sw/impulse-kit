@@ -9,8 +9,8 @@ pub fn cn(base: &str, additional: Option<&str>) -> String {
 }
 
 /// Dark theme colors provider.
-pub fn dark_theme() -> thaw::Theme {
-  let mut theme = thaw::Theme::dark();
+pub fn dark_theme() -> impulse_thaw::Theme {
+  let mut theme = impulse_thaw::Theme::dark();
   theme.color.color_brand_background = "#fafafa".to_string();
   theme.color.color_brand_background_hover = "#fafafae6".to_string();
   theme.color.color_brand_background_pressed = "#fafafae6".to_string();
@@ -23,8 +23,8 @@ pub fn dark_theme() -> thaw::Theme {
 }
 
 /// Light theme colors provider.
-pub fn light_theme() -> thaw::Theme {
-  let mut theme = thaw::Theme::light();
+pub fn light_theme() -> impulse_thaw::Theme {
+  let mut theme = impulse_thaw::Theme::light();
   theme.color.color_brand_background = "#17171a".to_string();
   theme.color.color_brand_background_hover = "#17171ae6".to_string();
   theme.color.color_brand_background_pressed = "#17171ae6".to_string();
