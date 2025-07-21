@@ -482,7 +482,7 @@ These metrics are implied automatically by using `get_root_router_autoinject` fu
 
 ```rust
 Router::new()
-  .hoop(cc_server_kit::startup::sk_default_metrics)
+  .hoop(impulse_server_kit::startup::sk_default_metrics)
 ```
 
 [ACME]: https://en.wikipedia.org/wiki/Automatic_Certificate_Management_Environment

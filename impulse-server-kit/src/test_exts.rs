@@ -160,7 +160,7 @@ impl ResponseExt for Response {
 }
 
 /// Initializes the logger for tests.
-pub fn init_test_logger(log_level: tracing::Level) -> cc_utils::results::MResult<()> {
+pub fn init_test_logger(log_level: tracing::Level) -> impulse_::results::MResult<()> {
   use tracing_subscriber::filter::LevelFilter;
   use tracing_subscriber::fmt::format::FmtSpan;
   use tracing_subscriber::prelude::*;
@@ -183,7 +183,7 @@ pub fn init_test_logger(log_level: tracing::Level) -> cc_utils::results::MResult
 
   let collector = registry().with(io_tracer);
   tracing::subscriber::set_global_default(collector).map_err(|e| {
-    cc_utils::errors::ServerError::from_private(e)
+    impulse_utils::errors::ServerError::from_private(e)
       .with_public("Can't init global default log collector!")
       .with_500()
   })?;

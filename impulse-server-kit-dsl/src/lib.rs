@@ -63,7 +63,7 @@ pub fn generate(version: Option<String>, api_desc: File, regenerate: bool, outpu
           Patch {
             files: vec![FilePath::Just(filename.to_owned())],
             patch_area: vec![AreaRule::After(
-              RegexIR::new("use cc_server_kit::prelude::\\*;").unwrap(),
+              RegexIR::new("use impulse_server_kit::prelude::\\*;").unwrap(),
             )],
             insert: Some(ctx.new_types),
             ..Default::default()

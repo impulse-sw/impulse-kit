@@ -189,7 +189,7 @@ async fn maybe_token(depot: &mut Depot, res: &mut Response) -> MResult<OK> {
 
 This trait is implemented to all exposed by `impulse-utils` response types above except `file_upload!` (internally it needs `req: &mut Request` to compare `ETag` inside headers to allow file caching).
 
-## `impulse_utils::results::CResult` and `cc_utils::errors::CliError`
+## `impulse_utils::results::CResult` and `impulse_utils::errors::CliError`
 
 `CResult<T>` is a `Result<T, CliError>`. `CliError` was designed to be simple client error which you can just `console.log` at client-side.
 

@@ -61,7 +61,7 @@ pub fn redirect(url: impl AsRef<str>) -> CResult<()> {
 /// Example:
 ///
 /// ```rust,ignore
-/// use cc_ui_kit::router::endpoint;
+/// use impulse_ui_kit::router::endpoint;
 ///
 /// fn main() {
 ///   // Let assume that your backend is located at `127.0.0.1:8080` with HTTP schema

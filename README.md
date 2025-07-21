@@ -34,7 +34,7 @@ And more! It internally redirects all requests without file extension to `index.
 Also, you can use Static Server as a library to include frontend router to your backend application:
 
 ```rust
-  let router = cc_server_kit::get_root_router(&state)
+  let router = impulse_server_kit::get_root_router(&state)
     .hoop(
       affix_state::inject(state.clone())
         .inject(setup.clone())
@@ -78,7 +78,7 @@ UI Kit is just superstructure above Leptos and ThawUI frameworks. It provides:
 - simple application entrypoint
 - logging support with `log`
 - automated light/dark themes (with Tailwind support)
-- utils to perform request to the backend (`cc_ui_kit::router::endpoint` and `cc_ui_kit::router::redirect` functions)
+- utils to perform request to the backend (`impulse_ui_kit::router::endpoint` and `impulse_ui_kit::router::redirect` functions)
 
 Startup example:
 
