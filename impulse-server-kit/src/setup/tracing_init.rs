@@ -274,7 +274,7 @@ impl TracingOptions {
         })?;
       let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
-      let ecs_tracer = tracing_ecs::ECSLayerBuilder::default()
+      let ecs_tracer = impulse_tracing_ecs::ECSLayerBuilder::default()
         .normalize_json(false)
         .with_span_events(FmtSpan::CLOSE)
         .build_with_writer(non_blocking)
