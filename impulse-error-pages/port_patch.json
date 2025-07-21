@@ -1,0 +1,22 @@
+{
+  "patches": [
+    {
+      "files": [
+        {
+          "just": "static-server.yaml"
+        }
+      ],
+      "patch_area": [
+        {
+          "after": "server_port:"
+        }
+      ],
+      "replace": {
+        "from_to": [
+          "8807",
+          "15400"
+        ]
+      }
+    }
+  ]
+}

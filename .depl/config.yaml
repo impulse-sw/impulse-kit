@@ -1,4 +1,4 @@
-project_name: cc-monorepo
+project_name: impulse-kit
 version: 5
 langs:
   - rust
@@ -22,7 +22,7 @@ variables: []
 pipelines:
   - title: common-ops
     desc: Common monorepo operations
-    info: cc-services-common-ops@0.1.0
+    info: impulse-kit-common-ops@0.1.0
     tags:
       - cargo
       - clippy
@@ -32,7 +32,7 @@ pipelines:
       - from: target/x86_64-unknown-linux-gnu/doc
         to: docs
     actions:
-      - title: Lint `cc-utils` on x86-64
+      - title: Lint `impulse-utils` on x86-64
         info: cargo-clippy@0.1.0
         tags:
           - cargo
@@ -43,8 +43,8 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package cc-utils --target x86_64-unknown-linux-gnu
-      - title: Lint `cc-utils` on wasm32
+            - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package impulse-utils --target x86_64-unknown-linux-gnu
+      - title: Lint `impulse-utils` on wasm32
         info: cargo-clippy@0.1.0
         tags:
           - cargo
@@ -55,8 +55,8 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package cc-utils --target wasm32-unknown-unknown --no-default-features --features=reqwest
-      - title: Lint `cc-ui-kit`
+            - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package impulse-utils --target wasm32-unknown-unknown --no-default-features --features=reqwest
+      - title: Lint `impulse-ui-kit`
         info: cargo-clippy@0.1.0
         tags:
           - cargo
@@ -67,8 +67,8 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: cargo clippy --package cc-ui-kit --target wasm32-unknown-unknown
-      - title: Lint `cc-error-pages`
+            - bash_c: cargo clippy --package impulse-ui-kit --target wasm32-unknown-unknown
+      - title: Lint `impulse-error-pages`
         info: cargo-clippy@0.1.0
         tags:
           - cargo
@@ -79,8 +79,8 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: cargo clippy --package cc-error-pages --target wasm32-unknown-unknown
-      - title: Lint `cc-server-kit`
+            - bash_c: cargo clippy --package impulse-error-pages --target wasm32-unknown-unknown
+      - title: Lint `impulse-server-kit`
         info: cargo-clippy@0.1.0
         tags:
           - cargo
@@ -91,8 +91,8 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package cc-server-kit --target x86_64-unknown-linux-gnu
-      - title: Lint `cc-server-kit-dsl`
+            - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package impulse-server-kit --target x86_64-unknown-linux-gnu
+      - title: Lint `impulse-server-kit-dsl`
         info: cargo-clippy@0.1.0
         tags:
           - cargo
@@ -103,8 +103,8 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: cargo clippy --package skdsl --target x86_64-unknown-linux-gnu
-      - title: Lint `cc-static-server`
+            - bash_c: cargo clippy --package impulse-skdsl --target x86_64-unknown-linux-gnu
+      - title: Lint `impulse-static-server`
         info: cargo-clippy@0.1.0
         tags:
           - cargo
@@ -115,7 +115,7 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: cargo clippy --package cc-static-server --target x86_64-unknown-linux-gnu
+            - bash_c: cargo clippy --package impulse-static-server --target x86_64-unknown-linux-gnu
       - title: Format
         info: cargo-fmt@0.1.0
         tags: []
@@ -151,17 +151,17 @@ pipelines:
           commands:
             - bash_c: cargo doc --target x86_64-unknown-linux-gnu --workspace --no-deps
   - title: build-static-server
-    desc: Build `cc-static-server` and update content storage
-    info: cc-services-static-server@0.1.0
+    desc: Build `impulse-static-server` and update content storage
+    info: impulse-kit-static-server@0.1.0
     tags:
       - cargo
       - clippy
       - lint
     default: true
     artifacts:
-      - from: target/x86_64-unknown-linux-gnu/release/cc-static-server
-        to: static-server/cc-static-server
-      - from: cc-static-server/static-server.yaml
+      - from: target/x86_64-unknown-linux-gnu/release/impulse-static-server
+        to: static-server/impulse-static-server
+      - from: impulse-static-server/static-server.yaml
         to: static-server/static-server.yaml
     actions:
       - title: Sync script to know Rust package version
@@ -184,7 +184,7 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: cargo build --release --package cc-static-server --target x86_64-unknown-linux-gnu
+            - bash_c: cargo build --release --package impulse-static-server --target x86_64-unknown-linux-gnu
               ignore_fails: false
               show_success_output: false
               show_bash_c: true
@@ -218,12 +218,12 @@ pipelines:
                 - group:
                     - from: <af>
                       to:
-                        title: target/x86_64-unknown-linux-gnu/release/cc-static-server
+                        title: target/x86_64-unknown-linux-gnu/release/impulse-static-server
                         is_secret: false
                         value:
                           type: plain
-                          value: target/x86_64-unknown-linux-gnu/release/cc-static-server
-      - title: Auto-upload CC Static Server to Deployer's Storage
+                          value: target/x86_64-unknown-linux-gnu/release/impulse-static-server
+      - title: Auto-upload Static Server to Deployer's Storage
         info: auto-upload-static-server@0.1.0
         tags: []
         exec_in_project_dir: false
@@ -241,22 +241,22 @@ pipelines:
           content:
             type: fixed_files
             placements:
-              - from: target/x86_64-unknown-linux-gnu/release/cc-static-server
-                to: cc-static-server
-              - from: cc-static-server/static-server.yaml
+              - from: target/x86_64-unknown-linux-gnu/release/impulse-static-server
+                to: impulse-static-server
+              - from: impulse-static-server/static-server.yaml
                 to: static-server.yaml
   - title: build-static-server-debug
-    desc: Build `cc-static-server` (debug) and update content storage
-    info: cc-services-static-server-debug@0.1.0
+    desc: Build `impulse-static-server` (debug) and update content storage
+    info: impulse-services-static-server-debug@0.1.0
     tags:
       - cargo
       - clippy
       - lint
     default: true
     artifacts:
-      - from: target/x86_64-unknown-linux-gnu/debug/cc-static-server
-        to: static-server/cc-static-server-debug
-      - from: cc-static-server/static-server.yaml
+      - from: target/x86_64-unknown-linux-gnu/debug/impulse-static-server
+        to: static-server/impulse-static-server-debug
+      - from: impulse-static-server/static-server.yaml
         to: static-server/static-server.yaml
     actions:
       - title: Sync script to know Rust package version
@@ -279,11 +279,11 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: cargo build --package cc-static-server --target x86_64-unknown-linux-gnu
+            - bash_c: cargo build --package impulse-static-server --target x86_64-unknown-linux-gnu
               ignore_fails: false
               show_success_output: false
               show_bash_c: true
-      - title: Auto-upload CC Static Server to Deployer's Storage
+      - title: Auto-upload Static Server to Deployer's Storage
         info: auto-upload-static-server@0.1.0
         tags: []
         exec_in_project_dir: false
@@ -301,13 +301,13 @@ pipelines:
           content:
             type: fixed_files
             placements:
-              - from: target/x86_64-unknown-linux-gnu/debug/cc-static-server
-                to: cc-static-server
-              - from: cc-static-server/static-server.yaml
+              - from: target/x86_64-unknown-linux-gnu/debug/impulse-static-server
+                to: impulse-static-server
+              - from: impulse-static-server/static-server.yaml
                 to: static-server.yaml
   - title: build-error-pages
-    desc: Build `cc-error-pages`
-    info: cc-ui-kit-frontend-app-build@0.1.0
+    desc: Build `impulse-error-pages`
+    info: impulse-ui-kit-frontend-app-build@0.1.0
     tags:
       - cargo
       - leptos
@@ -317,8 +317,8 @@ pipelines:
       - web
     default: true
     artifacts:
-      - from: cc-error-pages/dist
-        to: cc-error-pages/dist
+      - from: impulse-error-pages/dist
+        to: impulse-error-pages/dist
     actions:
       - title: Format `leptos` macroses
         info: leptos-fmt@0.1.0
@@ -335,7 +335,7 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: cd cc-error-pages && leptosfmt -t 2 ./**/*.rs
+            - bash_c: cd impulse-error-pages && leptosfmt -t 2 ./**/*.rs
               ignore_fails: false
               show_success_output: false
               show_bash_c: true
@@ -352,7 +352,7 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: cd cc-error-pages && cargo fmt -- --config tab_spaces=2,max_width=120 */**/*.rs
+            - bash_c: cd impulse-error-pages && cargo fmt -- --config tab_spaces=2,max_width=120 */**/*.rs
               ignore_fails: false
               show_success_output: false
               show_bash_c: true
@@ -369,7 +369,7 @@ pipelines:
           supported_langs:
             - css
           commands:
-            - bash_c: cd cc-error-pages && tailwindcss -i ./input.css -o ./public/tailwind.css --minify
+            - bash_c: cd impulse-error-pages && tailwindcss -i ./input.css -o ./public/tailwind.css --minify
               ignore_fails: false
               show_success_output: false
               show_bash_c: true
@@ -395,7 +395,7 @@ pipelines:
                 RUSTFLAGS="-Zlocation-detail=none -Zfmt-debug=none" 
                 CARGO_UNSTABLE_BUILD_STD="std,panic_abort" 
                 CARGO_UNSTABLE_BUILD_STD_FEATURES="optimize_for_size,panic_immediate_abort" 
-                trunk build --release --config cc-error-pages/Trunk.toml
+                trunk build --release --config impulse-error-pages/Trunk.toml
               ignore_fails: false
               show_success_output: false
               show_bash_c: true
@@ -429,7 +429,7 @@ pipelines:
                         is_secret: false
                         value:
                           type: plain
-                          value: cc-error-pages/dist/cc-error-pages_bg.wasm
+                          value: impulse-error-pages/dist/impulse-error-pages_bg.wasm
       - title: Add `tailwind.css` from `public` to `dist`
         info: add-tailwind-css-to-dist-folder@0.1.0
         tags: []
@@ -439,7 +439,7 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: cp cc-error-pages/public/tailwind.css cc-error-pages/dist/error_pages_tailwind.css
+            - bash_c: cp impulse-error-pages/public/tailwind.css impulse-error-pages/dist/error_pages_tailwind.css
               ignore_fails: false
               show_success_output: false
               show_bash_c: true
@@ -453,14 +453,14 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: cp cc-error-pages/public/favicon.ico cc-error-pages/dist/
+            - bash_c: cp impulse-error-pages/public/favicon.ico impulse-error-pages/dist/
               ignore_fails: false
               show_success_output: false
               show_bash_c: true
               only_when_fresh: false
   - title: build-skdsl
     desc: Build and install `skdsl`
-    info: cc-services-skdsl@0.1.0
+    info: impulse-kit-skdsl@0.1.0
     tags:
       - cargo
       - clippy
@@ -485,7 +485,7 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: cargo clippy --package skdsl --target x86_64-unknown-linux-gnu
+            - bash_c: cargo clippy --package impulse-skdsl --target x86_64-unknown-linux-gnu
       - title: Format
         info: cargo-fmt@0.1.0
         tags:
@@ -498,7 +498,7 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: cd cc-server-kit-dsl && cargo fmt -- --config tab_spaces=2,max_width=120 */**/*.rs
+            - bash_c: cd impulse-server-kit-dsl && cargo fmt -- --config tab_spaces=2,max_width=120 */**/*.rs
       - title: Cargo Build (Release)
         info: cargo-rel@0.1.0
         tags:
@@ -512,7 +512,7 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: cargo build --release --package skdsl --target x86_64-unknown-linux-gnu
+            - bash_c: cargo build --release --bin skdsl --target x86_64-unknown-linux-gnu
               ignore_fails: false
               show_success_output: false
               show_bash_c: true
@@ -579,7 +579,7 @@ pipelines:
                           value: target/x86_64-unknown-linux-gnu/release/skdsl
   - title: debug-skdsl
     desc: Build and install `skdsl`
-    info: cc-services-skdsl-debug@0.1.0
+    info: impulse-kit-skdsl-debug@0.1.0
     tags:
       - cargo
     default: false
@@ -602,7 +602,7 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: cargo clippy --package skdsl --target x86_64-unknown-linux-gnu
+            - bash_c: cargo clippy --package impulse-skdsl --target x86_64-unknown-linux-gnu
       - title: Cargo Build
         info: cargo-build@0.1.0
         tags:
@@ -616,7 +616,7 @@ pipelines:
           supported_langs:
             - rust
           commands:
-            - bash_c: cargo build --package skdsl --target x86_64-unknown-linux-gnu
+            - bash_c: cargo build --bin skdsl --target x86_64-unknown-linux-gnu
               ignore_fails: false
               show_success_output: false
               show_bash_c: true

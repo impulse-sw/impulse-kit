@@ -1,25 +1,25 @@
 [workspace]
 members = [
-  "cc-utils",
-  "cc-server-kit",
-  "cc-server-kit-dsl",
-  "cc-static-server",
-  "cc-ui-kit",
-  "cc-error-pages",
+  "impulse-utils",
+  "impulse-server-kit",
+  "impulse-server-kit-dsl",
+  "impulse-static-server",
+  "impulse-ui-kit",
+  "impulse-error-pages",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.11.1"
+version = "0.12.0-alpha.1"
 edition = "2024"
 license = "MIT"
 authors = ["Klimenty Titov <aclo.create@gmail.com>"]
 
 [workspace.dependencies]
-cc-server-kit = { path = "cc-server-kit", default-features = false }
-cc-static-server = { path = "cc-static-server" }
-cc-utils = { path = "cc-utils", default-features = false }
-cc-ui-kit = { path = "cc-ui-kit" }
+impulse-server-kit = { path = "impulse-server-kit", default-features = false }
+impulse-static-server = { path = "impulse-static-server" }
+impulse-utils = { path = "impulse-utils", default-features = false }
+impulse-ui-kit = { path = "impulse-ui-kit" }
 
 anyhow = "1"
 brotli = { version = "7", default-features = false }
@@ -51,7 +51,7 @@ rustls = "0.23"
 salvo = { version = "^0.80.0", default-features = false }
 serde = { version = "1", default-features = false }
 serde_yaml = "0.9"
-smart-patcher = { git = "https://github.com/impulse-sw/smart-patcher.git", tag = "0.2.1", default-features = false }
+smart-patcher = { version = "0.3.0-1", default-features = false }
 sonic-rs = "0.5.1"
 thaw = { git = "https://github.com/impulse-sw/thaw.git", tag = "0.4.5-ui-kit-3", default-features = false }
 tokio = { version = "1", default-features = false }

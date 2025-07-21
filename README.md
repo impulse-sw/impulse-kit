@@ -1,16 +1,16 @@
-# cc-services
+# impulse-kit
 
 Collection of Rust libraries, frameworks and programs to build better Internet.
 
 ## Overview
 
-### CC Server Kit
+### Impulse Server Kit
 
 Server Kit is a simply configurable backend framework based on [Salvo](https://github.com/salvo-rs/salvo). It is simple enough and powerful.
 
-[Server Kit Documentation](./cc-server-kit/README.md)
+[Server Kit Documentation](./impulse-server-kit/README.md)
 
-### CC Server Kit DSL
+### Impulse Server Kit DSL
 
 Server Kit provides DSL-to-API prototype translator to simplify development:
 
@@ -18,9 +18,9 @@ Server Kit provides DSL-to-API prototype translator to simplify development:
 - automated OpenAPI spec generation
 - automated OpenTelemetry instrumenting.
 
-[SK DSL Documentation](./cc-server-kit-dsl/README.md)
+[SK DSL Documentation](./impulse-server-kit-dsl/README.md)
 
-### CC Static Server
+### Impulse Static Server
 
 Static Server is simple frontend-to-client provider built with Server Kit. You can edit `static-server.yaml` to specify Server Kit parameters.
 
@@ -43,21 +43,21 @@ Also, you can use Static Server as a library to include frontend router to your 
     )
     .push(crate::api::auth_router())
     .push(crate::api::chat_router())
-    .push(cc_static_server::frontend_router()); // include it in the end for correct redirects
+    .push(impulse_static_server::frontend_router()?); // include it in the end for correct redirects
 ```
 
 Also, you can specify distribution path:
 
 ```rust
   ...
-    .push(cc_static_server::frontend_router_from_given_dist(&PathBuf::from("/any/other/folder")));
+    .push(impulse_static_server::frontend_router_from_given_dist(&PathBuf::from("/any/other/folder"))?);
 ```
 
-[Static Server Documentation](./cc-static-server/README.md)
+[Static Server Documentation](./impulse-static-server/README.md)
 
-### `cc-utils`
+### `impulse-utils`
 
-`cc-utils` is a bunch of fullstack utils:
+`impulse-utils` is a bunch of fullstack utils:
 
 - common error types: `ServerError`, `CliError` and `ErrorResponse`
 - unified result types: `MResult<T> = Result<T, ServerError>` and `CResult<T> = Result<T, CliError>`
@@ -67,11 +67,11 @@ Also, you can specify distribution path:
 - MsgPack send trait for `reqwest::RequestBuilder`
 - SIMD JSON support
 
-In a way, `cc-utils` is useful in many cases such as error handling and response writing.
+In a way, `impulse-utils` is useful in many cases such as error handling and response writing.
 
-[`cc-utils` Documentation](./cc-utils/README.md)
+[`impulse-utils` Documentation](./impulse-utils/README.md)
 
-### CC UI Kit
+### Impulse UI Kit
 
 UI Kit is just superstructure above Leptos and ThawUI frameworks. It provides:
 
@@ -84,14 +84,14 @@ Startup example:
 
 ```rust
 fn main() {
-  cc_ui_kit::setup_app(log::Level::Info, Box::new(move || { view! { <App /> }.into_any() }))
+  impulse_ui_kit::setup_app(log::Level::Info, Box::new(move || { view! { <App /> }.into_any() }))
 }
 ```
 
-[CC UI Kit Documentation](./cc-ui-kit/README.md)
+[UI Kit Documentation](./impulse-ui-kit/README.md)
 
-[CC UI Kit Example](https://github.com/impulse-sw/cc-ui-kit-example)
+[UI Kit Example](https://github.com/impulse-sw/impulse-ui-kit-example)
 
 ## Rust Toolchain
 
-**This repository actively uses `nightly` toolchain.** While these frameworks and libraries are battle-tested anyway, consider not to choose `cc-services` to use if you are not aware of `nightly` toolchain.
+**This repository actively uses `nightly` toolchain.** While these frameworks and libraries are battle-tested anyway, consider not to choose `impulse-kit` to use if you are not aware of `nightly` toolchain.

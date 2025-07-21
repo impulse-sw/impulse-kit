@@ -1,0 +1,17 @@
+[package]
+name = "impulse-ui-kit"
+description = "Powerful frontend framework based on Thaw & Leptos"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+console_error_panic_hook = { workspace = true }
+console_log = { workspace = true }
+impulse-utils = { workspace = true, features = ["cresult"] }
+leptos = { workspace = true, features = ["csr"] }
+leptos-use = { workspace = true, features = ["use_color_mode"] }
+log = { workspace = true }
+thaw = { workspace = true, features = ["csr"] }
+web-sys = { workspace = true, features = ["Storage", "Window", "Navigator"] }

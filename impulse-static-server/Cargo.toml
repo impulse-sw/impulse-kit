@@ -1,0 +1,16 @@
+[package]
+name = "impulse-static-server"
+description = "Simple static server"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+fs-change-notifier = { workspace = true }
+headers = { workspace = true }
+impulse-server-kit = { workspace = true, features = ["http3", "cors", "acme", "oapi", "otel", "force-https"] }
+mime = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["macros", "sync"] }
+tracing = { workspace = true }
