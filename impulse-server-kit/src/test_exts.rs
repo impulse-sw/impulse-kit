@@ -160,7 +160,7 @@ impl ResponseExt for Response {
 }
 
 /// Initializes the logger for tests.
-pub fn init_test_logger(log_level: tracing::Level) -> impulse_::results::MResult<()> {
+pub fn init_test_logger(log_level: tracing::Level) -> impulse_utils::results::MResult<()> {
   use tracing_subscriber::filter::LevelFilter;
   use tracing_subscriber::fmt::format::FmtSpan;
   use tracing_subscriber::prelude::*;
