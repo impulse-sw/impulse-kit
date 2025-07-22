@@ -313,7 +313,7 @@ impl ServerError {
     self
   }
 
-  /// Error LOCKED (423).
+  /// Adds any status code you need.
   pub fn with_code(mut self, code: StatusCode) -> Self {
     self.status_code = Some(code);
     self
