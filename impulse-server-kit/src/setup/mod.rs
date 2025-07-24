@@ -124,7 +124,7 @@ pub async fn load_generic_config<T: DeserializeOwned + GenericSetup + Default>(a
       .with_public("Failed to read the contents of the server configuration file.")
       .with_500()
   })?;
-  let mut config: T = serde_yaml::from_str(&buffer).map_err(|e| {
+  let mut config: T = serde_pretty_yaml::from_str(&buffer).map_err(|e| {
     ServerError::from_private(e)
       .with_public("Failed to parse the contents of the server configuration file.")
       .with_500()

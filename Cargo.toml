@@ -53,7 +53,7 @@ rmp-serde = "1.3"
 rustls = "0.23"
 salvo = { version = "^0.80.0", default-features = false }
 serde = { version = "1", default-features = false }
-serde_yaml = "0.9"
+serde_pretty_yaml = "0.9.37"
 smart-patcher = { version = "0.3.0-1", default-features = false }
 sonic-rs = "0.5.1"
 tokio = { version = "1", default-features = false }
