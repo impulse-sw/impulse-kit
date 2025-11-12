@@ -34,7 +34,7 @@ pub use crate::responses::RedirectServerError;
 pub use crate::errors::ServerError;
 
 #[cfg(feature = "cresult")]
-pub use crate::errors::CliError;
+pub use crate::errors::ClientError;
 
 pub use crate::errors::ErrorResponse;
 

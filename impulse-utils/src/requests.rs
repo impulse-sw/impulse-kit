@@ -124,12 +124,12 @@ pub trait MsgPackRequest {
 #[cfg(all(feature = "reqwest", feature = "cresult"))]
 impl MsgPackRequest for reqwest::RequestBuilder {
   fn msgpack<T: serde::Serialize + ?Sized>(self, msgpack: &T) -> crate::prelude::CResult<Self> {
-    use crate::errors::CliError;
+    use crate::errors::ClientError;
 
     Ok(
       self
         .header(reqwest::header::CONTENT_TYPE, "application/msgpack")
-        .body(rmp_serde::to_vec(msgpack).map_err(|e| CliError::from_str(format!("Can't serialize body: {e:?}")))?),
+        .body(rmp_serde::to_vec(msgpack).map_err(|e| ClientError::from_str(format!("Can't serialize body: {e:?}")))?),
     )
   }
 }

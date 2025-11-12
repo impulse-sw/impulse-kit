@@ -399,10 +399,10 @@ pub trait MsgPackResponse {
 #[cfg(all(feature = "reqwest", feature = "cresult"))]
 impl MsgPackResponse for reqwest::Response {
   async fn msgpack<T: serde::de::DeserializeOwned>(self) -> crate::prelude::CResult<T> {
-    use crate::errors::CliError;
+    use crate::errors::ClientError;
 
-    let full = self.bytes().await.map_err(CliError::from)?;
-    rmp_serde::from_slice(&full).map_err(CliError::from)
+    let full = self.bytes().await.map_err(ClientError::from)?;
+    rmp_serde::from_slice(&full).map_err(ClientError::from)
   }
 }
 
@@ -420,7 +420,7 @@ where
 #[cfg(all(feature = "reqwest", feature = "cresult"))]
 impl CollectServerError for reqwest::Response {
   async fn collect_server_error(self) -> crate::prelude::CResult<Self> {
-    use crate::errors::CliError;
+    use crate::errors::ClientError;
 
     let status_code = self.status().as_u16();
     if status_code >= 400 {
@@ -435,11 +435,11 @@ impl CollectServerError for reqwest::Response {
         let err_json = self
           .json::<crate::errors::ErrorResponse>()
           .await
-          .map_err(|_| CliError::from_str(crate::errors::public_msg_from(&Some(status_code))))?;
-        return Err(CliError::from_str(err_json.err));
+          .map_err(|_| ClientError::from_str(crate::errors::public_msg_from(&Some(status_code))))?;
+        return Err(ClientError::from_str(err_json.err));
       }
 
-      Err(CliError::from_str(crate::errors::public_msg_from(&Some(status_code))))
+      Err(ClientError::from_str(crate::errors::public_msg_from(&Some(status_code))))
     } else {
       Ok(self)
     }

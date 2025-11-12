@@ -99,27 +99,27 @@ impl std::error::Error for ErrorResponse {}
 /// Data structure responsible for client errors.
 #[cfg(feature = "cresult")]
 #[derive(Clone)]
-pub struct CliError {
+pub struct ClientError {
   /// Error message.
   pub message: String,
 }
 
 #[cfg(feature = "cresult")]
-impl std::fmt::Display for CliError {
+impl std::fmt::Display for ClientError {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str(self.message.as_str())
   }
 }
 
 #[cfg(feature = "cresult")]
-impl std::fmt::Debug for CliError {
+impl std::fmt::Debug for ClientError {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str(self.message.as_str())
   }
 }
 
 #[cfg(feature = "cresult")]
-impl std::error::Error for CliError {}
+impl std::error::Error for ClientError {}
 
 #[cfg(all(feature = "salvo", feature = "mresult"))]
 #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
@@ -326,15 +326,15 @@ impl ServerError {
 }
 
 #[cfg(feature = "cresult")]
-impl CliError {
-  /// Converts any `std::error::Error` to `CliError`.
+impl ClientError {
+  /// Converts any `std::error::Error` to `ClientError`.
   pub fn from<T: std::error::Error>(value: T) -> Self {
     Self {
       message: value.to_string(),
     }
   }
 
-  /// Constructs `CliError` from string.
+  /// Constructs `ClientError` from string.
   #[allow(clippy::should_implement_trait)]
   pub fn from_str(value: impl Into<String>) -> Self {
     Self { message: value.into() }
@@ -348,7 +348,7 @@ impl CliError {
 }
 
 #[cfg(feature = "cresult")]
-impl AsRef<str> for CliError {
+impl AsRef<str> for ClientError {
   fn as_ref(&self) -> &str {
     self.message.as_str()
   }

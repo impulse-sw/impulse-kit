@@ -59,8 +59,8 @@ Also, you can specify distribution path:
 
 `impulse-utils` is a bunch of fullstack utils:
 
-- common error types: `ServerError`, `CliError` and `ErrorResponse`
-- unified result types: `MResult<T> = Result<T, ServerError>` and `CResult<T> = Result<T, CliError>`
+- common error types: `ServerError`, `ClientError` and `ErrorResponse`
+- unified result types: `MResult<T> = Result<T, ServerError>` and `CResult<T> = Result<T, ClientError>`
 - backend response types for Salvo and Server Kit: `ok!()`, `plain!(str)`, `html!(str)`, `file_upload!(pathbuf, filename)`, `json!(ser)` and `msgpack!(ser)`
 - `ExplicitServerWrite` backend trait which uses only `&mut Response` to respond unlike `ServerResponseWriter::write(self, req, depot, res)`
 - MsgPack extraction traits for `reqwest::Response` and `salvo::Request`
@@ -73,7 +73,7 @@ In a way, `impulse-utils` is useful in many cases such as error handling and res
 
 ### Impulse UI Kit
 
-UI Kit is just superstructure above Leptos and ThawUI frameworks. It provides:
+UI Kit is just superstructure above Leptos framework. It provides:
 
 - simple application entrypoint
 - logging support with `log`

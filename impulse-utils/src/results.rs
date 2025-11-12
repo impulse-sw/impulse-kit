@@ -1,4 +1,4 @@
-//! Result types for `ServerError` (`cc-server-kit`) and `CliError` (`cc-ui-kit`) errors.
+//! Result types for `ServerError` (`impulse-server-kit`) and `ClientError` (`impulse-ui-kit`) errors.
 
 #[cfg(feature = "mresult")]
 use crate::errors::ServerError;
@@ -8,8 +8,8 @@ use crate::errors::ServerError;
 pub type MResult<T> = Result<T, ServerError>;
 
 #[cfg(feature = "cresult")]
-use crate::errors::CliError;
+use crate::errors::ClientError;
 
 /// Simple frontend result type.
 #[cfg(feature = "cresult")]
-pub type CResult<T> = Result<T, CliError>;
+pub type CResult<T> = Result<T, ClientError>;

@@ -5,13 +5,13 @@ use impulse_utils::prelude::*;
 /// Get server's address and port
 pub fn get_host() -> CResult<String> {
   let server_host = web_sys::window()
-    .ok_or(CliError::from_str("Can't get browser's window parameters."))?
+    .ok_or(ClientError::from_str("Can't get browser's window parameters."))?
     .document()
-    .ok_or(CliError::from_str("Can't get window's document."))?
+    .ok_or(ClientError::from_str("Can't get window's document."))?
     .location()
-    .ok_or(CliError::from_str("Can't get document's location."))?
+    .ok_or(ClientError::from_str("Can't get document's location."))?
     .host()
-    .map_err(|e| CliError::from_str(format!("Can't get host: {e:?}")))?
+    .map_err(|e| ClientError::from_str(format!("Can't get host: {e:?}")))?
     .to_string();
   Ok(server_host)
 }
@@ -19,13 +19,13 @@ pub fn get_host() -> CResult<String> {
 /// Get server protocol (HTTP/HTTPS: "http:"/"https:")
 pub fn get_protocol() -> CResult<String> {
   let server_proto = web_sys::window()
-    .ok_or(CliError::from_str("Can't get browser's window parameters."))?
+    .ok_or(ClientError::from_str("Can't get browser's window parameters."))?
     .document()
-    .ok_or(CliError::from_str("Can't get window's document."))?
+    .ok_or(ClientError::from_str("Can't get window's document."))?
     .location()
-    .ok_or(CliError::from_str("Can't get document's location."))?
+    .ok_or(ClientError::from_str("Can't get document's location."))?
     .protocol()
-    .map_err(|e| CliError::from_str(format!("Can't get protocol: {e:?}")))?
+    .map_err(|e| ClientError::from_str(format!("Can't get protocol: {e:?}")))?
     .to_string();
   Ok(server_proto)
 }
@@ -33,13 +33,13 @@ pub fn get_protocol() -> CResult<String> {
 /// Get path
 pub fn get_path() -> CResult<String> {
   let path = web_sys::window()
-    .ok_or(CliError::from_str("Can't get browser's window parameters."))?
+    .ok_or(ClientError::from_str("Can't get browser's window parameters."))?
     .document()
-    .ok_or(CliError::from_str("Can't get window's document."))?
+    .ok_or(ClientError::from_str("Can't get window's document."))?
     .location()
-    .ok_or(CliError::from_str("Can't get document's location."))?
+    .ok_or(ClientError::from_str("Can't get document's location."))?
     .pathname()
-    .map_err(|e| CliError::from_str(format!("Can't get pathname: {e:?}")))?
+    .map_err(|e| ClientError::from_str(format!("Can't get pathname: {e:?}")))?
     .to_string();
   Ok(path)
 }
@@ -47,13 +47,13 @@ pub fn get_path() -> CResult<String> {
 /// Redirect to any URL
 pub fn redirect(url: impl AsRef<str>) -> CResult<()> {
   web_sys::window()
-    .ok_or(CliError::from_str("Can't get browser's window parameters."))?
+    .ok_or(ClientError::from_str("Can't get browser's window parameters."))?
     .document()
-    .ok_or(CliError::from_str("Can't get window's document."))?
+    .ok_or(ClientError::from_str("Can't get window's document."))?
     .location()
-    .ok_or(CliError::from_str("Can't get document's location."))?
+    .ok_or(ClientError::from_str("Can't get document's location."))?
     .set_href(url.as_ref())
-    .map_err(|e| CliError::from_str(format!("Can't redirect: {e:?}")))
+    .map_err(|e| ClientError::from_str(format!("Can't redirect: {e:?}")))
 }
 
 /// Get endpoint to your backend server

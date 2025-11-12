@@ -189,9 +189,9 @@ async fn maybe_token(depot: &mut Depot, res: &mut Response) -> MResult<OK> {
 
 This trait is implemented to all exposed by `impulse-utils` response types above except `file_upload!` (internally it needs `req: &mut Request` to compare `ETag` inside headers to allow file caching).
 
-## `impulse_utils::results::CResult` and `impulse_utils::errors::CliError`
+## `impulse_utils::results::CResult` and `impulse_utils::errors::ClientError`
 
-`CResult<T>` is a `Result<T, CliError>`. `CliError` was designed to be simple client error which you can just `console.log` at client-side.
+`CResult<T>` is a `Result<T, ClientError>`. `ClientError` was designed to be simple client error which you can just `console.log` at client-side.
 
 Example:
 
@@ -201,9 +201,9 @@ let resp = reqwest::Client::new()
   .json(&data)
   .send()
   .await
-  .map_err(|e| CliError::from(e).context("Can't send request!"))?
+  .map_err(|e| ClientError::from(e).context("Can't send request!"))?
   .error_for_status()
-  .map_err(|e| CliError::from(e).context("Server error!"))?;
+  .map_err(|e| ClientError::from(e).context("Server error!"))?;
 ```
 
 ## Redirect or collect server errors
@@ -230,7 +230,7 @@ let resp = reqwest::Client::new()
   .json(&data)
   .send()
   .await
-  .collect_server_error() // if status >= 400, it will throw `Err::<CliError>`; if no, returns `Ok::<reqwest::Response>`
+  .collect_server_error() // if status >= 400, it will throw `Err::<ClientError>`; if no, returns `Ok::<reqwest::Response>`
   .await?
   .json::<MyResponse>()
   .await?;
