@@ -92,7 +92,7 @@
 //!
 //! Here we go! You can now start the server with `cargo run --release`!
 
-#![feature(let_chains, stmt_expr_attributes)]
+#![feature(stmt_expr_attributes)]
 #![warn(missing_docs)]
 #![deny(warnings, clippy::todo, clippy::unimplemented)]
 

@@ -6,6 +6,10 @@ edition = { workspace = true }
 license = { workspace = true }
 authors = { workspace = true }
 
+[[bin]]
+name = "iks"
+path = "src/main.rs"
+
 [dependencies]
 fs-change-notifier = { workspace = true }
 headers = { workspace = true }

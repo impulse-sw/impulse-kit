@@ -81,7 +81,6 @@ bytes = { optional = true, workspace = true }
 encoding_rs = { optional = true, workspace = true }
 flate2 = { optional = true, workspace = true, features = ["default"] }
 http-body-util = { optional = true, workspace = true }
-impulse-tracing-ecs = { workspace = true }
 impulse-utils = { workspace = true, features = ["salvo", "reqwest", "mresult"] }
 mime = { optional = true, workspace = true }
 notify = { workspace = true }
@@ -98,6 +97,7 @@ sonic-rs = { optional = true, workspace = true }
 tokio = { workspace = true, features = ["signal"] }
 tracing = { workspace = true }
 tracing-appender = { workspace = true }
+tracing-ecs = { workspace = true }
 tracing-opentelemetry = { optional = true, workspace = true }
 tracing-rfc-5424 = { workspace = true }
 tracing-subscriber = { workspace = true }

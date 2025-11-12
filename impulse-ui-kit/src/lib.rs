@@ -1,9 +1,8 @@
-//! UI Kit framework built on top of Leptos and Thaw.
+//! UI Kit framework built on top of Leptos.
 //!
 //! Provides a simple `setup_app` function to launch your
 //! CSR (client-side rendered) application.
 
-#![feature(let_chains)]
 #![allow(non_snake_case)]
 #![warn(missing_docs)]
 #![deny(warnings, clippy::todo, clippy::unimplemented)]
@@ -14,7 +13,6 @@ pub mod utils;
 pub mod prelude;
 
 use leptos::prelude::*;
-use impulse_thaw::ConfigProvider;
 
 /// Application entrypoint.
 ///
@@ -39,32 +37,7 @@ pub fn setup_app(#[allow(unused_variables)] log_level: log::Level, children: Chi
 /// Also, you can use main styled `UIApp` component without `setup_app`, if you want more flexibility.
 #[component]
 pub fn UIApp(children: Children) -> impl IntoView {
-  use crate::utils::{dark_theme, light_theme};
-
-  let leptos_use::UseColorModeReturn { mode, .. } = leptos_use::use_color_mode();
-  let tw_dark_class = RwSignal::new(if let leptos_use::ColorMode::Dark = mode.get() {
-    Some("dark")
-  } else {
-    None
-  });
-  let theme = RwSignal::new({
-    if let leptos_use::ColorMode::Dark = mode.get() {
-      dark_theme()
-    } else {
-      light_theme()
-    }
-  });
-  Effect::new(move |_| {
-    theme.set(if let leptos_use::ColorMode::Dark = mode.get() {
-      dark_theme()
-    } else {
-      light_theme()
-    })
-  });
-
   view! {
-    <ConfigProvider theme class="uikit-app-container" class:dark=move || tw_dark_class.get().is_some()>
-      <div class="uikit-app-content">{children()}</div>
-    </ConfigProvider>
+    <div class="uikit-app-content">{children()}</div>
   }
 }
