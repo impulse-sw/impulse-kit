@@ -16,6 +16,31 @@ variables:
     value:
       type: plain
       value: accordion
+  component-alert-dialog:
+    is_secret: false
+    value:
+      type: plain
+      value: alert-dialog
+  component-button:
+    is_secret: false
+    value:
+      type: plain
+      value: button
+  component-input:
+    is_secret: false
+    value:
+      type: plain
+      value: input
+  component-input-otp:
+    is_secret: false
+    value:
+      type: plain
+      value: input-otp
+  component-popover:
+    is_secret: false
+    value:
+      type: plain
+      value: popover
   component-theme:
     is_secret: false
     value:
@@ -31,6 +56,16 @@ variables:
     value:
       type: plain
       value: " --no-default-features --features=reqwest"
+  file-alert-dialog:
+    is_secret: false
+    value:
+      type: plain
+      value: alert_dialog
+  file-input-otp:
+    is_secret: false
+    value:
+      type: plain
+      value: input_otp
   kit-version:
     is_secret: false
     value:
@@ -61,6 +96,11 @@ variables:
     value:
       type: plain
       value: impulse-ui-kit
+  package-ui-kit-components:
+    is_secret: false
+    value:
+      type: plain
+      value: impulse-ui-kit-components
   package-utils:
     is_secret: false
     value:
@@ -102,6 +142,7 @@ actions:
           - from: impulse-static-server/static-server.yaml
             to: static-server.yaml
   - info: cargo-fmt@0.1.0
+    exec_in_project_dir: true
     action:
       type: staged
       stage: build
@@ -161,10 +202,24 @@ actions:
     action:
       type: staged
       stage: build
-      cmd: depl add content -o -c impulse-ui-kit/components/src/{component-name}.rs -p ui-kit-{component-name}@{kit-version}
+      cmd: depl add content -o -c impulse-ui-kit/components/src/{component-file}.rs -p ui-kit-{component-name}@{kit-version}
       placeholders:
         - "{component-name}"
+        - "{component-file}"
         - "{kit-version}"
+  - info: leptos-fmt@0.1.0
+    tags:
+      - leptos
+      - fmt
+    requirements:
+      - type: exists
+        path: ~/.cargo/bin/leptosfmt
+        desc: "Check this: https://github.com/bram209/leptosfmt"
+    exec_in_project_dir: true
+    action:
+      type: staged
+      stage: build
+      cmd: leptosfmt -t 2 ./**/*.rs
   - info: upx@0.1.0
     requirements:
       - type: exists_any
@@ -265,14 +320,57 @@ pipelines:
     actions:
       - title: Add script to know Impulse Kit version
         used: use-rust-package-version@0.1.0
+      - title: Lint components
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ui-kit-components
+          "{target}": target-wasm
+      - title: Format `leptos::view!` macro content
+        used: leptos-fmt@0.1.0
+      - title: Format components before exporting
+        used: cargo-fmt@0.1.0
       - title: Add `accordion` component
         used: depl-add-component-to-storage@0.1.0
         with:
+          "{component-file}": component-accordion
           "{component-name}": component-accordion
+          "{kit-version}": kit-version
+      - title: Add `alert-dialog` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-alert-dialog
+          "{component-name}": component-alert-dialog
+          "{kit-version}": kit-version
+      - title: Add `button` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-button
+          "{component-name}": component-button
+          "{kit-version}": kit-version
+      - title: Add `input` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-input
+          "{component-name}": component-input
+          "{kit-version}": kit-version
+      - title: Add `input-otp` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-input-otp
+          "{component-name}": component-input-otp
+          "{kit-version}": kit-version
+      - title: Add `popover` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-popover
+          "{component-name}": component-popover
           "{kit-version}": kit-version
       - title: Add `theme` component
         used: depl-add-component-to-storage@0.1.0
         with:
+          "{component-file}": component-theme
           "{component-name}": component-theme
           "{kit-version}": kit-version
   - title: build-static-server

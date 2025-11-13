@@ -1,9 +1,11 @@
 //! Some utility for UI kit.
 
 /// Utility function to combine classes
-pub fn cn(base: &str, additional: Option<&str>) -> String {
-  match additional {
-    Some(class) => format!("{base} {class}"),
-    None => base.to_string(),
-  }
+pub fn cn(classes: &[impl AsRef<str>]) -> String {
+  classes
+    .iter()
+    .map(|class| class.as_ref())
+    .filter(|class| !class.is_empty())
+    .collect::<Vec<_>>()
+    .join(" ")
 }

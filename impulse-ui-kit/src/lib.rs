@@ -30,14 +30,6 @@ pub fn setup_app(#[allow(unused_variables)] log_level: log::Level, children: Chi
   #[cfg(not(debug_assertions))]
   console_log::init_with_level(log_level).unwrap();
   leptos::mount::mount_to_body(move || {
-    view! { <UIApp children /> }
+    view! { {children()} }
   })
-}
-
-/// Also, you can use main styled `UIApp` component without `setup_app`, if you want more flexibility.
-#[component]
-pub fn UIApp(children: Children) -> impl IntoView {
-  view! {
-    <div class="uikit-app-content">{children()}</div>
-  }
 }
