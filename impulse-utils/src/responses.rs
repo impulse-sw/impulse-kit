@@ -439,7 +439,9 @@ impl CollectServerError for reqwest::Response {
         return Err(ClientError::from_str(err_json.err));
       }
 
-      Err(ClientError::from_str(crate::errors::public_msg_from(&Some(status_code))))
+      Err(ClientError::from_str(crate::errors::public_msg_from(&Some(
+        status_code,
+      ))))
     } else {
       Ok(self)
     }

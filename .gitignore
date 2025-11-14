@@ -3,4 +3,5 @@
 **/artifacts/
 **/Cargo.lock
 **/dist/
-cc-server-kit-dsl/examples/api/v*/
+impulse-error-pages/tw-animate.css
+impulse-error-pages/src/components/button.rs

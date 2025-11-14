@@ -11,16 +11,16 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.12.0-alpha.4"
+version = "1.0.0-alpha.5"
 edition = "2024"
 license = "MIT"
 authors = ["Klimenty Titov <aclo.create@gmail.com>"]
 
 [workspace.dependencies]
-impulse-server-kit = { version = "0.12.0-alpha.4", path = "impulse-server-kit", default-features = false }
-impulse-static-server = { version = "0.12.0-alpha.4", path = "impulse-static-server" }
-impulse-utils = { version = "0.12.0-alpha.4", path = "impulse-utils", default-features = false }
-impulse-ui-kit = { version = "0.12.0-alpha.4", path = "impulse-ui-kit" }
+impulse-server-kit = { version = "1.0.0-alpha.5", path = "impulse-server-kit", default-features = false }
+impulse-static-server = { version = "1.0.0-alpha.5", path = "impulse-static-server" }
+impulse-utils = { version = "1.0.0-alpha.5", path = "impulse-utils", default-features = false }
+impulse-ui-kit = { version = "1.0.0-alpha.5", path = "impulse-ui-kit" }
 
 anyhow = "1"
 brotli = { version = "7", default-features = false }
@@ -36,7 +36,6 @@ http = "1"
 http-body-util = "0.1"
 icondata = { version = "0.5", default-features = false }
 leptos = { version = "0.8", default-features = false }
-leptos_i18n = { version = "0.5", default-features = false }
 leptos_meta = "0.8"
 leptos-use = { version = "0.16", default-features = false }
 log = "0.4"

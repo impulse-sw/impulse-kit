@@ -6,89 +6,71 @@
 
 #![deny(warnings, clippy::todo, clippy::unimplemented)]
 
-use impulse_ui_kit::{
-  prelude::*,
-  router::{get_path, redirect},
-};
+mod components;
+
+use impulse_ui_kit::prelude::*;
+use impulse_ui_kit::router::{get_path, redirect};
 use leptos_meta::*;
 
-leptos_i18n::load_locales!();
-use crate::i18n::*;
+use crate::components::button::Button;
 
 fn main() {
-  setup_app(
-    log::Level::Info,
-    Box::new(move || {
-      view! {
-        <I18nContextProvider>
-          <App />
-        </I18nContextProvider>
-      }
-      .into_any()
-    }),
-  )
+  setup_app(log::Level::Info, Box::new(move || view! { <App /> }.into_any()))
 }
 
 #[component]
 fn App() -> impl IntoView {
   provide_meta_context();
-  let i18n = use_i18n();
 
   view! {
-    <Title
-      text=move || t_string!(i18n, title)
-      formatter=move |text| format!("{text} - Impulse Services")
-    />
+    <Title text="Error! - Impulse Services" />
     <main>
       {move || match get_path().unwrap().as_str() {
         "/400" => {
           view! {
-            <ErrorPage err_num="400".to_string() err_msg=t_string!(i18n, bad_request).to_string() />
+            <ErrorPage err_num="400" err_msg="Oops! That's a Bad Request!" />
           }
             .into_any()
         }
         "/401" => {
           view! {
-            <ErrorPage
-              err_num="401".to_string()
-              err_msg=t_string!(i18n, unauthorized).to_string()
-            />
+            <ErrorPage err_num="401" err_msg="Oops! You're unauthorized." />
           }
             .into_any()
         }
         "/403" => {
           view! {
-            <ErrorPage err_num="403".to_string() err_msg=t_string!(i18n, forbidden).to_string() />
+            <ErrorPage err_num="403" err_msg="Access denied." />
           }
             .into_any()
         }
         "/405" => {
           view! {
-            <ErrorPage err_num="405".to_string() err_msg=t_string!(i18n, not_allowed).to_string() />
+            <ErrorPage err_num="405" err_msg="This method is not allowed." />
           }
             .into_any()
         }
         "/500" => {
           view! {
-            <ErrorPage err_num="500".to_string() err_msg=t_string!(i18n, internal).to_string() />
+            <ErrorPage err_num="500" err_msg="Oops! Internal server error. Contact the administrator." />
           }
             .into_any()
         }
         "/oops" => {
           view! {
-            <ErrorPage err_num="???".to_string() err_msg=t_string!(i18n, specific).to_string() />
+            <ErrorPage err_num="???" err_msg="Specific error. Check with the administrator for details." />
           }
             .into_any()
         }
         "/" | "/404" => {
           view! {
-            <ErrorPage err_num="404".to_string() err_msg=t_string!(i18n, not_found).to_string() />
+            <ErrorPage err_num="404" err_msg="Oops! The page you're looking for doesn't exist." />
           }
             .into_any()
         }
         s if s.len() != 4 => {
           view! {
-            <ErrorPage err_num="404".to_string() err_msg=t_string!(i18n, not_found).to_string() />
+            <ErrorPage err_num="404" err_msg="Oops! The page you're looking for doesn't exist." />
           }
             .into_any()
         }
@@ -102,7 +84,7 @@ fn App() -> impl IntoView {
 }
 
 #[component]
-fn ErrorPage(err_num: String, err_msg: String) -> impl IntoView {
+fn ErrorPage(#[prop(into)] err_num: String, #[prop(into)] err_msg: String) -> impl IntoView {
   view! {
     <div class="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
       <h1 style="font-size: 72pt;" class="mb-10 text-gray-800 dark:text-gray-200 font-bold">
@@ -128,7 +110,6 @@ fn get_go_back_path() -> String {
 
 #[component]
 fn GoBack() -> impl IntoView {
-  let i18n = use_i18n();
   let ref_is_empty = get_referrer().is_empty();
   let go_back = move || redirect(get_referrer()).unwrap();
 
@@ -141,34 +122,22 @@ fn GoBack() -> impl IntoView {
       when=move || { !ref_is_empty }
       fallback=move || {
         view! {
-          <Button
-            appearance=ButtonAppearance::Primary
-            icon=icondata::LuMoveLeft
-            on_click=move |_| go_back_through_query()
-          >
-            <p class="ml-2">{move || t_string!(i18n, go_back)}</p>
+          <Button on:click=move |_| go_back_through_query()>
+            "Go back"
           </Button>
         }
       }
     >
-      <Button
-        appearance=ButtonAppearance::Primary
-        icon=icondata::LuMoveLeft
-        on_click=move |_| go_back()
-      >
-        <p class="ml-2">{move || t_string!(i18n, go_back)}</p>
+      <Button on:click=move |_| go_back()>
+        "Go back"
       </Button>
     </Show>
   }
   #[cfg(debug_assertions)]
   view! {
     <Show when=move || { !ref_is_empty } fallback=move || view! { <a href="/404">"Go to 404"</a> }>
-      <Button
-        appearance=ButtonAppearance::Primary
-        icon=icondata::LuMoveLeft
-        on_click=move |_| go_back()
-      >
-        <p class="ml-2">{move || t_string!(i18n, go_back)}</p>
+      <Button on:click=move |_| go_back()>
+        "Go back"
       </Button>
     </Show>
   }

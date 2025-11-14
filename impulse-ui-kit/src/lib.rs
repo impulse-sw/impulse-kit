@@ -20,7 +20,7 @@ use leptos::prelude::*;
 ///
 /// ```rust,ignore
 /// fn main() {
-///   setup_app(log::Level::Info, Box::new(move || { view! { <App /> }.into_any() }))
+///   setup_app(log::Level::Info, Box::new(move || view! { <App /> }.into_any()))
 /// }
 /// ```
 pub fn setup_app(#[allow(unused_variables)] log_level: log::Level, children: Children) {
@@ -29,7 +29,5 @@ pub fn setup_app(#[allow(unused_variables)] log_level: log::Level, children: Chi
   console_log::init_with_level(log::Level::Debug).unwrap();
   #[cfg(not(debug_assertions))]
   console_log::init_with_level(log_level).unwrap();
-  leptos::mount::mount_to_body(move || {
-    view! { {children()} }
-  })
+  leptos::mount::mount_to_body(move || view! { {children()} })
 }
