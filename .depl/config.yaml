@@ -91,6 +91,11 @@ variables:
     value:
       type: plain
       value: " --no-default-features --features=reqwest"
+  featureset-all:
+    is_secret: false
+    value:
+      type: plain
+      value: " --all-features"
   file-alert-dialog:
     is_secret: false
     value:
@@ -210,6 +215,23 @@ actions:
         - "{target}"
         - "{features}"
       show_success_output: true
+  - info: cargo-publish@0.2.0
+    tags:
+      - rust
+      - cargo
+    requirements:
+      - type: exists_any
+        paths:
+          - /bin/cargo
+          - ~/.cargo/bin/cargo
+        desc: "Install `cargo` via your package manager or with this command: `curl https://sh.rustup.rs -sSf | sh`."
+    action:
+      type: staged
+      stage: deploy
+      cmd: "cargo publish --package {package}{features}"
+      placeholders:
+        - "{package}"
+        - "{features}"
   - info: cargo-release@0.2.0
     tags:
       - rust
@@ -354,6 +376,34 @@ pipelines:
         used: cargo-generate-doc@0.1.0
         with:
           "{target}": target-x86
+  - title: publish
+    desc: Publish open-source libraries
+    info: impulse-kit-publish@0.1.0
+    tags:
+      - cargo
+      - publish
+    default: false
+    actions:
+      - title: Publish `impulse-utils`
+        used: cargo-publish@0.2.0
+        with:
+          "{features}": featureset-all
+          "{package}": package-utils
+      - title: Publish `impulse-ui-kit`
+        used: cargo-publish@0.2.0
+        with:
+          "{features}": empty
+          "{package}": package-ui-kit
+      - title: Publish `impulse-server-kit`
+        used: cargo-publish@0.2.0
+        with:
+          "{features}": empty
+          "{package}": package-server-kit
+      - title: Publish `impulse-static-server`
+        used: cargo-publish@0.2.0
+        with:
+          "{features}": empty
+          "{package}": package-static-server
   - title: export-ui-components
     desc: Export Impulse UI Kit components to Deployer's storage.
     info: impulse-kit-export-ui-kit-components@0.1.0
