@@ -21,11 +21,46 @@ variables:
     value:
       type: plain
       value: alert-dialog
+  component-alert:
+    is_secret: false
+    value:
+      type: plain
+      value: alert
+  component-aspect-ratio:
+    is_secret: false
+    value:
+      type: plain
+      value: aspect-ratio
+  component-avatar:
+    is_secret: false
+    value:
+      type: plain
+      value: avatar
+  component-badge:
+    is_secret: false
+    value:
+      type: plain
+      value: badge
+  component-breadcrumb:
+    is_secret: false
+    value:
+      type: plain
+      value: breadcrumb
   component-button:
     is_secret: false
     value:
       type: plain
       value: button
+  component-dropdown-menu:
+    is_secret: false
+    value:
+      type: plain
+      value: dropdown-menu
+  component-icon:
+    is_secret: false
+    value:
+      type: plain
+      value: icon
   component-input:
     is_secret: false
     value:
@@ -61,6 +96,16 @@ variables:
     value:
       type: plain
       value: alert_dialog
+  file-aspect-ratio:
+    is_secret: false
+    value:
+      type: plain
+      value: aspect_ratio
+  file-dropdown-menu:
+    is_secret: false
+    value:
+      type: plain
+      value: dropdown_menu
   file-input-otp:
     is_secret: false
     value:
@@ -343,11 +388,53 @@ pipelines:
           "{component-file}": file-alert-dialog
           "{component-name}": component-alert-dialog
           "{kit-version}": kit-version
+      - title: Add `alert` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-alert
+          "{component-name}": component-alert
+          "{kit-version}": kit-version
+      - title: Add `aspect-ratio` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-aspect-ratio
+          "{component-name}": component-aspect-ratio
+          "{kit-version}": kit-version
+      - title: Add `avatar` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-avatar
+          "{component-name}": component-avatar
+          "{kit-version}": kit-version
+      - title: Add `badge` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-badge
+          "{component-name}": component-badge
+          "{kit-version}": kit-version
+      - title: Add `breadcrumb` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-breadcrumb
+          "{component-name}": component-breadcrumb
+          "{kit-version}": kit-version
       - title: Add `button` component
         used: depl-add-component-to-storage@0.1.0
         with:
           "{component-file}": component-button
           "{component-name}": component-button
+          "{kit-version}": kit-version
+      - title: Add `dropdown-menu` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-dropdown-menu
+          "{component-name}": component-dropdown-menu
+          "{kit-version}": kit-version
+      - title: Add `icon` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-icon
+          "{component-name}": component-icon
           "{kit-version}": kit-version
       - title: Add `input` component
         used: depl-add-component-to-storage@0.1.0

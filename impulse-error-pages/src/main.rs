@@ -27,38 +27,30 @@ fn App() -> impl IntoView {
     <main>
       {move || match get_path().unwrap().as_str() {
         "/400" => {
-          view! {
-            <ErrorPage err_num="400" err_msg="Oops! That's a Bad Request!" />
-          }
-            .into_any()
+          view! { <ErrorPage err_num="400" err_msg="Oops! That's a Bad Request!" /> }.into_any()
         }
         "/401" => {
-          view! {
-            <ErrorPage err_num="401" err_msg="Oops! You're unauthorized." />
-          }
-            .into_any()
+          view! { <ErrorPage err_num="401" err_msg="Oops! You're unauthorized." /> }.into_any()
         }
-        "/403" => {
-          view! {
-            <ErrorPage err_num="403" err_msg="Access denied." />
-          }
-            .into_any()
-        }
+        "/403" => view! { <ErrorPage err_num="403" err_msg="Access denied." /> }.into_any(),
         "/405" => {
-          view! {
-            <ErrorPage err_num="405" err_msg="This method is not allowed." />
-          }
-            .into_any()
+          view! { <ErrorPage err_num="405" err_msg="This method is not allowed." /> }.into_any()
         }
         "/500" => {
           view! {
-            <ErrorPage err_num="500" err_msg="Oops! Internal server error. Contact the administrator." />
+            <ErrorPage
+              err_num="500"
+              err_msg="Oops! Internal server error. Contact the administrator."
+            />
           }
             .into_any()
         }
         "/oops" => {
           view! {
-            <ErrorPage err_num="???" err_msg="Specific error. Check with the administrator for details." />
+            <ErrorPage
+              err_num="???"
+              err_msg="Specific error. Check with the administrator for details."
+            />
           }
             .into_any()
         }
@@ -121,24 +113,16 @@ fn GoBack() -> impl IntoView {
     <Show
       when=move || { !ref_is_empty }
       fallback=move || {
-        view! {
-          <Button on:click=move |_| go_back_through_query()>
-            "Go back"
-          </Button>
-        }
+        view! { <Button on:click=move |_| go_back_through_query()>"Go back"</Button> }
       }
     >
-      <Button on:click=move |_| go_back()>
-        "Go back"
-      </Button>
+      <Button on:click=move |_| go_back()>"Go back"</Button>
     </Show>
   }
   #[cfg(debug_assertions)]
   view! {
     <Show when=move || { !ref_is_empty } fallback=move || view! { <a href="/404">"Go to 404"</a> }>
-      <Button on:click=move |_| go_back()>
-        "Go back"
-      </Button>
+      <Button on:click=move |_| go_back()>"Go back"</Button>
     </Show>
   }
 }
