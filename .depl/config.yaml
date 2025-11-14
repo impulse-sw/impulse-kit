@@ -71,6 +71,11 @@ variables:
     value:
       type: plain
       value: input-otp
+  component-label:
+    is_secret: false
+    value:
+      type: plain
+      value: label
   component-popover:
     is_secret: false
     value:
@@ -497,6 +502,12 @@ pipelines:
         with:
           "{component-file}": file-input-otp
           "{component-name}": component-input-otp
+          "{kit-version}": kit-version
+      - title: Add `label` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-label
+          "{component-name}": component-label
           "{kit-version}": kit-version
       - title: Add `popover` component
         used: depl-add-component-to-storage@0.1.0

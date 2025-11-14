@@ -10,5 +10,6 @@ pub mod dropdown_menu;
 pub mod icon;
 pub mod input;
 pub mod input_otp;
+pub mod label;
 pub mod popover;
 pub mod theme;
