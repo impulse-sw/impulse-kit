@@ -8,6 +8,7 @@ authors = { workspace = true }
 
 [dependencies]
 codee = "0.3.3"
+icondata = { workspace = true }
 impulse-ui-kit = { workspace = true }
 leptos = { version = "0.8", default-features = false, features = ["csr"] }
 leptos-use = { version = "0.16", default-features = false, features = ["storage"] }

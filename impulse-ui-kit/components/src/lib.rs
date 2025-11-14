@@ -1,6 +1,10 @@
 pub mod accordion;
+pub mod alert;
 pub mod alert_dialog;
+pub mod aspect_ratio;
+pub mod avatar;
 pub mod button;
+pub mod icon;
 pub mod input;
 pub mod input_otp;
 pub mod popover;

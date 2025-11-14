@@ -106,11 +106,7 @@ pub fn AccordionTrigger(
         )
         on:click=handle_click
       >
-        {if let Some(children) = children {
-          children().into_any()
-        } else {
-          view! { <span></span> }.into_any()
-        }}
+        {if let Some(children) = children { children().into_any() } else { ().into_any() }}
 
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -183,7 +179,6 @@ pub fn AccordionContent(#[prop(optional, into)] class: String, children: Childre
   }
 }
 
-// Контексты
 #[derive(Clone, Copy)]
 struct AccordionContext {
   open_items: RwSignal<Vec<String>>,
