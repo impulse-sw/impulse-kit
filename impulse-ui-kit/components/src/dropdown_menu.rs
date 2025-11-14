@@ -68,6 +68,16 @@ pub fn DropdownMenuContent(
   });
 
   Effect::new(move |_| {
+    if context.is_open.get() {
+      if let Some(body) = document().body() {
+        let _ = body.style().set_property("overflow", "hidden");
+      }
+    } else if let Some(body) = document().body() {
+      let _ = body.style().remove_property("overflow");
+    }
+  });
+
+  Effect::new(move |_| {
     if context.is_open.get()
       && should_render.get()
       && let Some(trigger_ref) = trigger_context
@@ -202,7 +212,7 @@ pub fn DropdownMenuItem(
       data-disabled=disabled
       class=cn(
         &[
-          "focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+          "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
           variant_class,
           class.as_str(),
         ],
@@ -234,7 +244,7 @@ pub fn DropdownMenuCheckboxItem(
       data-disabled=disabled
       class=cn(
         &[
-          "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+          "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
           class.as_str(),
         ],
       )
@@ -295,7 +305,7 @@ pub fn DropdownMenuRadioItem(
       data-disabled=disabled
       class=cn(
         &[
-          "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+          "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
           class.as_str(),
         ],
       )
@@ -363,7 +373,139 @@ pub fn DropdownMenuShortcut(#[prop(optional, into)] class: String, children: Chi
   }
 }
 
-// Типы и вспомогательные структуры
+#[component]
+pub fn DropdownMenuSub(children: Children) -> impl IntoView {
+  let is_open = RwSignal::new(false);
+
+  provide_context(DropdownSubContext { is_open });
+
+  view! { <div data-slot="dropdown-menu-sub">{children()}</div> }
+}
+
+#[component]
+pub fn DropdownMenuSubTrigger(
+  #[prop(optional)] inset: bool,
+  #[prop(optional, into)] class: String,
+  children: Children,
+) -> impl IntoView {
+  let sub_context =
+    use_context::<DropdownSubContext>().expect("DropdownMenuSubTrigger must be used within DropdownMenuSub");
+
+  let trigger_ref = NodeRef::<leptos::html::Div>::new();
+
+  provide_context(DropdownSubTriggerRef { trigger_ref });
+
+  let handle_mouse_enter = move |_| {
+    sub_context.is_open.set(true);
+  };
+
+  let data_state = move || {
+    if sub_context.is_open.get() { "open" } else { "closed" }
+  };
+
+  view! {
+    <div
+      node_ref=trigger_ref
+      data-slot="dropdown-menu-sub-trigger"
+      data-inset=inset
+      data-state=data_state
+      class=cn(
+        &[
+          "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[inset]:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+          class.as_str(),
+        ],
+      )
+      on:mouseenter=handle_mouse_enter
+    >
+      {children()}
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="ml-auto size-4"
+      >
+        <path d="m9 18 6-6-6-6" />
+      </svg>
+    </div>
+  }
+}
+
+#[component]
+pub fn DropdownMenuSubContent(#[prop(optional, into)] class: String, children: ChildrenFn) -> impl IntoView {
+  let sub_context =
+    use_context::<DropdownSubContext>().expect("DropdownMenuSubContent must be used within DropdownMenuSub");
+
+  let sub_trigger_context = use_context::<DropdownSubTriggerRef>();
+
+  let content_ref = NodeRef::<leptos::html::Div>::new();
+  let position_style = RwSignal::new(String::new());
+  let should_render = RwSignal::new(false);
+
+  let children_stored = StoredValue::new(children);
+
+  Effect::new(move |_| {
+    if sub_context.is_open.get() {
+      should_render.set(true);
+    } else if should_render.get() {
+      set_timeout(move || should_render.set(false), std::time::Duration::from_millis(150));
+    }
+  });
+
+  Effect::new(move |_| {
+    if sub_context.is_open.get()
+      && should_render.get()
+      && let Some(trigger_ref) = sub_trigger_context
+      && let Some(trigger) = trigger_ref.trigger_ref.get()
+    // && let Some(content) = content_ref.get()
+    {
+      let trigger_rect = trigger.get_bounding_client_rect();
+      // let content_rect = content.get_bounding_client_rect();
+
+      let top = trigger_rect.top();
+      let left = trigger_rect.right() + 4.0;
+
+      position_style.set(format!("position: fixed; top: {}px; left: {}px;", top, left));
+    }
+  });
+
+  let handle_mouse_leave = move |_| {
+    set_timeout(
+      move || sub_context.is_open.set(false),
+      std::time::Duration::from_millis(100),
+    );
+  };
+
+  let data_state = move || {
+    if sub_context.is_open.get() { "open" } else { "closed" }
+  };
+
+  view! {
+    <Show when=move || should_render.get()>
+      <div
+        node_ref=content_ref
+        data-slot="dropdown-menu-sub-content"
+        data-state=data_state
+        class=cn(
+          &[
+            "bg-popover text-popover-foreground z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=right]:slide-in-from-left-2",
+            class.as_str(),
+          ],
+        )
+        style=move || position_style.get()
+        on:mouseleave=handle_mouse_leave
+      >
+        {children_stored.get_value()()}
+      </div>
+    </Show>
+  }
+}
+
 #[derive(Clone, Copy, PartialEq)]
 pub enum DropdownItemVariant {
   Default,
@@ -393,4 +535,14 @@ struct DropdownTriggerRef {
 #[derive(Clone, Copy)]
 struct DropdownRadioContext {
   value: RwSignal<String>,
+}
+
+#[derive(Clone, Copy)]
+struct DropdownSubContext {
+  is_open: RwSignal<bool>,
+}
+
+#[derive(Clone, Copy)]
+struct DropdownSubTriggerRef {
+  trigger_ref: NodeRef<leptos::html::Div>,
 }

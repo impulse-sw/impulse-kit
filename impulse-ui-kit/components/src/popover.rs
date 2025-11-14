@@ -98,6 +98,16 @@ pub fn PopoverContent(
   });
 
   Effect::new(move |_| {
+    if context.is_open.get() {
+      if let Some(body) = document().body() {
+        let _ = body.style().set_property("overflow", "hidden");
+      }
+    } else if let Some(body) = document().body() {
+      let _ = body.style().remove_property("overflow");
+    }
+  });
+
+  Effect::new(move |_| {
     if context.is_open.get()
       && let Some(trigger_ref) = trigger_context
       && let Some(trigger) = trigger_ref.trigger_ref.get()
