@@ -10,10 +10,7 @@ use web_sys::Element;
 pub fn DropdownMenu(#[prop(optional)] open: Option<RwSignal<bool>>, children: Children) -> impl IntoView {
   let is_open = open.unwrap_or_else(|| RwSignal::new(false));
 
-  provide_context(DropdownContext {
-    is_open,
-    active_submenu: RwSignal::new(None),
-  });
+  provide_context(DropdownContext { is_open });
 
   view! { <div data-slot="dropdown-menu">{children()}</div> }
 }
@@ -376,8 +373,9 @@ pub fn DropdownMenuShortcut(#[prop(optional, into)] class: String, children: Chi
 #[component]
 pub fn DropdownMenuSub(children: Children) -> impl IntoView {
   let is_open = RwSignal::new(false);
+  let is_hovering = RwSignal::new(false);
 
-  provide_context(DropdownSubContext { is_open });
+  provide_context(DropdownSubContext { is_open, is_hovering });
 
   view! { <div data-slot="dropdown-menu-sub">{children()}</div> }
 }
@@ -396,7 +394,20 @@ pub fn DropdownMenuSubTrigger(
   provide_context(DropdownSubTriggerRef { trigger_ref });
 
   let handle_mouse_enter = move |_| {
+    sub_context.is_hovering.set(true);
     sub_context.is_open.set(true);
+  };
+
+  let handle_mouse_leave = move |_| {
+    sub_context.is_hovering.set(false);
+    set_timeout(
+      move || {
+        if !sub_context.is_hovering.get() {
+          sub_context.is_open.set(false);
+        }
+      },
+      std::time::Duration::from_millis(150),
+    );
   };
 
   let data_state = move || {
@@ -416,6 +427,7 @@ pub fn DropdownMenuSubTrigger(
         ],
       )
       on:mouseenter=handle_mouse_enter
+      on:mouseleave=handle_mouse_leave
     >
       {children()}
       <svg
@@ -462,11 +474,8 @@ pub fn DropdownMenuSubContent(#[prop(optional, into)] class: String, children: C
       && should_render.get()
       && let Some(trigger_ref) = sub_trigger_context
       && let Some(trigger) = trigger_ref.trigger_ref.get()
-    // && let Some(content) = content_ref.get()
     {
       let trigger_rect = trigger.get_bounding_client_rect();
-      // let content_rect = content.get_bounding_client_rect();
-
       let top = trigger_rect.top();
       let left = trigger_rect.right() + 4.0;
 
@@ -474,10 +483,19 @@ pub fn DropdownMenuSubContent(#[prop(optional, into)] class: String, children: C
     }
   });
 
+  let handle_mouse_enter = move |_| {
+    sub_context.is_hovering.set(true);
+  };
+
   let handle_mouse_leave = move |_| {
+    sub_context.is_hovering.set(false);
     set_timeout(
-      move || sub_context.is_open.set(false),
-      std::time::Duration::from_millis(100),
+      move || {
+        if !sub_context.is_hovering.get() {
+          sub_context.is_open.set(false);
+        }
+      },
+      std::time::Duration::from_millis(150),
     );
   };
 
@@ -498,6 +516,7 @@ pub fn DropdownMenuSubContent(#[prop(optional, into)] class: String, children: C
           ],
         )
         style=move || position_style.get()
+        on:mouseenter=handle_mouse_enter
         on:mouseleave=handle_mouse_leave
       >
         {children_stored.get_value()()}
@@ -524,7 +543,6 @@ impl DropdownItemVariant {
 #[derive(Clone, Copy)]
 struct DropdownContext {
   is_open: RwSignal<bool>,
-  active_submenu: RwSignal<Option<String>>,
 }
 
 #[derive(Clone, Copy)]
@@ -540,6 +558,7 @@ struct DropdownRadioContext {
 #[derive(Clone, Copy)]
 struct DropdownSubContext {
   is_open: RwSignal<bool>,
+  is_hovering: RwSignal<bool>,
 }
 
 #[derive(Clone, Copy)]
