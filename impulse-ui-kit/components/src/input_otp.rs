@@ -184,7 +184,6 @@ pub fn InputOTP(
   }
 }
 
-// Дополнительный компонент с разделителем
 #[component]
 pub fn InputOTPWithSeparator(
   #[prop(into)] length: usize,

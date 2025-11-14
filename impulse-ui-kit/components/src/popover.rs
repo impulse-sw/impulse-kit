@@ -5,6 +5,7 @@
 //! web-sys = { version = "0.3.82", features = ["DomRect", "Element", "HtmlButtonElement", "HtmlDivElement"] }
 
 use impulse_ui_kit::utils::cn;
+use impulse_ui_kit::utils::{OverlayAlign, OverlaySide, calculate_position};
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 use leptos::web_sys::Element;
@@ -70,8 +71,8 @@ pub fn PopoverTrigger(
 
 #[component]
 pub fn PopoverContent(
-  #[prop(optional)] align: Option<PopoverAlign>,
-  #[prop(optional)] side: Option<PopoverSide>,
+  #[prop(optional)] align: Option<OverlayAlign>,
+  #[prop(optional)] side: Option<OverlaySide>,
   #[prop(optional)] side_offset: Option<i32>,
   #[prop(optional, into)] class: String,
   children: ChildrenFn,
@@ -81,8 +82,8 @@ pub fn PopoverContent(
   let trigger_context = use_context::<PopoverTriggerRef>();
 
   let content_ref = NodeRef::<leptos::html::Div>::new();
-  let align = align.unwrap_or(PopoverAlign::Center);
-  let side = side.unwrap_or(PopoverSide::Bottom);
+  let align = align.unwrap_or(OverlayAlign::Center);
+  let side = side.unwrap_or(OverlaySide::Bottom);
   let side_offset = side_offset.unwrap_or(4);
 
   let position_style = RwSignal::new(String::new());
@@ -152,10 +153,10 @@ pub fn PopoverContent(
   });
 
   let slide_class = match side {
-    PopoverSide::Top => "data-[state=open]:slide-in-from-bottom-2",
-    PopoverSide::Right => "data-[state=open]:slide-in-from-left-2",
-    PopoverSide::Bottom => "data-[state=open]:slide-in-from-top-2",
-    PopoverSide::Left => "data-[state=open]:slide-in-from-right-2",
+    OverlaySide::Top => "data-[state=open]:slide-in-from-bottom-2",
+    OverlaySide::Right => "data-[state=open]:slide-in-from-left-2",
+    OverlaySide::Bottom => "data-[state=open]:slide-in-from-top-2",
+    OverlaySide::Left => "data-[state=open]:slide-in-from-right-2",
   };
 
   let children = StoredValue::new(children);
@@ -192,45 +193,4 @@ struct PopoverContext {
 #[derive(Clone, Copy)]
 struct PopoverTriggerRef {
   trigger_ref: NodeRef<leptos::html::Button>,
-}
-
-#[allow(clippy::too_many_arguments)]
-fn calculate_position(
-  trigger_top: f64,
-  trigger_left: f64,
-  trigger_width: f64,
-  trigger_height: f64,
-  content_width: f64,
-  content_height: f64,
-  side: PopoverSide,
-  align: PopoverAlign,
-  side_offset: i32,
-) -> (f64, f64) {
-  let offset = side_offset as f64;
-
-  let (mut top, mut left) = match side {
-    PopoverSide::Top => (trigger_top - content_height - offset, trigger_left),
-    PopoverSide::Bottom => (trigger_top + trigger_height + offset, trigger_left),
-    PopoverSide::Left => (trigger_top, trigger_left - content_width - offset),
-    PopoverSide::Right => (trigger_top, trigger_left + trigger_width + offset),
-  };
-
-  match side {
-    PopoverSide::Top | PopoverSide::Bottom => {
-      left += match align {
-        PopoverAlign::Start => 0.0,
-        PopoverAlign::Center => (trigger_width - content_width) / 2.0,
-        PopoverAlign::End => trigger_width - content_width,
-      };
-    }
-    PopoverSide::Left | PopoverSide::Right => {
-      top += match align {
-        PopoverAlign::Start => 0.0,
-        PopoverAlign::Center => (trigger_height - content_height) / 2.0,
-        PopoverAlign::End => trigger_height - content_height,
-      };
-    }
-  }
-
-  (top, left)
 }

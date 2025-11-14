@@ -1,5 +1,5 @@
-use impulse_server_kit::prelude::*;
 use crate::api::types::ChatData;
+use impulse_server_kit::prelude::*;
 
 pub fn chat_router() -> Router {
   Router::new()

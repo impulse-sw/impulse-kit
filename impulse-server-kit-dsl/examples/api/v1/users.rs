@@ -1,8 +1,8 @@
-use impulse_server_kit::prelude::*;
 use crate::api::types::AnswerData;
 use crate::api::types::HelloData;
 use crate::api::types::User;
 use crate::api::types::UserChangePasswordRequest as UserChangePassReq;
+use impulse_server_kit::prelude::*;
 
 pub fn users_router() -> Router {
   Router::new()
@@ -32,10 +32,11 @@ pub async fn post_sign_in(req: &mut Request) -> MResult<Json<AnswerData>> {
   let x_sign = req
     .header::<String>("X-Sign")
     .ok_or(ServerError::from_public("Can't find `X-Sign` header!").with_400())?;
-  let body = req
-    .parse_json_simd::<HelloData>()
-    .await
-    .map_err(|e| ServerError::from_private(e).with_public("Can't find JSON with `HelloData` type!").with_400())?;
+  let body = req.parse_json_simd::<HelloData>().await.map_err(|e| {
+    ServerError::from_private(e)
+      .with_public("Can't find JSON with `HelloData` type!")
+      .with_400()
+  })?;
   let user_id = req
     .query::<i64>("user_id")
     .ok_or(ServerError::from_public("Can't find `user_id` query parameter!").with_400())?;
@@ -70,10 +71,11 @@ pub async fn patch_change_password(req: &mut Request) -> MResult<OK> {
   let x_refresh = req
     .header::<String>("X-Refresh")
     .ok_or(ServerError::from_public("Can't find `X-Refresh` header!").with_400())?;
-  let body = req
-    .parse_msgpack::<UserChangePassReq>()
-    .await
-    .map_err(|e| ServerError::from_private(e).with_public("Can't find MsgPack with `UserChangePassReq` type!").with_400())?;
+  let body = req.parse_msgpack::<UserChangePassReq>().await.map_err(|e| {
+    ServerError::from_private(e)
+      .with_public("Can't find MsgPack with `UserChangePassReq` type!")
+      .with_400()
+  })?;
 
   todo!();
 
@@ -135,10 +137,11 @@ pub async fn delete_account(req: &mut Request) -> MResult<OK> {
   let x_refresh = req
     .header::<String>("X-Refresh")
     .ok_or(ServerError::from_public("Can't find `X-Refresh` header!").with_400())?;
-  let body = req
-    .parse_json_simd::<User>()
-    .await
-    .map_err(|e| ServerError::from_private(e).with_public("Can't find JSON with `User` type!").with_400())?;
+  let body = req.parse_json_simd::<User>().await.map_err(|e| {
+    ServerError::from_private(e)
+      .with_public("Can't find JSON with `User` type!")
+      .with_400()
+  })?;
 
   todo!();
 

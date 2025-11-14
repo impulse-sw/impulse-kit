@@ -67,7 +67,7 @@ pub fn Button(
 ) -> impl IntoView {
   view! {
     <button
-      attr:data-slot="button"
+      data-slot="button"
       class=cn(&[BASE_CLASSES, variant.class(), size.class(), class.as_str()])
       node_ref=node_ref
     >
