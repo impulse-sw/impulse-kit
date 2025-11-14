@@ -1,0 +1,14 @@
+[package]
+name = "impulse-ui-kit-components"
+description = "Generic components for UI Kit"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+codee = "0.3.3"
+impulse-ui-kit = { workspace = true }
+leptos = { version = "0.8", default-features = false, features = ["csr"] }
+leptos-use = { version = "0.16", default-features = false, features = ["storage"] }
+web-sys = { version = "0.3.82", features = ["ClipboardEvent", "DataTransfer", "DomRect", "Element", "HtmlButtonElement", "HtmlDivElement"] }

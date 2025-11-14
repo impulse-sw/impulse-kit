@@ -1,0 +1,461 @@
+{
+  "types": [
+    {
+      "type": "usage",
+      "name": "HashMap",
+      "rust_type": "std::collections::HashMap"
+    },
+    {
+      "type": "usage",
+      "name": "HelloData",
+      "rust_type": "crate::api::types::HelloData"
+    },
+    {
+      "type": "usage",
+      "name": "AnswerData",
+      "rust_type": "crate::api::types::AnswerData"
+    },
+    {
+      "type": "usage",
+      "name": "UserChangePassReq",
+      "rust_type": "crate::api::types::UserChangePasswordRequest"
+    },
+    {
+      "type": "alias",
+      "alias": "ComplexAliasType",
+      "rust_type": "HashMap<String, u32>"
+    },
+    {
+      "type": "usage",
+      "name": "User",
+      "rust_type": "crate::api::types::User"
+    },
+    {
+      "type": "usage",
+      "name": "UserCreateRequest",
+      "rust_type": "crate::api::types::UserCreateRequest"
+    },
+    {
+      "type": "usage",
+      "name": "ChatData",
+      "rust_type": "crate::api::types::ChatData"
+    }
+  ],
+  "requirements": [
+    {
+      "name": "tokens",
+      "hidden": false,
+      "incoming": [
+        {
+          "data_from": "header",
+          "type": "String",
+          "name": "X-Access",
+          "hidden": true
+        },
+        {
+          "data_from": "header",
+          "type": "String",
+          "name": "X-Refresh",
+          "hidden": true
+        },
+        {
+          "data_from": "header",
+          "type": "String",
+          "name": "X-Client",
+          "hidden": true
+        }
+      ],
+      "outcoming": []
+    },
+    {
+      "name": "master",
+      "hidden": false,
+      "incoming": [
+        {
+          "data_from": "header",
+          "type": "String",
+          "name": "X-Access",
+          "hidden": true
+        },
+        {
+          "data_from": "header",
+          "type": "String",
+          "name": "X-Refresh",
+          "hidden": true
+        },
+        {
+          "data_from": "header",
+          "type": "String",
+          "name": "X-Client",
+          "hidden": true
+        }
+      ],
+      "outcoming": [
+        {
+          "data_into": "header",
+          "type": "String",
+          "name": "X-Sign",
+          "hidden": true
+        }
+      ]
+    },
+    {
+      "name": "slave",
+      "hidden": true,
+      "incoming": [
+        {
+          "data_from": "cookie_param",
+          "key": "gitlab_session",
+          "hidden": true
+        }
+      ],
+      "outcoming": []
+    }
+  ],
+  "tags": [
+    {
+      "tag": "users",
+      "tag_requirements": [],
+      "endpoints": [
+        {
+          "name": "post_sign_in",
+          "hidden": false,
+          "used_types": [
+            "AnswerData",
+            "HelloData",
+            "String",
+            "i64"
+          ],
+          "requirements": [],
+          "incoming": [
+            {
+              "data_from": "path",
+              "request_type": "post",
+              "path": "/sign-in",
+              "params": []
+            },
+            {
+              "data_from": "header",
+              "type": "String",
+              "name": "X-Sign",
+              "hidden": false
+            },
+            {
+              "data_from": "body",
+              "body_type": "json",
+              "rust_type": "HelloData"
+            },
+            {
+              "data_from": "query_param",
+              "type": "i64",
+              "query": "user_id",
+              "hidden": false
+            }
+          ],
+          "outcoming": [
+            {
+              "data_into": "body",
+              "body_type": "json",
+              "rust_type": "AnswerData"
+            }
+          ]
+        },
+        {
+          "name": "patch_change_password",
+          "hidden": false,
+          "used_types": [
+            "String",
+            "UserChangePassReq"
+          ],
+          "requirements": [],
+          "incoming": [
+            {
+              "data_from": "path",
+              "request_type": "patch",
+              "path": "/change-password",
+              "params": []
+            },
+            {
+              "data_from": "header",
+              "type": "String",
+              "name": "X-Access",
+              "hidden": false
+            },
+            {
+              "data_from": "header",
+              "type": "String",
+              "name": "X-Refresh",
+              "hidden": false
+            },
+            {
+              "data_from": "header",
+              "type": "String",
+              "name": "X-Client",
+              "hidden": false
+            },
+            {
+              "data_from": "body",
+              "body_type": "msg_pack",
+              "rust_type": "UserChangePassReq"
+            }
+          ],
+          "outcoming": [
+            {
+              "data_into": "body",
+              "body_type": "ok"
+            }
+          ]
+        },
+        {
+          "name": "post_logout",
+          "hidden": false,
+          "used_types": [
+            "String"
+          ],
+          "requirements": [],
+          "incoming": [
+            {
+              "data_from": "path",
+              "request_type": "post",
+              "path": "/logout",
+              "params": []
+            },
+            {
+              "data_from": "header",
+              "type": "String",
+              "name": "X-Access",
+              "hidden": false
+            },
+            {
+              "data_from": "header",
+              "type": "String",
+              "name": "X-Refresh",
+              "hidden": false
+            },
+            {
+              "data_from": "header",
+              "type": "String",
+              "name": "X-Client",
+              "hidden": false
+            }
+          ],
+          "outcoming": [
+            {
+              "data_into": "body",
+              "body_type": "ok"
+            }
+          ]
+        },
+        {
+          "name": "delete_account",
+          "hidden": false,
+          "used_types": [
+            "String",
+            "User"
+          ],
+          "requirements": [],
+          "incoming": [
+            {
+              "data_from": "path",
+              "request_type": "delete",
+              "path": "/account",
+              "params": []
+            },
+            {
+              "data_from": "header",
+              "type": "String",
+              "name": "X-Access",
+              "hidden": false
+            },
+            {
+              "data_from": "header",
+              "type": "String",
+              "name": "X-Refresh",
+              "hidden": false
+            },
+            {
+              "data_from": "header",
+              "type": "String",
+              "name": "X-Client",
+              "hidden": false
+            },
+            {
+              "data_from": "body",
+              "body_type": "json",
+              "rust_type": "User"
+            }
+          ],
+          "outcoming": [
+            {
+              "data_into": "body",
+              "body_type": "ok"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "chat",
+      "tag_requirements": [
+        "tokens"
+      ],
+      "endpoints": [
+        {
+          "name": "get_chats",
+          "hidden": false,
+          "used_types": [
+            "Vec<ChatData>",
+            "i64"
+          ],
+          "requirements": [],
+          "incoming": [
+            {
+              "data_from": "path",
+              "request_type": "get",
+              "path": "/chats",
+              "params": []
+            },
+            {
+              "data_from": "query_param",
+              "type": "i64",
+              "query": "chat_id",
+              "hidden": false
+            }
+          ],
+          "outcoming": [
+            {
+              "data_into": "body",
+              "body_type": "json",
+              "rust_type": "Vec<ChatData>"
+            }
+          ]
+        },
+        {
+          "name": "get_chat_by_id",
+          "hidden": false,
+          "used_types": [
+            "ChatData",
+            "u64"
+          ],
+          "requirements": [],
+          "incoming": [
+            {
+              "data_from": "path",
+              "request_type": "get",
+              "path": "/chat/{id}",
+              "params": [
+                {
+                  "type": "u64",
+                  "key": "id"
+                }
+              ]
+            }
+          ],
+          "outcoming": [
+            {
+              "data_into": "body",
+              "body_type": "json",
+              "rust_type": "ChatData"
+            }
+          ]
+        },
+        {
+          "name": "post_chat_by_id_audio_request",
+          "hidden": false,
+          "used_types": [
+            "u64"
+          ],
+          "requirements": [],
+          "incoming": [
+            {
+              "data_from": "path",
+              "request_type": "post",
+              "path": "/chat/{id}/audio-request",
+              "params": [
+                {
+                  "type": "u64",
+                  "key": "id"
+                }
+              ]
+            },
+            {
+              "data_from": "body",
+              "body_type": "file",
+              "key": "audio"
+            }
+          ],
+          "outcoming": [
+            {
+              "data_into": "body",
+              "body_type": "ok"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "test",
+      "tag_requirements": [],
+      "endpoints": [
+        {
+          "name": "get_test",
+          "hidden": false,
+          "used_types": [],
+          "requirements": [
+            "master"
+          ],
+          "incoming": [
+            {
+              "data_from": "path",
+              "request_type": "get",
+              "path": "/test",
+              "params": []
+            }
+          ],
+          "outcoming": [
+            {
+              "data_into": "body",
+              "body_type": "ok"
+            },
+            {
+              "data_into": "cookie",
+              "key": "X-Sign",
+              "hidden": false
+            }
+          ]
+        },
+        {
+          "name": "post_audio",
+          "hidden": false,
+          "used_types": [
+            "ComplexAliasType",
+            "Vec<u8>"
+          ],
+          "requirements": [
+            "slave"
+          ],
+          "incoming": [
+            {
+              "data_from": "path",
+              "request_type": "post",
+              "path": "/audio",
+              "params": []
+            },
+            {
+              "data_from": "form_param",
+              "type": "Vec<u8>",
+              "key": "audio"
+            }
+          ],
+          "outcoming": [
+            {
+              "data_into": "body",
+              "body_type": "msg_pack",
+              "rust_type": "ComplexAliasType"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

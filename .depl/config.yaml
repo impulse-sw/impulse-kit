@@ -1,648 +1,398 @@
-project_name: cc-monorepo
-version: 5
-langs:
-  - rust
-targets:
-  - arch: x86_64
-    os: linux
-    os_derivative: any
-    os_version:
-      type: no
-  - arch: wasm32
-    os: web
-    os_derivative: any
-    os_version:
-      type: no
-deploy_toolkit: docker
-cache_files:
+project_name: impulse-kit
+version: 7
+ignore_files:
   - .git
+cache_files:
   - Cargo.lock
   - target
-variables: []
+variables:
+  binary-static-server:
+    is_secret: false
+    value:
+      type: plain
+      value: target/x86_64-unknown-linux-gnu/release/iks
+  component-accordion:
+    is_secret: false
+    value:
+      type: plain
+      value: accordion
+  component-alert-dialog:
+    is_secret: false
+    value:
+      type: plain
+      value: alert-dialog
+  component-button:
+    is_secret: false
+    value:
+      type: plain
+      value: button
+  component-input:
+    is_secret: false
+    value:
+      type: plain
+      value: input
+  component-input-otp:
+    is_secret: false
+    value:
+      type: plain
+      value: input-otp
+  component-popover:
+    is_secret: false
+    value:
+      type: plain
+      value: popover
+  component-theme:
+    is_secret: false
+    value:
+      type: plain
+      value: theme
+  empty:
+    is_secret: false
+    value:
+      type: plain
+      value: ""
+  featureset-utils-wasm32:
+    is_secret: false
+    value:
+      type: plain
+      value: " --no-default-features --features=reqwest"
+  file-alert-dialog:
+    is_secret: false
+    value:
+      type: plain
+      value: alert_dialog
+  file-input-otp:
+    is_secret: false
+    value:
+      type: plain
+      value: input_otp
+  kit-version:
+    is_secret: false
+    value:
+      type: from_cmd
+      cmd: python .depl/rust-crate-ver.py
+  package-dsl:
+    is_secret: false
+    value:
+      type: plain
+      value: impulse-skdsl
+  package-error-pages:
+    is_secret: false
+    value:
+      type: plain
+      value: impulse-error-pages
+  package-server-kit:
+    is_secret: false
+    value:
+      type: plain
+      value: impulse-server-kit
+  package-static-server:
+    is_secret: false
+    value:
+      type: plain
+      value: impulse-static-server
+  package-ui-kit:
+    is_secret: false
+    value:
+      type: plain
+      value: impulse-ui-kit
+  package-ui-kit-components:
+    is_secret: false
+    value:
+      type: plain
+      value: impulse-ui-kit-components
+  package-utils:
+    is_secret: false
+    value:
+      type: plain
+      value: impulse-utils
+  reqwest-unstable-flag:
+    is_secret: false
+    value:
+      type: plain
+      value: 'RUSTFLAGS=''--cfg reqwest_unstable'' '
+  target-wasm:
+    is_secret: false
+    value:
+      type: plain
+      value: wasm32-unknown-unknown
+  target-x86:
+    is_secret: false
+    value:
+      type: plain
+      value: x86_64-unknown-linux-gnu
+actions:
+  - info: add-static-server-to-storage@0.1.0
+    action:
+      type: add_to_storage
+      short_name: static-server
+      auto_version_rule:
+        type: cmd_stdout
+        cmd:
+          cmd: python .depl/rust-crate-ver.py
+          ignore_fails: true
+          show_success_output: true
+          show_cmd: false
+          only_when_fresh: false
+      content:
+        type: fixed_files
+        placements:
+          - from: target/x86_64-unknown-linux-gnu/release/iks
+            to: iks
+          - from: impulse-static-server/static-server.yaml
+            to: static-server.yaml
+  - info: cargo-fmt@0.1.0
+    exec_in_project_dir: true
+    action:
+      type: staged
+      stage: build
+      cmd: cargo fmt -- --config tab_spaces=2,max_width=120 */**/*.rs
+  - info: cargo-generate-doc@0.1.0
+    action:
+      type: staged
+      stage: build
+      cmd: cargo doc --target {target} --workspace --no-deps
+      placeholders:
+        - "{target}"
+  - info: cargo-lint@0.2.0
+    action:
+      type: staged
+      stage: build
+      cmd: "{flags}cargo clippy --package {package} --target {target}{features}"
+      placeholders:
+        - "{flags}"
+        - "{package}"
+        - "{target}"
+        - "{features}"
+      show_success_output: true
+  - info: cargo-release@0.2.0
+    tags:
+      - rust
+      - cargo
+    requirements:
+      - type: exists_any
+        paths:
+          - /bin/cargo
+          - ~/.cargo/bin/cargo
+        desc: "Install `cargo` via your package manager or with this command: `curl https://sh.rustup.rs -sSf | sh`."
+    action:
+      type: staged
+      stage: build
+      cmd: "{flags}cargo build --release --package {package} --target {target}{features}"
+      placeholders:
+        - "{flags}"
+        - "{package}"
+        - "{target}"
+        - "{features}"
+  - info: cargo-test-doc@0.1.0
+    action:
+      type: staged
+      stage: build
+      cmd: cargo test --doc
+  - info: depl-add-component-to-storage@0.1.0
+    tags:
+      - deployer
+    requirements:
+      - type: exists_any
+        paths:
+          - /bin/depl
+          - /usr/bin/depl
+          - ~/.cargo/bin/depl
+          - ~/.local/bin/depl
+    action:
+      type: staged
+      stage: build
+      cmd: depl add content -o -c impulse-ui-kit/components/src/{component-file}.rs -p ui-kit-{component-name}@{kit-version}
+      placeholders:
+        - "{component-name}"
+        - "{component-file}"
+        - "{kit-version}"
+  - info: leptos-fmt@0.1.0
+    tags:
+      - leptos
+      - fmt
+    requirements:
+      - type: exists
+        path: ~/.cargo/bin/leptosfmt
+        desc: "Check this: https://github.com/bram209/leptosfmt"
+    exec_in_project_dir: true
+    action:
+      type: staged
+      stage: build
+      cmd: leptosfmt -t 2 ./**/*.rs
+  - info: upx@0.1.0
+    requirements:
+      - type: exists_any
+        paths:
+          - /bin/upx
+          - /usr/bin/upx
+          - ~/.local/bin/upx
+    action:
+      type: staged
+      stage: build
+      cmd: upx %af%
+      placeholders:
+        - "%af%"
+  - info: use-rust-package-version@0.1.0
+    action:
+      type: use_from_storage
+      content_info: get-know-rust-package-version@latest
 pipelines:
   - title: common-ops
     desc: Common monorepo operations
-    info: cc-services-common-ops@0.1.0
+    info: impulse-kit-common-ops@0.1.0
     tags:
       - cargo
       - clippy
       - lint
+      - docs
+      - fmt
     default: true
     artifacts:
       - from: target/x86_64-unknown-linux-gnu/doc
         to: docs
     actions:
-      - title: Lint `cc-utils` on x86-64
-        info: cargo-clippy@0.1.0
-        tags:
-          - cargo
-          - clippy
-        exec_in_project_dir: false
-        action:
-          type: pre_build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package cc-utils --target x86_64-unknown-linux-gnu
-      - title: Lint `cc-utils` on wasm32
-        info: cargo-clippy@0.1.0
-        tags:
-          - cargo
-          - clippy
-        exec_in_project_dir: false
-        action:
-          type: pre_build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package cc-utils --target wasm32-unknown-unknown --no-default-features --features=reqwest
-      - title: Lint `cc-ui-kit`
-        info: cargo-clippy@0.1.0
-        tags:
-          - cargo
-          - clippy
-        exec_in_project_dir: false
-        action:
-          type: pre_build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cargo clippy --package cc-ui-kit --target wasm32-unknown-unknown
-      - title: Lint `cc-error-pages`
-        info: cargo-clippy@0.1.0
-        tags:
-          - cargo
-          - clippy
-        exec_in_project_dir: false
-        action:
-          type: pre_build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cargo clippy --package cc-error-pages --target wasm32-unknown-unknown
-      - title: Lint `cc-server-kit`
-        info: cargo-clippy@0.1.0
-        tags:
-          - cargo
-          - clippy
-        exec_in_project_dir: false
-        action:
-          type: pre_build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package cc-server-kit --target x86_64-unknown-linux-gnu
-      - title: Lint `cc-server-kit-dsl`
-        info: cargo-clippy@0.1.0
-        tags:
-          - cargo
-          - clippy
-        exec_in_project_dir: false
-        action:
-          type: pre_build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cargo clippy --package skdsl --target x86_64-unknown-linux-gnu
-      - title: Lint `cc-static-server`
-        info: cargo-clippy@0.1.0
-        tags:
-          - cargo
-          - clippy
-        exec_in_project_dir: false
-        action:
-          type: pre_build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cargo clippy --package cc-static-server --target x86_64-unknown-linux-gnu
+      - title: Lint `impulse-utils` on x86-64
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": reqwest-unstable-flag
+          "{package}": package-utils
+          "{target}": target-x86
+      - title: Lint `impulse-utils` on wasm32
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": featureset-utils-wasm32
+          "{flags}": reqwest-unstable-flag
+          "{package}": package-utils
+          "{target}": target-wasm
+      - title: Lint `impulse-ui-kit`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ui-kit
+          "{target}": target-wasm
+      - title: Lint `impulse-error-pages`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-error-pages
+          "{target}": target-wasm
+      - title: Lint `impulse-server-kit`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": reqwest-unstable-flag
+          "{package}": package-server-kit
+          "{target}": target-x86
+      - title: Lint `impulse-server-kit-dsl`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-dsl
+          "{target}": target-x86
+      - title: Lint `impulse-static-server`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-static-server
+          "{target}": target-x86
       - title: Format
-        info: cargo-fmt@0.1.0
-        tags: []
-        exec_in_project_dir: true
-        action:
-          type: pre_build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cargo fmt -- --config tab_spaces=2,max_width=120 */**/*.rs
+        used: cargo-fmt@0.1.0
       - title: Test docs
-        info: cargo-doc@0.1.0
-        tags:
-          - cargo
-          - doc
-        exec_in_project_dir: false
-        action:
-          type: pre_build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cargo test --doc
+        used: cargo-test-doc@0.1.0
       - title: Generate docs
-        info: cargo-doc@0.1.0
-        tags:
-          - cargo
-          - doc
-        exec_in_project_dir: false
-        action:
-          type: build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cargo doc --target x86_64-unknown-linux-gnu --workspace --no-deps
+        used: cargo-generate-doc@0.1.0
+        with:
+          "{target}": target-x86
+  - title: export-ui-components
+    desc: Export Impulse UI Kit components to Deployer's storage.
+    info: impulse-kit-export-ui-kit-components@0.1.0
+    tags:
+      - deployer
+      - components
+      - ui-kit
+    exclusive_exec_tag: components
+    actions:
+      - title: Add script to know Impulse Kit version
+        used: use-rust-package-version@0.1.0
+      - title: Lint components
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ui-kit-components
+          "{target}": target-wasm
+      - title: Format `leptos::view!` macro content
+        used: leptos-fmt@0.1.0
+      - title: Format components before exporting
+        used: cargo-fmt@0.1.0
+      - title: Add `accordion` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-accordion
+          "{component-name}": component-accordion
+          "{kit-version}": kit-version
+      - title: Add `alert-dialog` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-alert-dialog
+          "{component-name}": component-alert-dialog
+          "{kit-version}": kit-version
+      - title: Add `button` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-button
+          "{component-name}": component-button
+          "{kit-version}": kit-version
+      - title: Add `input` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-input
+          "{component-name}": component-input
+          "{kit-version}": kit-version
+      - title: Add `input-otp` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-input-otp
+          "{component-name}": component-input-otp
+          "{kit-version}": kit-version
+      - title: Add `popover` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-popover
+          "{component-name}": component-popover
+          "{kit-version}": kit-version
+      - title: Add `theme` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-theme
+          "{component-name}": component-theme
+          "{kit-version}": kit-version
   - title: build-static-server
-    desc: Build `cc-static-server` and update content storage
-    info: cc-services-static-server@0.1.0
-    tags:
-      - cargo
-      - clippy
-      - lint
-    default: true
+    info: impulse-kit-build-static-server@0.1.0
     artifacts:
-      - from: target/x86_64-unknown-linux-gnu/release/cc-static-server
-        to: static-server/cc-static-server
-      - from: cc-static-server/static-server.yaml
+      - from: target/x86_64-unknown-linux-gnu/release/iks
+        to: static-server/iks
+      - from: impulse-static-server/static-server.yaml
         to: static-server/static-server.yaml
     actions:
       - title: Sync script to know Rust package version
-        info: sync-rust-crate-ver@0.1.0
-        tags: []
-        exec_in_project_dir: false
-        action:
-          type: use_from_storage
-          content_info: get-know-rust-package-version@latest
-      - title: Cargo Build (Release)
-        info: cargo-rel@0.1.0
-        tags:
-          - rust
-          - cargo
-        requirements:
-          - type: exists
-            path: /bin/cargo
-        action:
-          type: build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cargo build --release --package cc-static-server --target x86_64-unknown-linux-gnu
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-      - title: UPX Compress
-        info: upx-compress@0.1.0
-        tags:
-          - upx
-        requirements:
-          - type: exists_any
-            paths:
-              - /usr/bin/upx
-              - ~/.local/bin/upx
-        exec_in_project_dir: false
-        action:
-          type: post_build
-          supported_langs:
-            - rust
-            - go
-            - c
-            - cpp
-          commands:
-            - bash_c: upx <af>
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
-              daemon: false
-              placeholders:
-                - <af>
-              replacements:
-                - group:
-                    - from: <af>
-                      to:
-                        title: target/x86_64-unknown-linux-gnu/release/cc-static-server
-                        is_secret: false
-                        value:
-                          type: plain
-                          value: target/x86_64-unknown-linux-gnu/release/cc-static-server
-      - title: Auto-upload CC Static Server to Deployer's Storage
-        info: auto-upload-static-server@0.1.0
-        tags: []
-        exec_in_project_dir: false
-        action:
-          type: add_to_storage
-          short_name: static-server
-          auto_version_rule:
-            type: cmd_stdout
-            cmd:
-              bash_c: python .depl/rust-crate-ver.py
-              ignore_fails: true
-              show_success_output: true
-              show_bash_c: false
-              only_when_fresh: false
-          content:
-            type: fixed_files
-            placements:
-              - from: target/x86_64-unknown-linux-gnu/release/cc-static-server
-                to: cc-static-server
-              - from: cc-static-server/static-server.yaml
-                to: static-server.yaml
-  - title: build-static-server-debug
-    desc: Build `cc-static-server` (debug) and update content storage
-    info: cc-services-static-server-debug@0.1.0
-    tags:
-      - cargo
-      - clippy
-      - lint
-    default: true
-    artifacts:
-      - from: target/x86_64-unknown-linux-gnu/debug/cc-static-server
-        to: static-server/cc-static-server-debug
-      - from: cc-static-server/static-server.yaml
-        to: static-server/static-server.yaml
-    actions:
-      - title: Sync script to know Rust package version
-        info: sync-rust-crate-ver@0.1.0
-        tags: []
-        exec_in_project_dir: false
-        action:
-          type: use_from_storage
-          content_info: get-know-rust-package-version@latest
-      - title: Cargo Build (Debug)
-        info: cargo-debug@0.1.0
-        tags:
-          - rust
-          - cargo
-        requirements:
-          - type: exists
-            path: /bin/cargo
-        action:
-          type: build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cargo build --package cc-static-server --target x86_64-unknown-linux-gnu
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-      - title: Auto-upload CC Static Server to Deployer's Storage
-        info: auto-upload-static-server@0.1.0
-        tags: []
-        exec_in_project_dir: false
-        action:
-          type: add_to_storage
-          short_name: static-server-debug
-          auto_version_rule:
-            type: cmd_stdout
-            cmd:
-              bash_c: python .depl/rust-crate-ver.py
-              ignore_fails: true
-              show_success_output: true
-              show_bash_c: false
-              only_when_fresh: false
-          content:
-            type: fixed_files
-            placements:
-              - from: target/x86_64-unknown-linux-gnu/debug/cc-static-server
-                to: cc-static-server
-              - from: cc-static-server/static-server.yaml
-                to: static-server.yaml
-  - title: build-error-pages
-    desc: Build `cc-error-pages`
-    info: cc-ui-kit-frontend-app-build@0.1.0
-    tags:
-      - cargo
-      - leptos
-      - trunk
-      - rust
-      - wasm
-      - web
-    default: true
-    artifacts:
-      - from: cc-error-pages/dist
-        to: cc-error-pages/dist
-    actions:
-      - title: Format `leptos` macroses
-        info: leptos-fmt@0.1.0
-        tags:
-          - rust
-          - cargo
-          - fmt
-        requirements:
-          - type: exists
-            path: ~/.cargo/bin/leptosfmt
-        exec_in_project_dir: true
-        action:
-          type: pre_build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cd cc-error-pages && leptosfmt -t 2 ./**/*.rs
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
-      - title: Format Rust code
-        info: cargo-fmt@0.1.0
-        tags:
-          - rust
-          - cargo
-          - fmt
-        exec_in_project_dir: true
-        action:
-          type: pre_build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cd cc-error-pages && cargo fmt -- --config tab_spaces=2,max_width=120 */**/*.rs
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
-      - title: Compile Tailwind Styles
-        info: tailwind-css@0.1.0
-        tags:
-          - rust
-          - css
-          - tailwind
-        exec_in_project_dir: false
-        action:
-          type: pre_build
-          supported_langs:
-            - css
-          commands:
-            - bash_c: cd cc-error-pages && tailwindcss -i ./input.css -o ./public/tailwind.css --minify
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
-      - title: Trunk Build
-        info: trunk-release@0.1.0
-        tags:
-          - cargo
-          - rust
-          - trunk
-          - wasm
-          - web
-        requirements:
-          - type: exists
-            path: ~/.cargo/bin/trunk
-        exec_in_project_dir: false
-        action:
-          type: build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: >
-                RUSTFLAGS="-Zlocation-detail=none -Zfmt-debug=none" 
-                CARGO_UNSTABLE_BUILD_STD="std,panic_abort" 
-                CARGO_UNSTABLE_BUILD_STD_FEATURES="optimize_for_size,panic_immediate_abort" 
-                trunk build --release --config cc-error-pages/Trunk.toml
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
-      - title: Optimize WASM
-        info: wasm-opt@0.1.0
-        tags:
-          - wasm
-          - wasm-opt
-        requirements:
-          - type: exists
-            path: /bin/wasm-opt
-        exec_in_project_dir: false
-        action:
-          type: post_build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: wasm-opt -Oz --all-features --strip-debug -o {file} {file}
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
-              placeholders:
-                - "{file}"
-              replacements:
-                - group:
-                    - from: "{file}"
-                      to:
-                        title: wasm-project-file
-                        is_secret: false
-                        value:
-                          type: plain
-                          value: cc-error-pages/dist/cc-error-pages_bg.wasm
-      - title: Add `tailwind.css` from `public` to `dist`
-        info: add-tailwind-css-to-dist-folder@0.1.0
-        tags: []
-        exec_in_project_dir: false
-        action:
-          type: post_build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cp cc-error-pages/public/tailwind.css cc-error-pages/dist/error_pages_tailwind.css
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
-      - title: Add `favicon.ico` from `public` to `dist`
-        info: add-favicon-to-dist-folder@0.1.0
-        tags: []
-        exec_in_project_dir: false
-        action:
-          type: post_build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cp cc-error-pages/public/favicon.ico cc-error-pages/dist/
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
-  - title: build-skdsl
-    desc: Build and install `skdsl`
-    info: cc-services-skdsl@0.1.0
-    tags:
-      - cargo
-      - clippy
-      - lint
-    default: true
-    artifacts:
-      - from: target/x86_64-unknown-linux-gnu/release/skdsl
-        to: skdsl
-    actions:
-      - title: Lint
-        info: cargo-clippy@0.1.0
-        tags:
-          - cargo
-          - clippy
-        requirements:
-          - type: exists_any
-            paths:
-              - /bin/cargo
-              - ~/.cargo/bin/cargo
-        action:
-          type: pre_build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cargo clippy --package skdsl --target x86_64-unknown-linux-gnu
-      - title: Format
-        info: cargo-fmt@0.1.0
-        tags:
-          - rust
-          - cargo
-          - fmt
-        exec_in_project_dir: true
-        action:
-          type: pre_build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cd cc-server-kit-dsl && cargo fmt -- --config tab_spaces=2,max_width=120 */**/*.rs
-      - title: Cargo Build (Release)
-        info: cargo-rel@0.1.0
-        tags:
-          - rust
-          - cargo
-        requirements:
-          - type: exists
-            path: /bin/cargo
-        action:
-          type: build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cargo build --release --package skdsl --target x86_64-unknown-linux-gnu
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-      - title: UPX Compress
-        info: upx-compress@0.1.0
-        tags:
-          - upx
-        requirements:
-          - type: exists_any
-            paths:
-              - /usr/bin/upx
-              - ~/.local/bin/upx
-        exec_in_project_dir: false
-        action:
-          type: post_build
-          supported_langs:
-            - rust
-            - go
-            - c
-            - cpp
-          commands:
-            - bash_c: upx <af>
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-              only_when_fresh: false
-              daemon: false
-              placeholders:
-                - <af>
-              replacements:
-                - group:
-                    - from: <af>
-                      to:
-                        title: target/x86_64-unknown-linux-gnu/release/skdsl
-                        is_secret: false
-                        value:
-                          type: plain
-                          value: target/x86_64-unknown-linux-gnu/release/skdsl
-      - title: Install to ~/.cargo/bin
-        info: install-to-cargo-bin@0.1.1
-        tags:
-          - cargo
-        action:
-          type: install
-          target:
-            arch: x86_64
-            os: linux
-            os_derivative: any
-            os_version:
-              type: no
-          commands:
-            - bash_c: cp -f <af> ~/.cargo/bin
-              show_bash_c: false
-              placeholders:
-                - <af>
-              replacements:
-                - group:
-                    - from: <af>
-                      to:
-                        title: target/x86_64-unknown-linux-gnu/release/skdsl
-                        is_secret: false
-                        value:
-                          type: plain
-                          value: target/x86_64-unknown-linux-gnu/release/skdsl
-  - title: debug-skdsl
-    desc: Build and install `skdsl`
-    info: cc-services-skdsl-debug@0.1.0
-    tags:
-      - cargo
-    default: false
-    artifacts:
-      - from: target/x86_64-unknown-linux-gnu/debug/skdsl
-        to: skdsl-debug
-    actions:
-      - title: Lint
-        info: cargo-clippy@0.1.0
-        tags:
-          - cargo
-          - clippy
-        requirements:
-          - type: exists_any
-            paths:
-              - /bin/cargo
-              - ~/.cargo/bin/cargo
-        action:
-          type: pre_build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cargo clippy --package skdsl --target x86_64-unknown-linux-gnu
-      - title: Cargo Build
-        info: cargo-build@0.1.0
-        tags:
-          - rust
-          - cargo
-        requirements:
-          - type: exists
-            path: /bin/cargo
-        action:
-          type: build
-          supported_langs:
-            - rust
-          commands:
-            - bash_c: cargo build --package skdsl --target x86_64-unknown-linux-gnu
-              ignore_fails: false
-              show_success_output: false
-              show_bash_c: true
-      - title: Install to ~/.cargo/bin
-        info: install-to-cargo-bin@0.1.1
-        tags:
-          - cargo
-        action:
-          type: install
-          target:
-            arch: x86_64
-            os: linux
-            os_derivative: any
-            os_version:
-              type: no
-          commands:
-            - bash_c: cp -f <af> ~/.cargo/bin
-              show_bash_c: false
-              placeholders:
-                - <af>
-              replacements:
-                - group:
-                    - from: <af>
-                      to:
-                        title: target/x86_64-unknown-linux-gnu/debug/skdsl
-                        is_secret: false
-                        value:
-                          type: plain
-                          value: target/x86_64-unknown-linux-gnu/debug/skdsl
+        used: use-rust-package-version@0.1.0
+      - title: Build (release mode)
+        used: cargo-release@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-static-server
+          "{target}": target-x86
+      - title: Compress
+        used: upx@0.1.0
+        with:
+          "%af%": binary-static-server
+      - title: Auto-upload Static Server to Deployer's Storage
+        used: add-static-server-to-storage@0.1.0

@@ -1,0 +1,25 @@
+[package]
+name = "impulse-skdsl"
+description = "DSL-to-API translator"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+
+[[bin]]
+name = "skdsl"
+path = "src/main.rs"
+
+[dependencies]
+impulse-utils = { workspace = true, features = ["mresult"] }
+regex = "1.11"
+serde = { workspace = true, features = ["derive"] }
+smart-patcher = { workspace = true }
+sonic-rs = { workspace = true }
+stringcase = "0.4.0"
+clap = { workspace = true }
+
+[dev-dependencies]
+impulse-server-kit = { workspace = true, features = ["oapi"] }
+tokio = { workspace = true, features = ["macros"] }
+tracing = { workspace = true }
