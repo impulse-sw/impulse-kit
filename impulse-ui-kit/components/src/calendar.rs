@@ -458,7 +458,7 @@ fn CalendarDay(day: Option<NaiveDate>) -> impl IntoView {
     false
   });
 
-  let selection_state = Memo::new(move |_| match context.selected.get() {
+  let selection_state = Signal::derive(move || match context.selected.get() {
     CalendarSelection::None => DaySelectionState::None,
     CalendarSelection::Single(selected) => {
       if selected == day {
@@ -554,12 +554,47 @@ fn CalendarDay(day: Option<NaiveDate>) -> impl IntoView {
     }
   };
 
-  let state = selection_state.get();
   let first_col_class = if context.show_week_numbers {
     "[&:nth-child(2)[data-selected=true]_button]:rounded-l-md"
   } else {
     "[&:first-child[data-selected=true]_button]:rounded-l-md"
   };
+
+  let button_class = Signal::derive(move || {
+    let state = selection_state.get();
+    cn(&[
+      "flex aspect-square size-auto w-full min-w-[var(--cell-size)] flex-col gap-1 leading-none font-normal rounded-md",
+      if matches!(state, DaySelectionState::SelectedSingle) {
+        "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
+      } else if matches!(state, DaySelectionState::RangeStart) {
+        "bg-primary text-primary-foreground rounded-r-none hover:bg-primary"
+      } else if matches!(state, DaySelectionState::RangeEnd) {
+        "bg-primary text-primary-foreground rounded-l-none hover:bg-primary"
+      } else if matches!(state, DaySelectionState::RangeMiddle) {
+        "bg-accent text-accent-foreground rounded-none hover:bg-accent"
+      } else {
+        ""
+      },
+      if is_today
+        && !matches!(
+          state,
+          DaySelectionState::SelectedSingle
+            | DaySelectionState::RangeStart
+            | DaySelectionState::RangeEnd
+            | DaySelectionState::RangeMiddle
+        )
+      {
+        "bg-accent text-accent-foreground"
+      } else {
+        ""
+      },
+      if is_outside {
+        "text-muted-foreground opacity-50"
+      } else {
+        ""
+      },
+    ])
+  });
 
   view! {
     <td
@@ -569,31 +604,21 @@ fn CalendarDay(day: Option<NaiveDate>) -> impl IntoView {
           first_col_class,
         ],
       )
-      data-selected=state.is_selected()
-      data-focused=is_focused.get()
+      data-selected=move || selection_state.get().is_selected()
+      data-focused=move || is_focused.get()
     >
       <Button
         variant=context.button_variant
-        class=cn(
-          &[
-            "flex aspect-square size-auto w-full min-w-[var(--cell-size)] flex-col gap-1 leading-none font-normal data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px]",
-            if is_today {
-              "bg-accent text-accent-foreground rounded-md data-[selected=true]:rounded-none"
-            } else {
-              ""
-            },
-            if is_outside {
-              "text-muted-foreground aria-selected:text-muted-foreground"
-            } else {
-              ""
-            },
-          ],
-        )
-        attr:data-selected-single=matches!(state, DaySelectionState::SelectedSingle)
-        attr:data-range-start=matches!(state, DaySelectionState::RangeStart)
-        attr:data-range-end=matches!(state, DaySelectionState::RangeEnd)
-        attr:data-range-middle=matches!(state, DaySelectionState::RangeMiddle)
-        attr:disabled=is_disabled.get()
+        class=button_class
+        attr:data-selected-single=move || {
+          matches!(selection_state.get(), DaySelectionState::SelectedSingle)
+        }
+        attr:data-range-start=move || matches!(selection_state.get(), DaySelectionState::RangeStart)
+        attr:data-range-end=move || matches!(selection_state.get(), DaySelectionState::RangeEnd)
+        attr:data-range-middle=move || {
+          matches!(selection_state.get(), DaySelectionState::RangeMiddle)
+        }
+        attr:disabled=move || is_disabled.get()
         on:click=handle_click
       >
         {day.day()}
