@@ -56,6 +56,11 @@ variables:
     value:
       type: plain
       value: button-group
+  component-calendar:
+    is_secret: false
+    value:
+      type: plain
+      value: calendar
   component-dropdown-menu:
     is_secret: false
     value:
@@ -499,6 +504,12 @@ pipelines:
         with:
           "{component-file}": file-button-group
           "{component-name}": component-button-group
+          "{kit-version}": kit-version
+      - title: Add `calendar` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-calendar
+          "{component-name}": component-calendar
           "{kit-version}": kit-version
       - title: Add `dropdown-menu` component
         used: depl-add-component-to-storage@0.1.0

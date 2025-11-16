@@ -16,7 +16,7 @@ pub fn AlertDialog(#[prop(optional)] open: bool, children: Children) -> impl Int
 
   provide_context(AlertDialogContext { is_open });
 
-  view! { <div data-slot="alert-dialog">{children()}</div> }.into_view()
+  view! { <div data-slot="alert-dialog">{children()}</div> }
 }
 
 #[component]

@@ -7,6 +7,7 @@ pub mod badge;
 pub mod breadcrumb;
 pub mod button;
 pub mod button_group;
+pub mod calendar;
 pub mod dropdown_menu;
 pub mod icon;
 pub mod input;
