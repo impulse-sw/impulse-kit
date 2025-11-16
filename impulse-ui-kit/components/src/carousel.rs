@@ -22,7 +22,7 @@ pub fn Carousel(
     current_index,
     total_items,
     orientation,
-    items_per_view,
+    items_per_view: if items_per_view < 7 { items_per_view } else { 1 },
   });
 
   let scroll_prev = move |_| {

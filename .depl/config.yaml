@@ -71,6 +71,11 @@ variables:
     value:
       type: plain
       value: carousel
+  component-checkbox:
+    is_secret: false
+    value:
+      type: plain
+      value: checkbox
   component-dropdown-menu:
     is_secret: false
     value:
@@ -532,6 +537,12 @@ pipelines:
         with:
           "{component-file}": component-carousel
           "{component-name}": component-carousel
+          "{kit-version}": kit-version
+      - title: Add `checkbox` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-checkbox
+          "{component-name}": component-checkbox
           "{kit-version}": kit-version
       - title: Add `dropdown-menu` component
         used: depl-add-component-to-storage@0.1.0
