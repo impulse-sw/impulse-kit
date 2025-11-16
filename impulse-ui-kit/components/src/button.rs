@@ -3,7 +3,7 @@
 use impulse_ui_kit::utils::cn;
 use leptos::prelude::*;
 
-#[derive(Default)]
+#[derive(Copy, Clone, PartialEq, Default)]
 pub enum ButtonVariant {
   #[default]
   Default,
@@ -14,7 +14,7 @@ pub enum ButtonVariant {
   Link,
 }
 
-#[derive(Default)]
+#[derive(Copy, Clone, PartialEq, Default)]
 pub enum ButtonSize {
   #[default]
   Default,

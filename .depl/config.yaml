@@ -51,6 +51,11 @@ variables:
     value:
       type: plain
       value: button
+  component-button-group:
+    is_secret: false
+    value:
+      type: plain
+      value: button-group
   component-dropdown-menu:
     is_secret: false
     value:
@@ -81,6 +86,11 @@ variables:
     value:
       type: plain
       value: popover
+  component-separator:
+    is_secret: false
+    value:
+      type: plain
+      value: separator
   component-theme:
     is_secret: false
     value:
@@ -111,6 +121,11 @@ variables:
     value:
       type: plain
       value: aspect_ratio
+  file-button-group:
+    is_secret: false
+    value:
+      type: plain
+      value: button_group
   file-dropdown-menu:
     is_secret: false
     value:
@@ -479,6 +494,12 @@ pipelines:
           "{component-file}": component-button
           "{component-name}": component-button
           "{kit-version}": kit-version
+      - title: Add `button-group` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-button-group
+          "{component-name}": component-button-group
+          "{kit-version}": kit-version
       - title: Add `dropdown-menu` component
         used: depl-add-component-to-storage@0.1.0
         with:
@@ -514,6 +535,12 @@ pipelines:
         with:
           "{component-file}": component-popover
           "{component-name}": component-popover
+          "{kit-version}": kit-version
+      - title: Add `separator` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-separator
+          "{component-name}": component-separator
           "{kit-version}": kit-version
       - title: Add `theme` component
         used: depl-add-component-to-storage@0.1.0
