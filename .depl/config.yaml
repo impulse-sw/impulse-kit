@@ -61,6 +61,16 @@ variables:
     value:
       type: plain
       value: calendar
+  component-card:
+    is_secret: false
+    value:
+      type: plain
+      value: card
+  component-carousel:
+    is_secret: false
+    value:
+      type: plain
+      value: carousel
   component-dropdown-menu:
     is_secret: false
     value:
@@ -510,6 +520,18 @@ pipelines:
         with:
           "{component-file}": component-calendar
           "{component-name}": component-calendar
+          "{kit-version}": kit-version
+      - title: Add `card` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-card
+          "{component-name}": component-card
+          "{kit-version}": kit-version
+      - title: Add `carousel` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-carousel
+          "{component-name}": component-carousel
           "{kit-version}": kit-version
       - title: Add `dropdown-menu` component
         used: depl-add-component-to-storage@0.1.0
