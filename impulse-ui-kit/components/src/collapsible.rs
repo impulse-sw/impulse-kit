@@ -1,6 +1,9 @@
 #![allow(missing_docs, dead_code)]
 
+use impulse_ui_kit::utils::cn;
 use leptos::prelude::*;
+
+// tailwind-safelist: animate-collapsible-down animate-collapsible-up
 
 #[component]
 pub fn Collapsible(
@@ -28,8 +31,12 @@ pub fn CollapsibleTrigger(#[prop(optional, into)] class: String, children: Child
     context.is_open.update(|open| *open = !*open);
   };
 
+  let data_state = move || {
+    if context.is_open.get() { "open" } else { "closed" }
+  };
+
   view! {
-    <div data-slot="collapsible-trigger" class=class on:click=handle_click>
+    <div data-slot="collapsible-trigger" data-state=data_state class=class on:click=handle_click>
       {children()}
     </div>
   }
@@ -42,9 +49,7 @@ pub fn CollapsibleContent(#[prop(optional, into)] class: String, children: Child
   let inner_ref = NodeRef::<leptos::html::Div>::new();
   let should_render = RwSignal::new(false);
   let content_height = RwSignal::new(0);
-
   let children = StoredValue::new(children);
-  let class = StoredValue::new_local(class);
 
   Effect::new(move |_| {
     if context.is_open.get() {
@@ -61,7 +66,7 @@ pub fn CollapsibleContent(#[prop(optional, into)] class: String, children: Child
     if context.is_open.get() {
       should_render.set(true);
     } else if should_render.get() {
-      set_timeout(move || should_render.set(false), std::time::Duration::from_millis(300));
+      set_timeout(move || should_render.set(false), std::time::Duration::from_millis(200));
     }
   });
 
@@ -79,7 +84,7 @@ pub fn CollapsibleContent(#[prop(optional, into)] class: String, children: Child
         class="data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down overflow-hidden"
         style=content_style
       >
-        <div node_ref=inner_ref class=class.get_value()>
+        <div node_ref=inner_ref class=cn(&[class.as_str()])>
           {children.get_value()()}
         </div>
       </div>

@@ -3,6 +3,8 @@
 use impulse_ui_kit::utils::cn;
 use leptos::prelude::*;
 
+// tailwind-safelist: animate-accordion-down animate-accordion-up
+
 #[derive(Clone, Copy, PartialEq, Default)]
 pub enum AccordionType {
   #[default]
@@ -129,15 +131,15 @@ pub fn AccordionTrigger(
 
 #[component]
 pub fn AccordionContent(#[prop(optional, into)] class: String, children: ChildrenFn) -> impl IntoView {
-  let item_context = use_context::<AccordionItemContext>().expect("AccordionContent must be used within AccordionItem");
+  let context = use_context::<AccordionItemContext>().expect("AccordionContent must be used within AccordionItem");
 
   let inner_ref = NodeRef::<leptos::html::Div>::new();
   let should_render = RwSignal::new(false);
   let content_height = RwSignal::new(0);
-  let children_stored = StoredValue::new(children);
+  let children = StoredValue::new(children);
 
   Effect::new(move |_| {
-    if item_context.is_open.get() {
+    if context.is_open.get() {
       request_animation_frame(move || {
         if let Some(inner) = inner_ref.get() {
           let height = inner.scroll_height();
@@ -148,7 +150,7 @@ pub fn AccordionContent(#[prop(optional, into)] class: String, children: Childre
   });
 
   Effect::new(move |_| {
-    if item_context.is_open.get() {
+    if context.is_open.get() {
       should_render.set(true);
     } else if should_render.get() {
       set_timeout(move || should_render.set(false), std::time::Duration::from_millis(200));
@@ -156,7 +158,7 @@ pub fn AccordionContent(#[prop(optional, into)] class: String, children: Childre
   });
 
   let data_state = move || {
-    if item_context.is_open.get() { "open" } else { "closed" }
+    if context.is_open.get() { "open" } else { "closed" }
   };
 
   let content_style = move || format!("--radix-accordion-content-height: {}px", content_height.get());
@@ -170,7 +172,7 @@ pub fn AccordionContent(#[prop(optional, into)] class: String, children: Childre
         style=content_style
       >
         <div node_ref=inner_ref class=cn(&["pt-0 pb-4", class.as_str()])>
-          {children_stored.get_value()()}
+          {children.get_value()()}
         </div>
       </div>
     </Show>
