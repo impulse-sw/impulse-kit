@@ -12,17 +12,18 @@ use web_sys::KeyboardEvent;
 pub fn Carousel(
   #[prop(optional, into)] orientation: Signal<Orientation>,
   #[prop(optional, into)] class: String,
-  #[prop(into, optional, default = 1)] items_per_view: usize,
+  #[prop(optional, into)] items_per_view: Option<Signal<usize>>,
   children: Children,
 ) -> impl IntoView {
   let current_index = RwSignal::new(0usize);
   let total_items = RwSignal::new(0usize);
+  let items_per_view = items_per_view.unwrap_or_else(|| Signal::derive(|| 1usize));
 
   provide_context(CarouselContext {
     current_index,
     total_items,
     orientation,
-    items_per_view: if items_per_view < 7 { items_per_view } else { 1 },
+    items_per_view,
   });
 
   let scroll_prev = move |_| {
@@ -32,7 +33,7 @@ pub fn Carousel(
   };
 
   let scroll_next = move |_| {
-    let max_index = total_items.get().saturating_sub(items_per_view);
+    let max_index = total_items.get().saturating_sub(items_per_view.get());
     if current_index.get() < max_index {
       current_index.update(|i| *i += 1);
     }
@@ -95,7 +96,7 @@ pub fn CarouselContent(#[prop(optional, into)] class: String, children: Children
           &["flex transition-transform duration-300", flex_direction, margin, class.as_str()],
         )
         style=move || {
-          let offset = (context.current_index.get() as f64 / context.items_per_view as f64)
+          let offset = (context.current_index.get() as f64 / context.items_per_view.get() as f64)
             * -100.0;
           match orientation {
             Orientation::Horizontal => format!("transform: translateX({}%)", offset),
@@ -119,8 +120,7 @@ pub fn CarouselItem(#[prop(optional, into)] class: String, children: Children) -
     Orientation::Vertical => "pt-4",
   };
 
-  let basis = match context.items_per_view {
-    1 => "basis-full",
+  let basis = move || match context.items_per_view.get() {
     2 => "basis-1/2",
     3 => "basis-1/3",
     4 => "basis-1/4",
@@ -134,7 +134,7 @@ pub fn CarouselItem(#[prop(optional, into)] class: String, children: Children) -
       data-carousel-item
       role="group"
       aria-roledescription="slide"
-      class=cn(&["min-w-0 shrink-0 grow-0", basis, padding, class.as_str()])
+      class=move || cn(&["min-w-0 shrink-0 grow-0", basis(), padding, class.as_str()])
     >
       {children()}
     </div>
@@ -196,7 +196,7 @@ pub fn CarouselNext(#[prop(optional, into)] class: String) -> impl IntoView {
   let context = use_context::<CarouselContext>().expect("CarouselNext must be used within Carousel");
 
   let can_scroll_next =
-    move || context.current_index.get() < context.total_items.get().saturating_sub(context.items_per_view);
+    move || context.current_index.get() < context.total_items.get().saturating_sub(context.items_per_view.get());
 
   let scroll_next = move |_| {
     if can_scroll_next() {
@@ -247,7 +247,7 @@ pub struct CarouselContext {
   pub current_index: RwSignal<usize>,
   pub total_items: RwSignal<usize>,
   pub orientation: Signal<Orientation>,
-  pub items_per_view: usize,
+  pub items_per_view: Signal<usize>,
 }
 
 #[derive(Clone, Copy, PartialEq, Default)]

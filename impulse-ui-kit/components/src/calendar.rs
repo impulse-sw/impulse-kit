@@ -20,14 +20,12 @@ pub fn Calendar(
   #[prop(optional)] disabled: Option<Signal<Vec<NaiveDate>>>,
   #[prop(optional)] show_week_numbers: Option<bool>,
   #[prop(optional)] caption_layout: CaptionLayout,
-  #[prop(optional)] button_variant: Option<ButtonVariant>,
   #[prop(optional)] min_date: Option<NaiveDate>,
   #[prop(optional)] max_date: Option<NaiveDate>,
   #[prop(optional, into)] class: String,
 ) -> impl IntoView {
   let selected = selected.unwrap_or_else(|| RwSignal::new(CalendarSelection::None));
   let show_week_numbers = show_week_numbers.unwrap_or(false);
-  let button_variant = button_variant.unwrap_or(ButtonVariant::Ghost);
 
   let current_month = RwSignal::new(Local::now().naive_local().date());
   let focused_day = RwSignal::new(None::<NaiveDate>);
@@ -45,7 +43,6 @@ pub fn Calendar(
       min_date,
       max_date,
       show_week_numbers,
-      button_variant,
     }>
       <div
         data-slot="calendar"
@@ -212,7 +209,7 @@ fn CalendarNav(caption_layout: CaptionLayout) -> impl IntoView {
   view! {
     <div class="flex items-center gap-1 w-full justify-between">
       <Button
-        variant=context.button_variant
+        variant=ButtonVariant::Ghost
         class="size-[var(--cell-size)] p-0 select-none"
         attr:disabled=move || !can_go_prev.get()
         on:click=handle_prev
@@ -244,7 +241,7 @@ fn CalendarNav(caption_layout: CaptionLayout) -> impl IntoView {
       </div>
 
       <Button
-        variant=context.button_variant
+        variant=ButtonVariant::Ghost
         class="size-[var(--cell-size)] p-0 select-none"
         attr:disabled=move || !can_go_next.get()
         on:click=handle_next
@@ -608,7 +605,7 @@ fn CalendarDay(day: Option<NaiveDate>) -> impl IntoView {
       data-focused=move || is_focused.get()
     >
       <Button
-        variant=context.button_variant
+        variant=ButtonVariant::Ghost
         class=button_class
         attr:data-selected-single=move || {
           matches!(selection_state.get(), DaySelectionState::SelectedSingle)
@@ -700,5 +697,4 @@ struct CalendarContext {
   min_date: Option<NaiveDate>,
   max_date: Option<NaiveDate>,
   show_week_numbers: bool,
-  button_variant: ButtonVariant,
 }

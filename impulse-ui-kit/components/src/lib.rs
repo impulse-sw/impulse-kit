@@ -11,6 +11,7 @@ pub mod calendar;
 pub mod card;
 pub mod carousel;
 pub mod checkbox;
+pub mod collapsible;
 pub mod dropdown_menu;
 pub mod icon;
 pub mod input;

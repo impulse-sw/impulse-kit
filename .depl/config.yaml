@@ -7,207 +7,190 @@ cache_files:
   - target
 variables:
   binary-static-server:
-    is_secret: false
     value:
       type: plain
       value: target/x86_64-unknown-linux-gnu/release/iks
   component-accordion:
-    is_secret: false
     value:
       type: plain
       value: accordion
-  component-alert-dialog:
-    is_secret: false
-    value:
-      type: plain
-      value: alert-dialog
   component-alert:
-    is_secret: false
     value:
       type: plain
       value: alert
+  component-alert-dialog:
+    value:
+      type: plain
+      value: alert-dialog
   component-aspect-ratio:
-    is_secret: false
     value:
       type: plain
       value: aspect-ratio
   component-avatar:
-    is_secret: false
     value:
       type: plain
       value: avatar
   component-badge:
-    is_secret: false
     value:
       type: plain
       value: badge
   component-breadcrumb:
-    is_secret: false
     value:
       type: plain
       value: breadcrumb
   component-button:
-    is_secret: false
     value:
       type: plain
       value: button
   component-button-group:
-    is_secret: false
     value:
       type: plain
       value: button-group
   component-calendar:
-    is_secret: false
     value:
       type: plain
       value: calendar
   component-card:
-    is_secret: false
     value:
       type: plain
       value: card
   component-carousel:
-    is_secret: false
     value:
       type: plain
       value: carousel
   component-checkbox:
-    is_secret: false
     value:
       type: plain
       value: checkbox
+  component-collapsible:
+    value:
+      type: plain
+      value: collapsible
   component-dropdown-menu:
-    is_secret: false
     value:
       type: plain
       value: dropdown-menu
   component-icon:
-    is_secret: false
     value:
       type: plain
       value: icon
   component-input:
-    is_secret: false
     value:
       type: plain
       value: input
   component-input-otp:
-    is_secret: false
     value:
       type: plain
       value: input-otp
   component-label:
-    is_secret: false
     value:
       type: plain
       value: label
   component-popover:
-    is_secret: false
     value:
       type: plain
       value: popover
   component-separator:
-    is_secret: false
     value:
       type: plain
       value: separator
   component-theme:
-    is_secret: false
     value:
       type: plain
       value: theme
   empty:
-    is_secret: false
     value:
       type: plain
       value: ""
-  featureset-utils-wasm32:
-    is_secret: false
+  error-pages-tw-input:
     value:
       type: plain
-      value: " --no-default-features --features=reqwest"
+      value: ./impulse-error-pages/input.css
+  error-pages-tw-output:
+    value:
+      type: plain
+      value: ./impulse-error-pages/dist/tailwind.css
+  error-pages-wasm-file:
+    value:
+      type: plain
+      value: ./impulse-error-pages/dist/impulse-error-pages_bg.wasm
   featureset-all:
-    is_secret: false
     value:
       type: plain
       value: " --all-features"
+  featureset-utils-wasm32:
+    value:
+      type: plain
+      value: " --no-default-features --features=reqwest"
   file-alert-dialog:
-    is_secret: false
     value:
       type: plain
       value: alert_dialog
   file-aspect-ratio:
-    is_secret: false
     value:
       type: plain
       value: aspect_ratio
   file-button-group:
-    is_secret: false
     value:
       type: plain
       value: button_group
   file-dropdown-menu:
-    is_secret: false
     value:
       type: plain
       value: dropdown_menu
+  file-error-pages-favicon:
+    value:
+      type: plain
+      value: impulse-error-pages/public/favicon.ico
   file-input-otp:
-    is_secret: false
     value:
       type: plain
       value: input_otp
+  folder-error-pages-dist:
+    value:
+      type: plain
+      value: impulse-error-pages/dist/
   kit-version:
-    is_secret: false
     value:
       type: from_cmd
       cmd: python .depl/rust-crate-ver.py
   package-dsl:
-    is_secret: false
     value:
       type: plain
       value: impulse-skdsl
   package-error-pages:
-    is_secret: false
     value:
       type: plain
       value: impulse-error-pages
   package-server-kit:
-    is_secret: false
     value:
       type: plain
       value: impulse-server-kit
   package-static-server:
-    is_secret: false
     value:
       type: plain
       value: impulse-static-server
   package-ui-kit:
-    is_secret: false
     value:
       type: plain
       value: impulse-ui-kit
   package-ui-kit-components:
-    is_secret: false
     value:
       type: plain
       value: impulse-ui-kit-components
   package-utils:
-    is_secret: false
     value:
       type: plain
       value: impulse-utils
   reqwest-unstable-flag:
-    is_secret: false
     value:
       type: plain
       value: 'RUSTFLAGS=''--cfg reqwest_unstable'' '
   target-wasm:
-    is_secret: false
     value:
       type: plain
       value: wasm32-unknown-unknown
   target-x86:
-    is_secret: false
     value:
       type: plain
       value: x86_64-unknown-linux-gnu
@@ -255,6 +238,14 @@ actions:
         - "{target}"
         - "{features}"
       show_success_output: true
+  - info: cargo-lint-with-target@0.1.0
+    action:
+      type: staged
+      stage: build
+      cmd: cargo clippy --target {target}
+      placeholders:
+        - "{target}"
+      show_success_output: true
   - info: cargo-publish@0.2.0
     tags:
       - rust
@@ -268,7 +259,7 @@ actions:
     action:
       type: staged
       stage: deploy
-      cmd: "cargo publish --package {package}{features}"
+      cmd: cargo publish --package {package}{features}
       placeholders:
         - "{package}"
         - "{features}"
@@ -296,6 +287,14 @@ actions:
       type: staged
       stage: build
       cmd: cargo test --doc
+  - info: copy@0.1.0
+    action:
+      type: staged
+      stage: build
+      cmd: cp {from} {to}
+      placeholders:
+        - "{from}"
+        - "{to}"
   - info: depl-add-component-to-storage@0.1.0
     tags:
       - deployer
@@ -327,6 +326,39 @@ actions:
       type: staged
       stage: build
       cmd: leptosfmt -t 2 ./**/*.rs
+  - info: tailwindcss-compile@0.2.0
+    tags:
+      - tailwind
+      - css
+    requirements:
+      - type: exists_any
+        paths:
+          - /usr/bin/tailwindcss
+          - ~/.local/bin/tailwindcss
+        desc: "Install TailwindCSS standalone client: https://github.com/tailwindlabs/tailwindcss/releases"
+      - type: exists
+        path: ./impulse-error-pages/tw-animate.css
+        desc: "Download `tw-animate` manually from: https://raw.githubusercontent.com/Wombosvideo/tw-animate-css/refs/heads/main/src/tw-animate.css"
+    action:
+      type: staged
+      stage: build
+      cmd: tailwindcss -i {tw-input} -o {tw-output} --minify
+      placeholders:
+        - "{tw-input}"
+        - "{tw-output}"
+  - info: trunk-build-rel@0.1.0
+    tags:
+      - trunk
+      - build
+      - wasm
+    requirements:
+      - type: exists
+        path: ~/.cargo/bin/trunk
+        desc: "Check the website: https://trunkrs.dev/"
+    action:
+      type: staged
+      stage: build
+      cmd: cd impulse-error-pages && RUSTFLAGS="-Zlocation-detail=none -Zfmt-debug=none -Zunstable-options -Cpanic=immediate-abort" CARGO_UNSTABLE_BUILD_STD="std,panic_abort" CARGO_UNSTABLE_BUILD_STD_FEATURES="optimize_for_size" trunk build --release
   - info: upx@0.1.0
     requirements:
       - type: exists_any
@@ -344,6 +376,22 @@ actions:
     action:
       type: use_from_storage
       content_info: get-know-rust-package-version@latest
+  - info: wasm-opt@0.1.0
+    tags:
+      - wasm
+      - wasm-opt
+    requirements:
+      - type: exists_any
+        paths:
+          - /bin/wasm-opt
+          - ~/.local/bin/wasm-opt
+        desc: "Install `binaryen` package or download it from this: https://github.com/WebAssembly/binaryen/releases"
+    action:
+      type: staged
+      stage: build
+      cmd: wasm-opt -Oz --all-features --strip-debug -o {file} {file}
+      placeholders:
+        - "{file}"
 pipelines:
   - title: common-ops
     desc: Common monorepo operations
@@ -544,6 +592,12 @@ pipelines:
           "{component-file}": component-checkbox
           "{component-name}": component-checkbox
           "{kit-version}": kit-version
+      - title: Add `collapsible` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-collapsible
+          "{component-name}": component-collapsible
+          "{kit-version}": kit-version
       - title: Add `dropdown-menu` component
         used: depl-add-component-to-storage@0.1.0
         with:
@@ -592,6 +646,41 @@ pipelines:
           "{component-file}": component-theme
           "{component-name}": component-theme
           "{kit-version}": kit-version
+  - title: build-error-pages
+    desc: Got from `build`.
+    info: impulse-error-pages-build@0.1.0
+    default: false
+    artifacts:
+      - from: impulse-error-pages/dist
+        to: error-pages
+    actions:
+      - title: Lint
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-error-pages
+          "{target}": target-wasm
+      - title: "Format #1"
+        used: leptos-fmt@0.1.0
+      - title: "Format #2"
+        used: cargo-fmt@0.1.0
+      - title: Compile TailwindCSS
+        used: tailwindcss-compile@0.2.0
+        with:
+          "{tw-input}": error-pages-tw-input
+          "{tw-output}": error-pages-tw-output
+      - title: Build WASM
+        used: trunk-build-rel@0.1.0
+      - title: Optimize WASM
+        used: wasm-opt@0.1.0
+        with:
+          "{file}": error-pages-wasm-file
+      - title: Copy favicon
+        used: copy@0.1.0
+        with:
+          "{from}": file-error-pages-favicon
+          "{to}": folder-error-pages-dist
   - title: build-static-server
     info: impulse-kit-build-static-server@0.1.0
     artifacts:

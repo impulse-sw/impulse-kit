@@ -131,7 +131,6 @@ pub fn AccordionTrigger(
 pub fn AccordionContent(#[prop(optional, into)] class: String, children: ChildrenFn) -> impl IntoView {
   let item_context = use_context::<AccordionItemContext>().expect("AccordionContent must be used within AccordionItem");
 
-  let content_ref = NodeRef::<leptos::html::Div>::new();
   let inner_ref = NodeRef::<leptos::html::Div>::new();
   let should_render = RwSignal::new(false);
   let content_height = RwSignal::new(0);
@@ -165,7 +164,6 @@ pub fn AccordionContent(#[prop(optional, into)] class: String, children: Childre
   view! {
     <Show when=move || should_render.get()>
       <div
-        node_ref=content_ref
         data-slot="accordion-content"
         data-state=data_state
         class="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm"
