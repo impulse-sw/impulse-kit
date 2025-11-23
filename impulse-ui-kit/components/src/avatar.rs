@@ -21,9 +21,7 @@ pub fn Avatar(#[prop(into, optional)] class: String, children: Children) -> impl
 }
 
 #[component]
-pub fn AvatarImage(
-  #[prop(into, optional)] class: String,
-) -> impl IntoView {
+pub fn AvatarImage(#[prop(into, optional)] class: String) -> impl IntoView {
   let context = use_context::<AvatarContext>().expect("AvatarImage must be used within Avatar");
   let class = StoredValue::new_local(class);
 

@@ -66,6 +66,10 @@ variables:
     value:
       type: plain
       value: collapsible
+  component-command:
+    value:
+      type: plain
+      value: command
   component-dropdown-menu:
     value:
       type: plain
@@ -597,6 +601,12 @@ pipelines:
         with:
           "{component-file}": component-collapsible
           "{component-name}": component-collapsible
+          "{kit-version}": kit-version
+      - title: Add `command` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-command
+          "{component-name}": component-command
           "{kit-version}": kit-version
       - title: Add `dropdown-menu` component
         used: depl-add-component-to-storage@0.1.0

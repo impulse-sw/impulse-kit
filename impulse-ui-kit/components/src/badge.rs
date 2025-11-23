@@ -43,24 +43,26 @@ pub fn Badge(
         let attrs = StoredValue::new_local(attrs);
         if as_child {
           let mut backup = view! { <span></span> }.into_any();
-
           let child_views = children.get_value()();
           let mut nodes = child_views.nodes.into_iter().collect::<Vec<_>>();
           let first = nodes.first_mut().unwrap_or(&mut backup);
           let first = std::mem::replace(first, ().into_any());
-
           let mut first = first.attr("class", cn(&[BASE_CLASSES, variant.class(), class.as_str()]));
           first = first.attr("data-slot", "badge");
           first = first.add_any_attr(attrs.get_value());
-
           first.into_any()
         } else {
+
           view! {
-            <span data-slot="badge" class=cn(&[BASE_CLASSES, variant.class(), class.as_str()]) {..attrs.get_value()}>
+            <span
+              data-slot="badge"
+              class=cn(&[BASE_CLASSES, variant.class(), class.as_str()])
+              {..attrs.get_value()}
+            >
               {children.get_value()().nodes}
             </span>
           }
-          .into_any()
+            .into_any()
         }
       }
     </AttributeInterceptor>
