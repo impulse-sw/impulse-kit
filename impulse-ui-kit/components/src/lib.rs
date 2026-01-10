@@ -19,5 +19,6 @@ pub mod input;
 pub mod input_otp;
 pub mod label;
 pub mod popover;
+pub mod select;
 pub mod separator;
 pub mod theme;
