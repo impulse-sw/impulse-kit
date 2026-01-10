@@ -1,5 +1,5 @@
 project_name: impulse-kit
-version: 7
+version: 8
 ignore_files:
   - .git
 cache_files:
@@ -113,7 +113,7 @@ variables:
   error-pages-tw-output:
     value:
       type: plain
-      value: ./impulse-error-pages/dist/tailwind.css
+      value: ./impulse-error-pages/dist/error_pages_tailwind.css
   error-pages-wasm-file:
     value:
       type: plain
@@ -243,6 +243,9 @@ actions:
         - "{features}"
       show_success_output: true
   - info: cargo-lint-with-target@0.1.0
+    requirements:
+      - type: in_path
+        executable: cargo
     action:
       type: staged
       stage: build
@@ -255,10 +258,8 @@ actions:
       - rust
       - cargo
     requirements:
-      - type: exists_any
-        paths:
-          - /bin/cargo
-          - ~/.cargo/bin/cargo
+      - type: in_path
+        executable: cargo
         desc: "Install `cargo` via your package manager or with this command: `curl https://sh.rustup.rs -sSf | sh`."
     action:
       type: staged
@@ -272,10 +273,8 @@ actions:
       - rust
       - cargo
     requirements:
-      - type: exists_any
-        paths:
-          - /bin/cargo
-          - ~/.cargo/bin/cargo
+      - type: in_path
+        executable: cargo
         desc: "Install `cargo` via your package manager or with this command: `curl https://sh.rustup.rs -sSf | sh`."
     action:
       type: staged
@@ -287,6 +286,9 @@ actions:
         - "{target}"
         - "{features}"
   - info: cargo-test-doc@0.1.0
+    requirements:
+      - type: in_path
+        executable: cargo
     action:
       type: staged
       stage: build
@@ -303,12 +305,8 @@ actions:
     tags:
       - deployer
     requirements:
-      - type: exists_any
-        paths:
-          - /bin/depl
-          - /usr/bin/depl
-          - ~/.cargo/bin/depl
-          - ~/.local/bin/depl
+      - type: in_path
+        executable: depl
     action:
       type: staged
       stage: build
@@ -322,8 +320,8 @@ actions:
       - leptos
       - fmt
     requirements:
-      - type: exists
-        path: ~/.cargo/bin/leptosfmt
+      - type: in_path
+        executable: leptosfmt
         desc: "Check this: https://github.com/bram209/leptosfmt"
     exec_in_project_dir: true
     action:
@@ -335,10 +333,8 @@ actions:
       - tailwind
       - css
     requirements:
-      - type: exists_any
-        paths:
-          - /usr/bin/tailwindcss
-          - ~/.local/bin/tailwindcss
+      - type: in_path
+        executable: tailwindcss
         desc: "Install TailwindCSS standalone client: https://github.com/tailwindlabs/tailwindcss/releases"
       - type: exists
         path: ./impulse-error-pages/tw-animate.css
@@ -356,8 +352,8 @@ actions:
       - build
       - wasm
     requirements:
-      - type: exists
-        path: ~/.cargo/bin/trunk
+      - type: in_path
+        executable: trunk
         desc: "Check the website: https://trunkrs.dev/"
     action:
       type: staged
@@ -365,11 +361,8 @@ actions:
       cmd: cd impulse-error-pages && RUSTFLAGS="-Zlocation-detail=none -Zfmt-debug=none -Zunstable-options -Cpanic=immediate-abort" CARGO_UNSTABLE_BUILD_STD="std,panic_abort" CARGO_UNSTABLE_BUILD_STD_FEATURES="optimize_for_size" trunk build --release
   - info: upx@0.1.0
     requirements:
-      - type: exists_any
-        paths:
-          - /bin/upx
-          - /usr/bin/upx
-          - ~/.local/bin/upx
+      - type: in_path
+        executable: upx
     action:
       type: staged
       stage: build
@@ -385,10 +378,8 @@ actions:
       - wasm
       - wasm-opt
     requirements:
-      - type: exists_any
-        paths:
-          - /bin/wasm-opt
-          - ~/.local/bin/wasm-opt
+      - type: in_path
+        executable: wasm-opt
         desc: "Install `binaryen` package or download it from this: https://github.com/WebAssembly/binaryen/releases"
     action:
       type: staged
@@ -407,9 +398,6 @@ pipelines:
       - docs
       - fmt
     default: true
-    artifacts:
-      - from: target/x86_64-unknown-linux-gnu/doc
-        to: docs
     actions:
       - title: Lint `impulse-utils` on x86-64
         used: cargo-lint@0.2.0
@@ -468,6 +456,9 @@ pipelines:
         used: cargo-generate-doc@0.1.0
         with:
           "{target}": target-x86
+    artifacts:
+      - from: target/x86_64-unknown-linux-gnu/doc
+        to: docs
   - title: publish
     desc: Publish open-source libraries
     info: impulse-kit-publish@0.1.0
@@ -503,7 +494,6 @@ pipelines:
       - deployer
       - components
       - ui-kit
-    exclusive_exec_tag: components
     actions:
       - title: Add script to know Impulse Kit version
         used: use-rust-package-version@0.1.0
@@ -656,13 +646,11 @@ pipelines:
           "{component-file}": component-theme
           "{component-name}": component-theme
           "{kit-version}": kit-version
+    exclusive_exec_tag: components
   - title: build-error-pages
     desc: Got from `build`.
     info: impulse-error-pages-build@0.1.0
     default: false
-    artifacts:
-      - from: impulse-error-pages/dist
-        to: error-pages
     actions:
       - title: Lint
         used: cargo-lint@0.2.0
@@ -675,13 +663,13 @@ pipelines:
         used: leptos-fmt@0.1.0
       - title: "Format #2"
         used: cargo-fmt@0.1.0
+      - title: Build WASM
+        used: trunk-build-rel@0.1.0
       - title: Compile TailwindCSS
         used: tailwindcss-compile@0.2.0
         with:
           "{tw-input}": error-pages-tw-input
           "{tw-output}": error-pages-tw-output
-      - title: Build WASM
-        used: trunk-build-rel@0.1.0
       - title: Optimize WASM
         used: wasm-opt@0.1.0
         with:
@@ -691,13 +679,11 @@ pipelines:
         with:
           "{from}": file-error-pages-favicon
           "{to}": folder-error-pages-dist
+    artifacts:
+      - from: impulse-error-pages/dist
+        to: error-pages
   - title: build-static-server
     info: impulse-kit-build-static-server@0.1.0
-    artifacts:
-      - from: target/x86_64-unknown-linux-gnu/release/iks
-        to: static-server/iks
-      - from: impulse-static-server/static-server.yaml
-        to: static-server/static-server.yaml
     actions:
       - title: Sync script to know Rust package version
         used: use-rust-package-version@0.1.0
@@ -714,3 +700,8 @@ pipelines:
           "%af%": binary-static-server
       - title: Auto-upload Static Server to Deployer's Storage
         used: add-static-server-to-storage@0.1.0
+    artifacts:
+      - from: target/x86_64-unknown-linux-gnu/release/iks
+        to: static-server/iks
+      - from: impulse-static-server/static-server.yaml
+        to: static-server/static-server.yaml
