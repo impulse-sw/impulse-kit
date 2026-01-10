@@ -4,7 +4,7 @@ use impulse_ui_kit::utils::cn;
 use impulse_ui_kit::utils::{OverlayAlign, OverlaySide, calculate_position};
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
-use web_sys::Element;
+use web_sys::{Element, HtmlElement};
 
 #[derive(Clone, Copy, PartialEq, Default)]
 pub enum SelectTriggerSize {
@@ -168,6 +168,7 @@ pub fn SelectContent(
   let trigger_context = use_context::<SelectTriggerRef>();
 
   let content_ref = NodeRef::<leptos::html::Div>::new();
+  let viewport_ref = NodeRef::<leptos::html::Div>::new();
   let side = side.unwrap_or(OverlaySide::Bottom);
   let align = align.unwrap_or(OverlayAlign::Start);
   let side_offset = side_offset.unwrap_or(4);
@@ -176,7 +177,28 @@ pub fn SelectContent(
   let position_style = RwSignal::new(String::new());
   let should_render = RwSignal::new(false);
 
+  let can_scroll_up = RwSignal::new(false);
+  let can_scroll_down = RwSignal::new(false);
+
+  provide_context(SelectScrollContext {
+    viewport_ref,
+    can_scroll_up,
+    can_scroll_down,
+  });
+
   let children_stored = StoredValue::new(children);
+
+  let update_scroll_state = move || {
+    if let Some(viewport) = viewport_ref.get() {
+      let el: &HtmlElement = viewport.as_ref();
+      let scroll_top = el.scroll_top() as f64;
+      let scroll_height = el.scroll_height() as f64;
+      let client_height = el.client_height() as f64;
+
+      can_scroll_up.set(scroll_top > 0.0);
+      can_scroll_down.set(scroll_top < scroll_height - client_height - 1.0);
+    }
+  };
 
   Effect::new(move |_| {
     if context.is_open.get() {
@@ -228,6 +250,10 @@ pub fn SelectContent(
         "position: fixed; top: {}px; left: {}px; {}",
         top, left, width_style
       ));
+
+      request_animation_frame(move || {
+        update_scroll_state();
+      });
     }
   });
 
@@ -294,7 +320,7 @@ pub fn SelectContent(
         data-side=side_as_str(side)
         class=cn(
           &[
-            "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 relative z-50 max-h-96 min-w-[8rem] overflow-x-hidden overflow-y-auto rounded-md border shadow-md",
+            "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border shadow-md",
             slide_class,
             popper_class,
             class.as_str(),
@@ -303,7 +329,12 @@ pub fn SelectContent(
         style=move || position_style.get()
       >
         <SelectScrollUpButton />
-        <div data-slot="select-viewport" class=cn(&["p-1", viewport_popper_class])>
+        <div
+          node_ref=viewport_ref
+          data-slot="select-viewport"
+          class=cn(&["p-1 overflow-y-auto max-h-[calc(24rem-2rem)]", viewport_popper_class])
+          on:scroll=move |_| update_scroll_state()
+        >
           {children_stored.get_value()()}
         </div>
         <SelectScrollDownButton />
@@ -441,51 +472,85 @@ pub fn SelectSeparator(#[prop(optional, into)] class: String) -> impl IntoView {
 
 #[component]
 pub fn SelectScrollUpButton(#[prop(optional, into)] class: String) -> impl IntoView {
+  let scroll_context = use_context::<SelectScrollContext>();
+
+  let can_scroll = move || scroll_context.map(|ctx| ctx.can_scroll_up.get()).unwrap_or(false);
+
+  let handle_click = move |_| {
+    if let Some(ctx) = scroll_context
+      && let Some(viewport) = ctx.viewport_ref.get()
+    {
+      let el: &HtmlElement = viewport.as_ref();
+      let current_scroll = el.scroll_top();
+      el.set_scroll_top(current_scroll - 50);
+    }
+  };
+
   view! {
-    <div
-      data-slot="select-scroll-up-button"
-      class=cn(&["flex cursor-default items-center justify-center py-1", class.as_str()])
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        class="size-4"
+    <Show when=can_scroll>
+      <div
+        data-slot="select-scroll-up-button"
+        class=cn(&["flex cursor-default items-center justify-center py-1", class.as_str()])
+        on:click=handle_click
       >
-        <path d="m18 15-6-6-6 6" />
-      </svg>
-    </div>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="size-4"
+        >
+          <path d="m18 15-6-6-6 6" />
+        </svg>
+      </div>
+    </Show>
   }
 }
 
 #[component]
 pub fn SelectScrollDownButton(#[prop(optional, into)] class: String) -> impl IntoView {
+  let scroll_context = use_context::<SelectScrollContext>();
+
+  let can_scroll = move || scroll_context.map(|ctx| ctx.can_scroll_down.get()).unwrap_or(false);
+
+  let handle_click = move |_| {
+    if let Some(ctx) = scroll_context
+      && let Some(viewport) = ctx.viewport_ref.get()
+    {
+      let el: &HtmlElement = viewport.as_ref();
+      let current_scroll = el.scroll_top();
+      el.set_scroll_top(current_scroll + 50);
+    }
+  };
+
   view! {
-    <div
-      data-slot="select-scroll-down-button"
-      class=cn(&["flex cursor-default items-center justify-center py-1", class.as_str()])
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        class="size-4"
+    <Show when=can_scroll>
+      <div
+        data-slot="select-scroll-down-button"
+        class=cn(&["flex cursor-default items-center justify-center py-1", class.as_str()])
+        on:click=handle_click
       >
-        <path d="m6 9 6 6 6-6" />
-      </svg>
-    </div>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="size-4"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </div>
+    </Show>
   }
 }
 
@@ -516,4 +581,11 @@ struct SelectContext {
 #[derive(Clone, Copy)]
 struct SelectTriggerRef {
   trigger_ref: NodeRef<leptos::html::Button>,
+}
+
+#[derive(Clone, Copy)]
+struct SelectScrollContext {
+  viewport_ref: NodeRef<leptos::html::Div>,
+  can_scroll_up: RwSignal<bool>,
+  can_scroll_down: RwSignal<bool>,
 }
