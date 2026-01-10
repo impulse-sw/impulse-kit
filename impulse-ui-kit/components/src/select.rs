@@ -224,7 +224,10 @@ pub fn SelectContent(
         String::new()
       };
 
-      position_style.set(format!("position: fixed; top: {}px; left: {}px; {}", top, left, width_style));
+      position_style.set(format!(
+        "position: fixed; top: {}px; left: {}px; {}",
+        top, left, width_style
+      ));
     }
   });
 

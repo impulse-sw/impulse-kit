@@ -94,6 +94,10 @@ variables:
     value:
       type: plain
       value: popover
+  component-select:
+    value:
+      type: plain
+      value: select
   component-separator:
     value:
       type: plain
@@ -633,6 +637,12 @@ pipelines:
         with:
           "{component-file}": component-popover
           "{component-name}": component-popover
+          "{kit-version}": kit-version
+      - title: Add `select` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-select
+          "{component-name}": component-select
           "{kit-version}": kit-version
       - title: Add `separator` component
         used: depl-add-component-to-storage@0.1.0
