@@ -489,14 +489,9 @@ pub fn DropdownMenuSubContent(#[prop(optional, into)] class: String, children: C
 
   let handle_mouse_leave = move |_| {
     sub_context.is_hovering.set(false);
-    set_timeout(
-      move || {
-        if !sub_context.is_hovering.get() {
-          sub_context.is_open.set(false);
-        }
-      },
-      std::time::Duration::from_millis(150),
-    );
+    if !sub_context.is_hovering.get() {
+      sub_context.is_open.set(false);
+    }
   };
 
   let data_state = move || {
