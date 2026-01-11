@@ -70,6 +70,10 @@ variables:
     value:
       type: plain
       value: command
+  component-context-menu:
+    value:
+      type: plain
+      value: context-menu
   component-dropdown-menu:
     value:
       type: plain
@@ -142,6 +146,10 @@ variables:
     value:
       type: plain
       value: button_group
+  file-context-menu:
+    value:
+      type: plain
+      value: context_menu
   file-dropdown-menu:
     value:
       type: plain
@@ -601,6 +609,12 @@ pipelines:
         with:
           "{component-file}": component-command
           "{component-name}": component-command
+          "{kit-version}": kit-version
+      - title: Add `context-menu` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-context-menu
+          "{component-name}": component-context-menu
           "{kit-version}": kit-version
       - title: Add `dropdown-menu` component
         used: depl-add-component-to-storage@0.1.0
