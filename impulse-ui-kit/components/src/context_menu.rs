@@ -30,7 +30,12 @@ pub fn ContextMenuTrigger(#[prop(optional, into)] class: String, children: Child
   };
 
   view! {
-    <div node_ref=trigger_ref data-slot="context-menu-trigger" class=class on:contextmenu=handle_contextmenu>
+    <div
+      node_ref=trigger_ref
+      data-slot="context-menu-trigger"
+      class=class
+      on:contextmenu=handle_contextmenu
+    >
       {children()}
     </div>
   }
@@ -361,9 +366,7 @@ pub fn ContextMenuCheckboxItem(
   children: Children,
 ) -> impl IntoView {
   let handle_click = move |_| {
-    if !disabled
-      && let Some(on_checked_change) = on_checked_change
-    {
+    if !disabled && let Some(on_checked_change) = on_checked_change {
       on_checked_change.run(!checked.get());
     }
   };
@@ -467,7 +470,9 @@ pub fn ContextMenuLabel(
     <div
       data-slot="context-menu-label"
       data-inset=inset
-      class=cn(&["text-foreground px-2 py-1.5 text-sm font-medium data-[inset]:pl-8", class.as_str()])
+      class=cn(
+        &["text-foreground px-2 py-1.5 text-sm font-medium data-[inset]:pl-8", class.as_str()],
+      )
     >
       {children()}
     </div>
