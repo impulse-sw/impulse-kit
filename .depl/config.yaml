@@ -74,6 +74,10 @@ variables:
     value:
       type: plain
       value: context-menu
+  component-drawer:
+    value:
+      type: plain
+      value: drawer
   component-dropdown-menu:
     value:
       type: plain
@@ -615,6 +619,12 @@ pipelines:
         with:
           "{component-file}": file-context-menu
           "{component-name}": component-context-menu
+          "{kit-version}": kit-version
+      - title: Add `drawer` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-drawer
+          "{component-name}": component-drawer
           "{kit-version}": kit-version
       - title: Add `dropdown-menu` component
         used: depl-add-component-to-storage@0.1.0

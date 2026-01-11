@@ -14,6 +14,7 @@ pub mod checkbox;
 pub mod collapsible;
 pub mod command;
 pub mod context_menu;
+pub mod drawer;
 pub mod dropdown_menu;
 pub mod icon;
 pub mod input;
