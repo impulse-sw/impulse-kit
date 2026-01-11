@@ -11,10 +11,6 @@ use leptos::wasm_bindgen::JsCast;
 use std::collections::{HashMap, HashSet};
 use web_sys::{Element, KeyboardEvent};
 
-// ============================================================================
-// Command Root
-// ============================================================================
-
 #[component]
 pub fn Command(
   #[prop(optional, into)] label: String,
@@ -66,7 +62,6 @@ pub fn Command(
 
   provide_context(context.clone());
 
-  // Фильтрация при изменении поиска
   let _context = context.clone();
   Effect::new(move |_| {
     let _ = search.get();
@@ -75,7 +70,6 @@ pub fn Command(
     select_first_item(&_context);
   });
 
-  // Обработка контролируемого значения
   if let Some(cb) = on_value_change {
     Effect::new(move |_| {
       let val = value_signal.get();
@@ -156,13 +150,8 @@ pub fn Command(
   }
 }
 
-// ============================================================================
-// Command Input
-// ============================================================================
-
 #[component]
 pub fn CommandInput(
-  // #[prop(optional, into)] value: String,
   #[prop(optional)] on_value_change: Option<Callback<String>>,
   #[prop(optional, into)] placeholder: String,
   #[prop(optional, into)] class: String,
@@ -224,10 +213,6 @@ pub fn CommandInput(
   }
 }
 
-// ============================================================================
-// Command List
-// ============================================================================
-
 #[component]
 pub fn CommandList(
   #[prop(optional, into)] label: String,
@@ -256,10 +241,6 @@ pub fn CommandList(
   }
 }
 
-// ============================================================================
-// Command Empty
-// ============================================================================
-
 #[component]
 pub fn CommandEmpty(#[prop(optional, into)] class: String, children: ChildrenFn) -> impl IntoView {
   let context = use_context::<CommandContext>().expect("CommandEmpty must be used within Command");
@@ -279,10 +260,6 @@ pub fn CommandEmpty(#[prop(optional, into)] class: String, children: ChildrenFn)
     </Show>
   }
 }
-
-// ============================================================================
-// Command Group
-// ============================================================================
 
 #[component]
 pub fn CommandGroup(
@@ -382,10 +359,6 @@ pub fn CommandGroup(
   }
 }
 
-// ============================================================================
-// Command Item
-// ============================================================================
-
 #[component]
 pub fn CommandItem(
   #[prop(optional, into)] value: String,
@@ -406,7 +379,6 @@ pub fn CommandItem(
   let computed_value = RwSignal::new(value.clone());
   let force_mount = force_mount || group_context.as_ref().map(|g| g.force_mount).unwrap_or(false);
 
-  // Вычисление значения из children если не задано
   Effect::new(move |_| {
     if let Some(el) = item_ref.get() {
       let text_content = el.text_content().unwrap_or_default().trim().to_string();
@@ -416,7 +388,6 @@ pub fn CommandItem(
     }
   });
 
-  // Регистрация item
   Effect::new({
     let id = id.clone();
     let context = context.clone();
@@ -508,7 +479,6 @@ pub fn CommandItem(
     context.value.set(computed_value.get());
   };
 
-  // Слушаем событие select
   Effect::new(move |_| {
     if let Some(el) = item_ref.get() {
       let closure = leptos::wasm_bindgen::closure::Closure::wrap(Box::new({
@@ -550,10 +520,6 @@ pub fn CommandItem(
   }
 }
 
-// ============================================================================
-// Command Separator
-// ============================================================================
-
 #[component]
 pub fn CommandSeparator(#[prop(optional)] always_render: bool, #[prop(optional, into)] class: String) -> impl IntoView {
   let context = use_context::<CommandContext>().expect("CommandSeparator must be used within Command");
@@ -571,10 +537,6 @@ pub fn CommandSeparator(#[prop(optional)] always_render: bool, #[prop(optional, 
   }
 }
 
-// ============================================================================
-// Command Shortcut
-// ============================================================================
-
 #[component]
 pub fn CommandShortcut(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
   view! {
@@ -587,10 +549,6 @@ pub fn CommandShortcut(#[prop(optional, into)] class: String, children: Children
   }
 }
 
-// ============================================================================
-// Helper functions
-// ============================================================================
-
 fn calculate_score(value: &str, search: &str, keywords: &[String]) -> f64 {
   if search.is_empty() {
     return 1.0;
@@ -599,11 +557,9 @@ fn calculate_score(value: &str, search: &str, keywords: &[String]) -> f64 {
   let value_lower = value.to_lowercase();
   let search_lower = search.to_lowercase();
 
-  // Простой алгоритм скоринга
   if value_lower.contains(&search_lower) {
     let mut score: f64;
 
-    // Бонус за точное совпадение
     if value_lower == search_lower {
       score = 1.0;
     } else if value_lower.starts_with(&search_lower) {
@@ -612,7 +568,6 @@ fn calculate_score(value: &str, search: &str, keywords: &[String]) -> f64 {
       score = 0.7;
     }
 
-    // Проверка keywords
     for keyword in keywords {
       if keyword.to_lowercase().contains(&search_lower) {
         score = score.max(0.8);
@@ -650,7 +605,6 @@ fn filter_items(context: &CommandContext) {
 
   context.filtered_items.set(filtered.clone());
 
-  // Обновление filtered_groups
   let all_groups = context.all_groups.get();
   let mut visible_groups = HashSet::new();
 

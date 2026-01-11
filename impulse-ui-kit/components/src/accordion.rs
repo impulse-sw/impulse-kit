@@ -3,8 +3,6 @@
 use impulse_ui_kit::utils::cn;
 use leptos::prelude::*;
 
-// tailwind-safelist: animate-accordion-down animate-accordion-up
-
 #[derive(Clone, Copy, PartialEq, Default)]
 pub enum AccordionType {
   #[default]
