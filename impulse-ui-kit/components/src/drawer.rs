@@ -202,7 +202,11 @@ pub fn DrawerContent(#[prop(optional, into)] class: String, children: ChildrenFn
       return;
     }
 
-    let pos = if context.direction.is_vertical() { ev.client_y() as f64 } else { ev.client_x() as f64 };
+    let pos = if context.direction.is_vertical() {
+      ev.client_y() as f64
+    } else {
+      ev.client_x() as f64
+    };
 
     context.is_dragging.set(true);
     context.drag_start_pos.set(pos);
@@ -220,7 +224,11 @@ pub fn DrawerContent(#[prop(optional, into)] class: String, children: ChildrenFn
       return;
     }
 
-    let current_pos = if context.direction.is_vertical() { ev.client_y() as f64 } else { ev.client_x() as f64 };
+    let current_pos = if context.direction.is_vertical() {
+      ev.client_y() as f64
+    } else {
+      ev.client_x() as f64
+    };
 
     let diff = current_pos - context.drag_start_pos.get();
 
@@ -256,7 +264,11 @@ pub fn DrawerContent(#[prop(optional, into)] class: String, children: ChildrenFn
     let size = context.drawer_size.get();
 
     let start_pos = context.drag_start_pos.get();
-    let end_pos = if context.direction.is_vertical() { ev.client_y() as f64 } else { ev.client_x() as f64 };
+    let end_pos = if context.direction.is_vertical() {
+      ev.client_y() as f64
+    } else {
+      ev.client_x() as f64
+    };
 
     let time_diff = 0.3;
     let velocity = (end_pos - start_pos).abs() / time_diff / 1000.0;
@@ -378,10 +390,7 @@ pub fn DrawerHeader(#[prop(optional, into)] class: String, children: Children) -
 #[component]
 pub fn DrawerFooter(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
   view! {
-    <div
-      data-slot="drawer-footer"
-      class=cn(&["mt-auto flex flex-col gap-2 p-4", class.as_str()])
-    >
+    <div data-slot="drawer-footer" class=cn(&["mt-auto flex flex-col gap-2 p-4", class.as_str()])>
       {children()}
     </div>
   }
@@ -410,7 +419,12 @@ pub fn DrawerHandle(#[prop(optional, into)] class: String) -> impl IntoView {
   view! {
     <div
       data-slot="drawer-handle"
-      class=cn(&["bg-muted mx-auto mt-4 h-2 w-[100px] shrink-0 rounded-full cursor-grab active:cursor-grabbing", class.as_str()])
+      class=cn(
+        &[
+          "bg-muted mx-auto mt-4 h-2 w-[100px] shrink-0 rounded-full cursor-grab active:cursor-grabbing",
+          class.as_str(),
+        ],
+      )
     />
   }
 }
