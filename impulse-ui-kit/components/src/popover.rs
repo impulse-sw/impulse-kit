@@ -12,7 +12,7 @@ use leptos::web_sys::Element;
 
 use super::button::{Button, ButtonSize, ButtonVariant};
 
-const BASE_CONTENT_CLASSES: &str = "bg-popover text-popover-foreground z-50 w-72 rounded-md border p-4 shadow-md outline-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95";
+const BASE_CONTENT_CLASSES: &str = "bg-popover text-popover-foreground z-50 w-72 rounded-md border p-4 shadow-md outline-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:invisible data-[state=closed]:pointer-events-none data-[state=closed]:h-0";
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum PopoverAlign {
@@ -87,15 +87,6 @@ pub fn PopoverContent(
   let side_offset = side_offset.unwrap_or(4);
 
   let position_style = RwSignal::new(String::new());
-  let rendered = RwSignal::new(false);
-
-  Effect::new(move |_| {
-    if context.is_open.get() {
-      rendered.set(true);
-    } else {
-      set_timeout(move || rendered.set(false), std::time::Duration::from_millis(150));
-    }
-  });
 
   Effect::new(move |_| {
     if context.is_open.get() {
@@ -129,6 +120,8 @@ pub fn PopoverContent(
       );
 
       position_style.set(format!("position: fixed; top: {}px; left: {}px;", top, left));
+    } else {
+      position_style.set("position: fixed; top: 0px; left: 0px;".to_string());
     }
   });
 
@@ -172,17 +165,15 @@ pub fn PopoverContent(
   let children = StoredValue::new(children);
 
   view! {
-    <Show when=move || rendered.get()>
-      <div
-        node_ref=content_ref
-        data-slot="popover-content"
-        data-state=move || if context.is_open.get() { "open" } else { "closed" }
-        class=cn(&[BASE_CONTENT_CLASSES, slide_class, class.as_str()])
-        style=move || position_style.get()
-      >
-        {children.read_value()()}
-      </div>
-    </Show>
+    <div
+      node_ref=content_ref
+      data-slot="popover-content"
+      data-state=move || if context.is_open.get() { "open" } else { "closed" }
+      class=cn(&[BASE_CONTENT_CLASSES, slide_class, class.as_str()])
+      style=move || position_style.get()
+    >
+      {children.read_value()()}
+    </div>
   }
 }
 
