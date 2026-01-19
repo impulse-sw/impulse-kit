@@ -7,7 +7,7 @@ use web_sys::{HtmlElement, PointerEvent};
 
 const CLOSE_THRESHOLD: f64 = 0.25;
 const VELOCITY_THRESHOLD: f64 = 0.4;
-const TRANSITION_DURATION: f64 = 0.5;
+const TRANSITION_DURATION: f64 = 0.3;
 
 #[derive(Clone, Copy, PartialEq, Default)]
 pub enum DrawerDirection {
@@ -54,6 +54,7 @@ pub fn Drawer(
   let drag_start_pos = RwSignal::new(0.0_f64);
   let drag_offset = RwSignal::new(0.0_f64);
   let drawer_size = RwSignal::new(0.0_f64);
+  let is_closing_via_drag = RwSignal::new(false);
 
   provide_context(DrawerContext {
     is_open,
@@ -66,6 +67,7 @@ pub fn Drawer(
     drag_start_pos,
     drag_offset,
     drawer_size,
+    is_closing_via_drag,
   });
 
   view! { <div data-slot="drawer">{children()}</div> }
@@ -94,6 +96,8 @@ pub fn DrawerClose(#[prop(optional, into)] class: String, children: Children) ->
   let context = use_context::<DrawerContext>().expect("DrawerClose must be used within Drawer");
 
   let handle_click = move |_| {
+    context.is_closing_via_drag.set(false);
+    context.drag_offset.set(0.0);
     context.is_open.set(false);
     if let Some(callback) = context.on_open_change {
       callback.run(false);
@@ -113,6 +117,8 @@ pub fn DrawerOverlay(#[prop(optional, into)] class: String) -> impl IntoView {
 
   let handle_click = move |_| {
     if context.dismissible {
+      context.is_closing_via_drag.set(false);
+      context.drag_offset.set(0.0);
       context.is_open.set(false);
       if let Some(callback) = context.on_open_change {
         callback.run(false);
@@ -166,14 +172,18 @@ pub fn DrawerContent(#[prop(optional, into)] class: String, children: ChildrenFn
     if context.is_open.get() {
       should_render.set(true);
       context.drag_offset.set(0.0);
+      context.is_closing_via_drag.set(false);
       transform_style.set(String::new());
     } else if should_render.get() {
-      set_timeout(move || should_render.set(false), std::time::Duration::from_millis(500));
+      // Only set timeout for unmounting if not closing via drag
+      if !context.is_closing_via_drag.get() {
+        set_timeout(move || should_render.set(false), std::time::Duration::from_millis(300));
+      }
     }
   });
 
   Effect::new(move |_| {
-    if context.is_open.get() {
+    if should_render.get() {
       if let Some(body) = document().body() {
         let _ = body.style().set_property("overflow", "hidden");
       }
@@ -276,6 +286,8 @@ pub fn DrawerContent(#[prop(optional, into)] class: String, children: ChildrenFn
     let should_close = (size > 0.0 && offset / size >= CLOSE_THRESHOLD) || velocity > VELOCITY_THRESHOLD;
 
     if should_close {
+      context.is_closing_via_drag.set(true);
+
       let close_transform = match context.direction {
         DrawerDirection::Bottom => "translate3d(0, 100%, 0)",
         DrawerDirection::Top => "translate3d(0, -100%, 0)",
@@ -294,6 +306,9 @@ pub fn DrawerContent(#[prop(optional, into)] class: String, children: ChildrenFn
           if let Some(callback) = context.on_open_change {
             callback.run(false);
           }
+          should_render.set(false);
+          context.is_closing_via_drag.set(false);
+          transform_style.set(String::new());
         },
         std::time::Duration::from_millis((TRANSITION_DURATION * 1000.0) as u64),
       );
@@ -310,6 +325,8 @@ pub fn DrawerContent(#[prop(optional, into)] class: String, children: ChildrenFn
     if context.is_open.get() {
       window_event_listener(leptos::ev::keydown, move |ev: web_sys::KeyboardEvent| {
         if ev.key() == "Escape" && context.dismissible {
+          context.is_closing_via_drag.set(false);
+          context.drag_offset.set(0.0);
           context.is_open.set(false);
           if let Some(callback) = context.on_open_change {
             callback.run(false);
@@ -340,6 +357,15 @@ pub fn DrawerContent(#[prop(optional, into)] class: String, children: ChildrenFn
 
   let show_handle = context.direction == DrawerDirection::Bottom;
 
+  // Override CSS animations when closing via drag
+  let animation_class = move || {
+    if context.is_closing_via_drag.get() {
+      ""
+    } else {
+      "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-300"
+    }
+  };
+
   view! {
     <Show when=move || should_render.get()>
       <DrawerOverlay />
@@ -350,8 +376,9 @@ pub fn DrawerContent(#[prop(optional, into)] class: String, children: ChildrenFn
         data-vaul-drawer-direction=context.direction.as_str()
         class=cn(
           &[
-            "group/drawer-content bg-background fixed z-50 flex h-auto flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500 touch-none",
+            "group/drawer-content bg-background fixed z-50 flex h-auto flex-col touch-none",
             direction_classes,
+            animation_class(),
             class.as_str(),
           ],
         )
@@ -441,4 +468,5 @@ struct DrawerContext {
   drag_start_pos: RwSignal<f64>,
   drag_offset: RwSignal<f64>,
   drawer_size: RwSignal<f64>,
+  is_closing_via_drag: RwSignal<bool>,
 }
