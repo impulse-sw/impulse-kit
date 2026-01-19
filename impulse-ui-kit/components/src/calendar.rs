@@ -433,8 +433,10 @@ fn CalendarDay(day: Option<NaiveDate>) -> impl IntoView {
     }
   };
 
-  let current_month = context.current_month.get();
-  let is_outside = day.month() != current_month.month() || day.year() != current_month.year();
+  let is_outside = Memo::new(move |_| {
+    let current_month = context.current_month.get();
+    day.month() != current_month.month() || day.year() != current_month.year()
+  });
   let is_today = day == Local::now().naive_local().date();
 
   let is_disabled = Memo::new(move |_| {
@@ -585,7 +587,7 @@ fn CalendarDay(day: Option<NaiveDate>) -> impl IntoView {
       } else {
         ""
       },
-      if is_outside {
+      if is_outside.get() {
         "text-muted-foreground opacity-50"
       } else {
         ""
