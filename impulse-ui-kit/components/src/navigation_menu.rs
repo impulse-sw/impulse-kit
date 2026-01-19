@@ -16,19 +16,11 @@ pub fn NavigationMenu(#[prop(optional, into)] class: String, children: Children)
 }
 
 #[component]
-pub fn NavigationMenuList(
-  #[prop(optional, into)] class: String,
-  children: Children,
-) -> impl IntoView {
+pub fn NavigationMenuList(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
   view! {
     <ul
       data-slot="navigation-menu-list"
-      class=cn(
-        &[
-          "group flex flex-1 list-none items-center justify-center gap-1",
-          class.as_str(),
-        ],
-      )
+      class=cn(&["group flex flex-1 list-none items-center justify-center gap-1", class.as_str()])
     >
 
       {children()}
@@ -54,12 +46,9 @@ pub fn NavigationMenuItem(
 }
 
 #[component]
-pub fn NavigationMenuTrigger(
-  #[prop(optional, into)] class: String,
-  children: Children,
-) -> impl IntoView {
-  let context = use_context::<NavigationMenuItemContext>()
-    .expect("NavigationMenuTrigger must be used within NavigationMenuItem");
+pub fn NavigationMenuTrigger(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
+  let context =
+    use_context::<NavigationMenuItemContext>().expect("NavigationMenuTrigger must be used within NavigationMenuItem");
 
   let handle_click = move |_| {
     context.is_open.update(|open| *open = !*open);
@@ -99,12 +88,9 @@ pub fn NavigationMenuTrigger(
 }
 
 #[component]
-pub fn NavigationMenuContent(
-  #[prop(optional, into)] class: String,
-  children: ChildrenFn,
-) -> impl IntoView {
-  let context = use_context::<NavigationMenuItemContext>()
-    .expect("NavigationMenuContent must be used within NavigationMenuItem");
+pub fn NavigationMenuContent(#[prop(optional, into)] class: String, children: ChildrenFn) -> impl IntoView {
+  let context =
+    use_context::<NavigationMenuItemContext>().expect("NavigationMenuContent must be used within NavigationMenuItem");
 
   let children = StoredValue::new(children);
 
@@ -151,10 +137,7 @@ pub fn NavigationMenuLink(
 }
 
 #[component]
-pub fn NavigationMenuViewport(
-  #[prop(optional, into)] class: String,
-  children: Children,
-) -> impl IntoView {
+pub fn NavigationMenuViewport(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
   view! {
     <div
       data-slot="navigation-menu-viewport"

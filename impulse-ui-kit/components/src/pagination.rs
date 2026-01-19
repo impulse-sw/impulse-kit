@@ -18,12 +18,12 @@ pub fn Pagination(#[prop(optional, into)] class: String, children: Children) -> 
 }
 
 #[component]
-pub fn PaginationContent(
-  #[prop(optional, into)] class: String,
-  children: Children,
-) -> impl IntoView {
+pub fn PaginationContent(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
   view! {
-    <ul data-slot="pagination-content" class=cn(&["flex flex-row items-center gap-1", class.as_str()])>
+    <ul
+      data-slot="pagination-content"
+      class=cn(&["flex flex-row items-center gap-1", class.as_str()])
+    >
       {children()}
     </ul>
   }
@@ -38,8 +38,9 @@ pub fn PaginationItem(#[prop(optional, into)] class: String, children: Children)
   }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub enum PaginationLinkVariant {
+  #[default]
   Default,
   Active,
 }

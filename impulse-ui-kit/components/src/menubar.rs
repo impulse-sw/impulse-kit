@@ -12,10 +12,7 @@ pub fn Menubar(#[prop(optional, into)] class: String, children: Children) -> imp
     <div
       data-slot="menubar"
       class=cn(
-        &[
-          "bg-background flex h-10 items-center gap-1 rounded-md border p-1",
-          class.as_str(),
-        ],
+        &["bg-background flex h-10 items-center gap-1 rounded-md border p-1", class.as_str()],
       )
     >
 
@@ -30,13 +27,16 @@ pub fn MenubarMenu(#[prop(optional)] open: Option<RwSignal<bool>>, children: Chi
 
   provide_context(MenubarMenuContext { is_open });
 
-  view! { <div data-slot="menubar-menu" class="relative">{children()}</div> }
+  view! {
+    <div data-slot="menubar-menu" class="relative">
+      {children()}
+    </div>
+  }
 }
 
 #[component]
 pub fn MenubarTrigger(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
-  let context =
-    use_context::<MenubarMenuContext>().expect("MenubarTrigger must be used within MenubarMenu");
+  let context = use_context::<MenubarMenuContext>().expect("MenubarTrigger must be used within MenubarMenu");
 
   let trigger_ref = NodeRef::<leptos::html::Button>::new();
 
@@ -73,8 +73,7 @@ pub fn MenubarContent(
   #[prop(optional, into)] class: String,
   children: ChildrenFn,
 ) -> impl IntoView {
-  let context =
-    use_context::<MenubarMenuContext>().expect("MenubarContent must be used within MenubarMenu");
+  let context = use_context::<MenubarMenuContext>().expect("MenubarContent must be used within MenubarMenu");
 
   let trigger_context = use_context::<MenubarTriggerRef>();
 
@@ -238,20 +237,14 @@ pub fn MenubarCheckboxItem(
 #[component]
 pub fn MenubarSeparator(#[prop(optional, into)] class: String) -> impl IntoView {
   view! {
-    <div
-      data-slot="menubar-separator"
-      class=cn(&["bg-muted -mx-1 my-1 h-px", class.as_str()])
-    />
+    <div data-slot="menubar-separator" class=cn(&["bg-muted -mx-1 my-1 h-px", class.as_str()]) />
   }
 }
 
 #[component]
 pub fn MenubarLabel(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
   view! {
-    <div
-      data-slot="menubar-label"
-      class=cn(&["px-2 py-1.5 text-sm font-semibold", class.as_str()])
-    >
+    <div data-slot="menubar-label" class=cn(&["px-2 py-1.5 text-sm font-semibold", class.as_str()])>
       {children()}
     </div>
   }

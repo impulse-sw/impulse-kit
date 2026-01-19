@@ -54,15 +54,9 @@ pub fn FieldLabel(
 }
 
 #[component]
-pub fn FieldDescription(
-  #[prop(optional, into)] class: String,
-  children: Children,
-) -> impl IntoView {
+pub fn FieldDescription(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
   view! {
-    <div
-      data-slot="field-description"
-      class=cn(&["text-muted-foreground text-sm", class.as_str()])
-    >
+    <div data-slot="field-description" class=cn(&["text-muted-foreground text-sm", class.as_str()])>
       {children()}
     </div>
   }
@@ -82,7 +76,5 @@ pub fn FieldError(#[prop(optional, into)] class: String, children: Children) -> 
 
 #[component]
 pub fn FieldSeparator(#[prop(optional, into)] class: String) -> impl IntoView {
-  view! {
-    <hr data-slot="field-separator" class=cn(&["border-border my-4", class.as_str()]) />
-  }
+  view! { <hr data-slot="field-separator" class=cn(&["border-border my-4", class.as_str()]) /> }
 }

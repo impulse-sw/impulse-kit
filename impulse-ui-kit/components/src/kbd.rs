@@ -46,21 +46,16 @@ pub fn Kbd(
 
         {children()}
       </kbd>
-      {
-        if show_separator {
-          if let Some(ctx) = context {
-            view! {
-              <span class="text-muted-foreground text-xs">{ctx.separator.clone()}</span>
-            }
-              .into_any()
-          } else {
-            ().into_any()
-          }
+      {if show_separator {
+        if let Some(ctx) = context {
+          view! { <span class="text-muted-foreground text-xs">{ctx.separator.clone()}</span> }
+            .into_any()
         } else {
           ().into_any()
         }
-      }
-
+      } else {
+        ().into_any()
+      }}
     </>
   }
 }

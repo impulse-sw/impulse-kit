@@ -7,8 +7,6 @@
 use impulse_ui_kit::utils::cn;
 use impulse_ui_kit::utils::{OverlayAlign, OverlaySide, calculate_position};
 use leptos::prelude::*;
-use leptos::wasm_bindgen::JsCast;
-use leptos::web_sys::Element;
 
 const BASE_CONTENT_CLASSES: &str = "bg-popover text-popover-foreground z-50 w-64 rounded-md border p-4 shadow-md outline-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:invisible data-[state=closed]:pointer-events-none data-[state=closed]:h-0";
 
@@ -33,12 +31,8 @@ pub fn HoverCard(
 }
 
 #[component]
-pub fn HoverCardTrigger(
-  #[prop(into, optional)] class: String,
-  children: Children,
-) -> impl IntoView {
-  let context =
-    use_context::<HoverCardContext>().expect("HoverCardTrigger must be used within HoverCard");
+pub fn HoverCardTrigger(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
+  let context = use_context::<HoverCardContext>().expect("HoverCardTrigger must be used within HoverCard");
 
   let trigger_ref = NodeRef::<leptos::html::Div>::new();
   let open_timeout = StoredValue::new(None::<leptos::prelude::TimeoutHandle>);
@@ -101,8 +95,7 @@ pub fn HoverCardContent(
   #[prop(optional, into)] class: String,
   children: ChildrenFn,
 ) -> impl IntoView {
-  let context =
-    use_context::<HoverCardContext>().expect("HoverCardContent must be used within HoverCard");
+  let context = use_context::<HoverCardContext>().expect("HoverCardContent must be used within HoverCard");
 
   let trigger_context = use_context::<HoverCardTriggerRef>();
 

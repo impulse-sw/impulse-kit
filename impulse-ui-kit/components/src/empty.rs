@@ -72,20 +72,14 @@ pub fn EmptyMedia(
 #[component]
 pub fn EmptyTitle(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
   view! {
-    <div
-      data-slot="empty-title"
-      class=cn(&["text-lg font-semibold leading-none", class.as_str()])
-    >
+    <div data-slot="empty-title" class=cn(&["text-lg font-semibold leading-none", class.as_str()])>
       {children()}
     </div>
   }
 }
 
 #[component]
-pub fn EmptyDescription(
-  #[prop(optional, into)] class: String,
-  children: Children,
-) -> impl IntoView {
+pub fn EmptyDescription(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
   view! {
     <div
       data-slot="empty-description"

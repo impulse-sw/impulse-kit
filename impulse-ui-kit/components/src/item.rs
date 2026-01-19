@@ -24,10 +24,7 @@ impl ItemVariant {
 #[component]
 pub fn ItemGroup(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
   view! {
-    <div
-      data-slot="item-group"
-      class=cn(&["flex flex-col divide-y divide-border", class.as_str()])
-    >
+    <div data-slot="item-group" class=cn(&["flex flex-col divide-y divide-border", class.as_str()])>
       {children()}
     </div>
   }
@@ -105,15 +102,9 @@ pub fn ItemTitle(#[prop(optional, into)] class: String, children: Children) -> i
 }
 
 #[component]
-pub fn ItemDescription(
-  #[prop(optional, into)] class: String,
-  children: Children,
-) -> impl IntoView {
+pub fn ItemDescription(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
   view! {
-    <div
-      data-slot="item-description"
-      class=cn(&["text-muted-foreground text-sm", class.as_str()])
-    >
+    <div data-slot="item-description" class=cn(&["text-muted-foreground text-sm", class.as_str()])>
       {children()}
     </div>
   }
@@ -142,7 +133,5 @@ pub fn ItemFooter(#[prop(optional, into)] class: String, children: Children) -> 
 
 #[component]
 pub fn ItemSeparator(#[prop(optional, into)] class: String) -> impl IntoView {
-  view! {
-    <hr data-slot="item-separator" class=cn(&["border-border", class.as_str()]) />
-  }
+  view! { <hr data-slot="item-separator" class=cn(&["border-border", class.as_str()]) /> }
 }

@@ -6,10 +6,7 @@ use leptos::prelude::*;
 #[component]
 pub fn InputGroup(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
   view! {
-    <div
-      data-slot="input-group"
-      class=cn(&["relative flex items-center gap-0", class.as_str()])
-    >
+    <div data-slot="input-group" class=cn(&["relative flex items-center gap-0", class.as_str()])>
       {children()}
     </div>
   }
@@ -37,10 +34,7 @@ pub fn InputGroupInput(
 }
 
 #[component]
-pub fn InputGroupAddon(
-  #[prop(optional, into)] class: String,
-  children: Children,
-) -> impl IntoView {
+pub fn InputGroupAddon(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
   view! {
     <div
       data-slot="input-group-addon"
@@ -58,10 +52,7 @@ pub fn InputGroupAddon(
 }
 
 #[component]
-pub fn InputGroupText(
-  #[prop(optional, into)] class: String,
-  children: Children,
-) -> impl IntoView {
+pub fn InputGroupText(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
   view! {
     <span data-slot="input-group-text" class=cn(&["text-sm", class.as_str()])>
       {children()}
