@@ -163,27 +163,20 @@ pub fn DrawerContent(#[prop(optional, into)] class: String, children: ChildrenFn
   let context = use_context::<DrawerContext>().expect("DrawerContent must be used within Drawer");
 
   let content_ref = NodeRef::<leptos::html::Div>::new();
-  let should_render = RwSignal::new(false);
   let transform_style = RwSignal::new(String::new());
 
   let children_stored = StoredValue::new(children);
 
   Effect::new(move |_| {
     if context.is_open.get() {
-      should_render.set(true);
       context.drag_offset.set(0.0);
       context.is_closing_via_drag.set(false);
       transform_style.set(String::new());
-    } else if should_render.get() {
-      // Only set timeout for unmounting if not closing via drag
-      if !context.is_closing_via_drag.get() {
-        set_timeout(move || should_render.set(false), std::time::Duration::from_millis(300));
-      }
     }
   });
 
   Effect::new(move |_| {
-    if should_render.get() {
+    if context.is_open.get() {
       if let Some(body) = document().body() {
         let _ = body.style().set_property("overflow", "hidden");
       }
@@ -194,7 +187,6 @@ pub fn DrawerContent(#[prop(optional, into)] class: String, children: ChildrenFn
 
   Effect::new(move |_| {
     if context.is_open.get()
-      && should_render.get()
       && let Some(content) = content_ref.get()
     {
       let el: &HtmlElement = content.as_ref();
@@ -306,7 +298,6 @@ pub fn DrawerContent(#[prop(optional, into)] class: String, children: ChildrenFn
           if let Some(callback) = context.on_open_change {
             callback.run(false);
           }
-          should_render.set(false);
           context.is_closing_via_drag.set(false);
           transform_style.set(String::new());
         },
@@ -367,33 +358,31 @@ pub fn DrawerContent(#[prop(optional, into)] class: String, children: ChildrenFn
   };
 
   view! {
-    <Show when=move || should_render.get()>
-      <DrawerOverlay />
-      <div
-        node_ref=content_ref
-        data-slot="drawer-content"
-        data-state=data_state
-        data-vaul-drawer-direction=context.direction.as_str()
-        class=cn(
-          &[
-            "group/drawer-content bg-background fixed z-50 flex h-auto flex-col touch-none",
-            direction_classes,
-            animation_class(),
-            class.as_str(),
-          ],
-        )
-        style=move || transform_style.get()
-        on:pointerdown=handle_pointer_down
-        on:pointermove=handle_pointer_move
-        on:pointerup=handle_pointer_up
-        on:pointercancel=move |_| context.is_dragging.set(false)
-      >
-        <Show when=move || show_handle>
-          <div class="bg-muted mx-auto mt-4 h-2 w-[100px] shrink-0 rounded-full" />
-        </Show>
-        {children_stored.get_value()()}
-      </div>
-    </Show>
+    <DrawerOverlay />
+    <div
+      node_ref=content_ref
+      data-slot="drawer-content"
+      data-state=data_state
+      data-vaul-drawer-direction=context.direction.as_str()
+      class=cn(
+        &[
+          "group/drawer-content bg-background fixed z-50 flex h-auto flex-col touch-none data-[state=closed]:invisible data-[state=closed]:pointer-events-none",
+          direction_classes,
+          animation_class(),
+          class.as_str(),
+        ],
+      )
+      style=move || transform_style.get()
+      on:pointerdown=handle_pointer_down
+      on:pointermove=handle_pointer_move
+      on:pointerup=handle_pointer_up
+      on:pointercancel=move |_| context.is_dragging.set(false)
+    >
+      <Show when=move || show_handle>
+        <div class="bg-muted mx-auto mt-4 h-2 w-[100px] shrink-0 rounded-full" />
+      </Show>
+      {children_stored.get_value()()}
+    </div>
   }
 }
 

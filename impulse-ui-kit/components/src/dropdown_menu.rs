@@ -52,17 +52,8 @@ pub fn DropdownMenuContent(
   let side_offset = side_offset.unwrap_or(4);
 
   let position_style = RwSignal::new(String::new());
-  let should_render = RwSignal::new(false);
 
   let children_stored = StoredValue::new(children);
-
-  Effect::new(move |_| {
-    if context.is_open.get() {
-      should_render.set(true);
-    } else if should_render.get() {
-      set_timeout(move || should_render.set(false), std::time::Duration::from_millis(150));
-    }
-  });
 
   Effect::new(move |_| {
     if context.is_open.get() {
@@ -76,7 +67,6 @@ pub fn DropdownMenuContent(
 
   Effect::new(move |_| {
     if context.is_open.get()
-      && should_render.get()
       && let Some(trigger_ref) = trigger_context
       && let Some(trigger) = trigger_ref.trigger_ref.get()
       && let Some(content) = content_ref.get()
@@ -142,23 +132,21 @@ pub fn DropdownMenuContent(
   };
 
   view! {
-    <Show when=move || should_render.get()>
-      <div
-        node_ref=content_ref
-        data-slot="dropdown-menu-content"
-        data-state=data_state
-        class=cn(
-          &[
-            "bg-popover text-popover-foreground z-50 min-w-[8rem] overflow-x-hidden overflow-y-auto rounded-md border p-1 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-            slide_class,
-            class.as_str(),
-          ],
-        )
-        style=move || position_style.get()
-      >
-        {children_stored.get_value()()}
-      </div>
-    </Show>
+    <div
+      node_ref=content_ref
+      data-slot="dropdown-menu-content"
+      data-state=data_state
+      class=cn(
+        &[
+          "bg-popover text-popover-foreground z-50 min-w-[8rem] overflow-x-hidden overflow-y-auto rounded-md border p-1 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:invisible data-[state=closed]:pointer-events-none",
+          slide_class,
+          class.as_str(),
+        ],
+      )
+      style=move || position_style.get()
+    >
+      {children_stored.get_value()()}
+    </div>
   }
 }
 
@@ -457,21 +445,11 @@ pub fn DropdownMenuSubContent(#[prop(optional, into)] class: String, children: C
 
   let content_ref = NodeRef::<leptos::html::Div>::new();
   let position_style = RwSignal::new(String::new());
-  let should_render = RwSignal::new(false);
 
   let children_stored = StoredValue::new(children);
 
   Effect::new(move |_| {
-    if sub_context.is_open.get() {
-      should_render.set(true);
-    } else if should_render.get() {
-      set_timeout(move || should_render.set(false), std::time::Duration::from_millis(150));
-    }
-  });
-
-  Effect::new(move |_| {
     if sub_context.is_open.get()
-      && should_render.get()
       && let Some(trigger_ref) = sub_trigger_context
       && let Some(trigger) = trigger_ref.trigger_ref.get()
     {
@@ -499,24 +477,22 @@ pub fn DropdownMenuSubContent(#[prop(optional, into)] class: String, children: C
   };
 
   view! {
-    <Show when=move || should_render.get()>
-      <div
-        node_ref=content_ref
-        data-slot="dropdown-menu-sub-content"
-        data-state=data_state
-        class=cn(
-          &[
-            "bg-popover text-popover-foreground z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=right]:slide-in-from-left-2",
-            class.as_str(),
-          ],
-        )
-        style=move || position_style.get()
-        on:mouseenter=handle_mouse_enter
-        on:mouseleave=handle_mouse_leave
-      >
-        {children_stored.get_value()()}
-      </div>
-    </Show>
+    <div
+      node_ref=content_ref
+      data-slot="dropdown-menu-sub-content"
+      data-state=data_state
+      class=cn(
+        &[
+          "bg-popover text-popover-foreground z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=right]:slide-in-from-left-2 data-[state=closed]:invisible data-[state=closed]:pointer-events-none",
+          class.as_str(),
+        ],
+      )
+      style=move || position_style.get()
+      on:mouseenter=handle_mouse_enter
+      on:mouseleave=handle_mouse_leave
+    >
+      {children_stored.get_value()()}
+    </div>
   }
 }
 

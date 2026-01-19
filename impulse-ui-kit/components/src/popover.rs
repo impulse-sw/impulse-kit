@@ -120,8 +120,6 @@ pub fn PopoverContent(
       );
 
       position_style.set(format!("position: fixed; top: {}px; left: {}px;", top, left));
-    } else {
-      position_style.set("position: fixed; top: 0px; left: 0px;".to_string());
     }
   });
 
