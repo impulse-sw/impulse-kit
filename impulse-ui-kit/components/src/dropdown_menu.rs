@@ -138,7 +138,7 @@ pub fn DropdownMenuContent(
       data-state=data_state
       class=cn(
         &[
-          "bg-popover text-popover-foreground z-50 min-w-[8rem] overflow-x-hidden overflow-y-auto rounded-md border p-1 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:invisible data-[state=closed]:pointer-events-none",
+          "bg-popover text-popover-foreground fixed z-50 min-w-[8rem] overflow-x-hidden overflow-y-auto rounded-md border p-1 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:invisible data-[state=closed]:pointer-events-none",
           slide_class,
           class.as_str(),
         ],
@@ -483,7 +483,7 @@ pub fn DropdownMenuSubContent(#[prop(optional, into)] class: String, children: C
       data-state=data_state
       class=cn(
         &[
-          "bg-popover text-popover-foreground z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=right]:slide-in-from-left-2 data-[state=closed]:invisible data-[state=closed]:pointer-events-none",
+          "bg-popover text-popover-foreground fixed z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=right]:slide-in-from-left-2 data-[state=closed]:invisible data-[state=closed]:pointer-events-none",
           class.as_str(),
         ],
       )
