@@ -117,6 +117,102 @@ variables:
     value:
       type: plain
       value: theme
+  component-chart:
+    value:
+      type: plain
+      value: chart
+  component-combobox:
+    value:
+      type: plain
+      value: combobox
+  component-data-table:
+    value:
+      type: plain
+      value: data-table
+  component-date-picker:
+    value:
+      type: plain
+      value: date-picker
+  component-dialog:
+    value:
+      type: plain
+      value: dialog
+  component-form:
+    value:
+      type: plain
+      value: form
+  component-progress:
+    value:
+      type: plain
+      value: progress
+  component-radio-group:
+    value:
+      type: plain
+      value: radio-group
+  component-resizable:
+    value:
+      type: plain
+      value: resizable
+  component-scroll-area:
+    value:
+      type: plain
+      value: scroll-area
+  component-sheet:
+    value:
+      type: plain
+      value: sheet
+  component-sidebar:
+    value:
+      type: plain
+      value: sidebar
+  component-skeleton:
+    value:
+      type: plain
+      value: skeleton
+  component-slider:
+    value:
+      type: plain
+      value: slider
+  component-sonner:
+    value:
+      type: plain
+      value: sonner
+  component-spinner:
+    value:
+      type: plain
+      value: spinner
+  component-switch:
+    value:
+      type: plain
+      value: switch
+  component-table:
+    value:
+      type: plain
+      value: table
+  component-tabs:
+    value:
+      type: plain
+      value: tabs
+  component-textarea:
+    value:
+      type: plain
+      value: textarea
+  component-toast:
+    value:
+      type: plain
+      value: toast
+  component-toggle:
+    value:
+      type: plain
+      value: toggle
+  component-toggle-group:
+    value:
+      type: plain
+      value: toggle-group
+  component-tooltip:
+    value:
+      type: plain
+      value: tooltip
   empty:
     value:
       type: plain
@@ -169,6 +265,26 @@ variables:
     value:
       type: plain
       value: input_otp
+  file-data-table:
+    value:
+      type: plain
+      value: data_table
+  file-date-picker:
+    value:
+      type: plain
+      value: date_picker
+  file-radio-group:
+    value:
+      type: plain
+      value: radio_group
+  file-scroll-area:
+    value:
+      type: plain
+      value: scroll_area
+  file-toggle-group:
+    value:
+      type: plain
+      value: toggle_group
   folder-error-pages-dist:
     value:
       type: plain
@@ -682,6 +798,150 @@ pipelines:
         with:
           "{component-file}": component-theme
           "{component-name}": component-theme
+          "{kit-version}": kit-version
+      - title: Add `chart` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-chart
+          "{component-name}": component-chart
+          "{kit-version}": kit-version
+      - title: Add `combobox` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-combobox
+          "{component-name}": component-combobox
+          "{kit-version}": kit-version
+      - title: Add `data-table` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-data-table
+          "{component-name}": component-data-table
+          "{kit-version}": kit-version
+      - title: Add `date-picker` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-date-picker
+          "{component-name}": component-date-picker
+          "{kit-version}": kit-version
+      - title: Add `dialog` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-dialog
+          "{component-name}": component-dialog
+          "{kit-version}": kit-version
+      - title: Add `form` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-form
+          "{component-name}": component-form
+          "{kit-version}": kit-version
+      - title: Add `progress` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-progress
+          "{component-name}": component-progress
+          "{kit-version}": kit-version
+      - title: Add `radio-group` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-radio-group
+          "{component-name}": component-radio-group
+          "{kit-version}": kit-version
+      - title: Add `resizable` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-resizable
+          "{component-name}": component-resizable
+          "{kit-version}": kit-version
+      - title: Add `scroll-area` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-scroll-area
+          "{component-name}": component-scroll-area
+          "{kit-version}": kit-version
+      - title: Add `sheet` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-sheet
+          "{component-name}": component-sheet
+          "{kit-version}": kit-version
+      - title: Add `sidebar` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-sidebar
+          "{component-name}": component-sidebar
+          "{kit-version}": kit-version
+      - title: Add `skeleton` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-skeleton
+          "{component-name}": component-skeleton
+          "{kit-version}": kit-version
+      - title: Add `slider` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-slider
+          "{component-name}": component-slider
+          "{kit-version}": kit-version
+      - title: Add `sonner` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-sonner
+          "{component-name}": component-sonner
+          "{kit-version}": kit-version
+      - title: Add `spinner` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-spinner
+          "{component-name}": component-spinner
+          "{kit-version}": kit-version
+      - title: Add `switch` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-switch
+          "{component-name}": component-switch
+          "{kit-version}": kit-version
+      - title: Add `table` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-table
+          "{component-name}": component-table
+          "{kit-version}": kit-version
+      - title: Add `tabs` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-tabs
+          "{component-name}": component-tabs
+          "{kit-version}": kit-version
+      - title: Add `textarea` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-textarea
+          "{component-name}": component-textarea
+          "{kit-version}": kit-version
+      - title: Add `toast` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-toast
+          "{component-name}": component-toast
+          "{kit-version}": kit-version
+      - title: Add `toggle` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-toggle
+          "{component-name}": component-toggle
+          "{kit-version}": kit-version
+      - title: Add `toggle-group` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-toggle-group
+          "{component-name}": component-toggle-group
+          "{kit-version}": kit-version
+      - title: Add `tooltip` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-tooltip
+          "{component-name}": component-tooltip
           "{kit-version}": kit-version
     exclusive_exec_tag: components
   - title: build-error-pages
