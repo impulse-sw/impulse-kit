@@ -32,8 +32,9 @@ pub fn SidebarProvider(
 }
 
 #[component]
-pub fn Sidebar(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
+pub fn Sidebar(#[prop(into, optional)] class: String, children: ChildrenFn) -> impl IntoView {
   let context = use_context::<SidebarContext>().expect("Sidebar must be used within SidebarProvider");
+  let children = StoredValue::new(children);
 
   view! {
     <Show when=move || context.is_open.get()>
@@ -46,7 +47,7 @@ pub fn Sidebar(#[prop(into, optional)] class: String, children: Children) -> imp
           ],
         )
       >
-        {children()}
+        {children.get_value()()}
       </aside>
     </Show>
   }

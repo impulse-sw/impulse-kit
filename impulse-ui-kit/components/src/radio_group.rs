@@ -45,23 +45,25 @@ pub fn RadioGroupItem(
 
   let is_disabled = disabled || context.disabled;
   let value_clone = value.clone();
-  let is_checked = move || context.value.get() == value_clone;
+  let is_checked_memo = Memo::new(move |_| context.value.get() == value_clone);
 
+  let value_for_click = value.clone();
   let handle_click = move |_| {
     if !is_disabled {
-      context.value.set(value.clone());
+      context.value.set(value_for_click.clone());
       if let Some(callback) = context.on_value_change {
-        callback.run(value.clone());
+        callback.run(value_for_click.clone());
       }
     }
   };
 
+  let value_for_keydown = value.clone();
   let handle_keydown = move |ev: web_sys::KeyboardEvent| {
     if (ev.key() == " " || ev.key() == "Enter") && !is_disabled {
       ev.prevent_default();
-      context.value.set(value.clone());
+      context.value.set(value_for_keydown.clone());
       if let Some(callback) = context.on_value_change {
-        callback.run(value.clone());
+        callback.run(value_for_keydown.clone());
       }
     }
   };
@@ -71,8 +73,8 @@ pub fn RadioGroupItem(
       type="button"
       role="radio"
       id=id
-      aria-checked=move || if is_checked() { "true" } else { "false" }
-      data-state=move || if is_checked() { "checked" } else { "unchecked" }
+      aria-checked=move || if is_checked_memo.get() { "true" } else { "false" }
+      data-state=move || if is_checked_memo.get() { "checked" } else { "unchecked" }
       data-slot="radio-group-item"
       disabled=is_disabled
       class=cn(
@@ -87,11 +89,11 @@ pub fn RadioGroupItem(
     >
       <span
         data-slot="radio-group-indicator"
-        data-state=move || if is_checked() { "checked" } else { "unchecked" }
+        data-state=move || if is_checked_memo.get() { "checked" } else { "unchecked" }
         class="flex items-center justify-center"
       >
         {move || {
-          if is_checked() {
+          if is_checked_memo.get() {
             view! {
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -112,7 +114,7 @@ pub fn RadioGroupItem(
       </span>
       <input
         type="radio"
-        checked=is_checked
+        checked=is_checked_memo
         disabled=is_disabled
         class="sr-only"
         tabindex="-1"

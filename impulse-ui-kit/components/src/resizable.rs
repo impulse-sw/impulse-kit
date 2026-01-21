@@ -42,8 +42,8 @@ pub fn ResizablePanelGroup(
 #[component]
 pub fn ResizablePanel(
   #[prop(optional)] default_size: Option<f64>,
-  #[prop(optional)] min_size: Option<f64>,
-  #[prop(optional)] max_size: Option<f64>,
+  #[prop(optional)] _min_size: Option<f64>,
+  #[prop(optional)] _max_size: Option<f64>,
   #[prop(into, optional)] class: String,
   children: Children,
 ) -> impl IntoView {

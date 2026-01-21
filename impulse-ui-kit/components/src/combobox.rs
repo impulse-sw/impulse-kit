@@ -64,8 +64,9 @@ pub fn ComboboxTrigger(#[prop(into, optional)] class: String, children: Children
 }
 
 #[component]
-pub fn ComboboxContent(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
+pub fn ComboboxContent(#[prop(into, optional)] class: String, children: ChildrenFn) -> impl IntoView {
   let context = use_context::<ComboboxContext>().expect("ComboboxContent must be used within Combobox");
+  let children = StoredValue::new(children);
 
   view! {
     <Show when=move || context.is_open.get()>
@@ -78,7 +79,7 @@ pub fn ComboboxContent(#[prop(into, optional)] class: String, children: Children
           ],
         )
       >
-        {children()}
+        {children.get_value()()}
       </div>
     </Show>
   }

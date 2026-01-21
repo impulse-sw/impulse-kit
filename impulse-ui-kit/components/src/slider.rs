@@ -3,7 +3,7 @@
 use impulse_ui_kit::utils::cn;
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
-use web_sys::{HtmlElement, MouseEvent, PointerEvent};
+use web_sys::{HtmlElement, PointerEvent};
 
 #[component]
 pub fn Slider(
@@ -21,7 +21,7 @@ pub fn Slider(
   let max = max.unwrap_or(100.0);
   let step = step.unwrap_or(1.0);
 
-  let slider_ref = NodeRef::<leptos::html::Div>::new();
+  let slider_ref = NodeRef::<leptos::html::Span>::new();
   let is_dragging = RwSignal::new(false);
 
   let percentage = move || ((value.get() - min) / (max - min) * 100.0).clamp(0.0, 100.0);
@@ -71,7 +71,7 @@ pub fn Slider(
       if let Some(target) = ev.target()
         && let Ok(el) = target.dyn_into::<HtmlElement>()
       {
-        el.release_pointer_capture(ev.pointer_id());
+        let _ = el.release_pointer_capture(ev.pointer_id());
       }
     }
   };

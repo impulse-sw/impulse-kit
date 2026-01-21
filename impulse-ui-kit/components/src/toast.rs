@@ -46,9 +46,10 @@ pub fn Toast(
   #[prop(optional)] variant: ToastVariant,
   #[prop(into, optional)] class: String,
   #[prop(optional)] open: Option<RwSignal<bool>>,
-  children: Children,
+  children: ChildrenFn,
 ) -> impl IntoView {
   let is_open = open.unwrap_or_else(|| RwSignal::new(true));
+  let children = StoredValue::new(children);
 
   view! {
     <Show when=move || is_open.get()>
@@ -63,7 +64,7 @@ pub fn Toast(
           ],
         )
       >
-        {children()}
+        {children.get_value()()}
       </div>
     </Show>
   }

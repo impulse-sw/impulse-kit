@@ -6,13 +6,13 @@
 use impulse_ui_kit::utils::cn;
 use leptos::prelude::*;
 
-use super::button::{Button, ButtonSize, ButtonVariant};
+use super::button::ButtonVariant;
 use super::popover::{Popover, PopoverContent, PopoverTrigger};
 
 #[component]
 pub fn DatePicker(
   #[prop(optional, into)] value: Option<RwSignal<Option<String>>>,
-  #[prop(optional)] on_value_change: Option<Callback<Option<String>>>,
+  #[prop(optional)] _on_value_change: Option<Callback<Option<String>>>,
   #[prop(into, optional)] class: String,
   #[prop(into, optional)] placeholder: String,
 ) -> impl IntoView {
@@ -26,7 +26,7 @@ pub fn DatePicker(
   };
 
   view! {
-    <Popover open=Some(is_open)>
+    <Popover open=is_open>
       <PopoverTrigger variant=ButtonVariant::Outline class=cn(&["w-[280px] justify-start text-left font-normal", if value.get().is_none() { "text-muted-foreground" } else { "" }, class.as_str()])>
         <svg
           xmlns="http://www.w3.org/2000/svg"

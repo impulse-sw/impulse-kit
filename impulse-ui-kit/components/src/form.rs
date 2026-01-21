@@ -8,10 +8,10 @@ use super::label::Label;
 #[component]
 pub fn Form(
   #[prop(into, optional)] class: String,
-  #[prop(optional)] on_submit: Option<Callback<web_sys::Event>>,
+  #[prop(optional)] on_submit: Option<Callback<web_sys::SubmitEvent>>,
   children: Children,
 ) -> impl IntoView {
-  let handle_submit = move |ev: web_sys::Event| {
+  let handle_submit = move |ev: web_sys::SubmitEvent| {
     ev.prevent_default();
     if let Some(callback) = on_submit {
       callback.run(ev);

@@ -69,25 +69,26 @@ pub fn ToggleGroupItem(
 
   let is_disabled = disabled || context.disabled;
   let value_clone = value.clone();
-  let is_pressed = move || context.value.get().contains(&value_clone);
+  let is_pressed_memo = Memo::new(move |_| context.value.get().contains(&value_clone));
 
+  let value_for_click = value.clone();
   let handle_click = move |_| {
     if !is_disabled {
       let mut current = context.value.get();
       match context.r#type {
         ToggleGroupType::Single => {
-          if current.contains(&value) {
+          if current.contains(&value_for_click) {
             current.clear();
           } else {
             current.clear();
-            current.push(value.clone());
+            current.push(value_for_click.clone());
           }
         }
         ToggleGroupType::Multiple => {
-          if let Some(pos) = current.iter().position(|v| v == &value) {
+          if let Some(pos) = current.iter().position(|v| v == &value_for_click) {
             current.remove(pos);
           } else {
-            current.push(value.clone());
+            current.push(value_for_click.clone());
           }
         }
       }
@@ -98,24 +99,25 @@ pub fn ToggleGroupItem(
     }
   };
 
+  let value_for_keydown = value.clone();
   let handle_keydown = move |ev: web_sys::KeyboardEvent| {
     if (ev.key() == " " || ev.key() == "Enter") && !is_disabled {
       ev.prevent_default();
       let mut current = context.value.get();
       match context.r#type {
         ToggleGroupType::Single => {
-          if current.contains(&value) {
+          if current.contains(&value_for_keydown) {
             current.clear();
           } else {
             current.clear();
-            current.push(value.clone());
+            current.push(value_for_keydown.clone());
           }
         }
         ToggleGroupType::Multiple => {
-          if let Some(pos) = current.iter().position(|v| v == &value) {
+          if let Some(pos) = current.iter().position(|v| v == &value_for_keydown) {
             current.remove(pos);
           } else {
-            current.push(value.clone());
+            current.push(value_for_keydown.clone());
           }
         }
       }
@@ -133,8 +135,8 @@ pub fn ToggleGroupItem(
     <button
       type="button"
       role="button"
-      aria-pressed=move || if is_pressed() { "true" } else { "false" }
-      data-state=move || if is_pressed() { "on" } else { "off" }
+      aria-pressed=move || if is_pressed_memo.get() { "true" } else { "false" }
+      data-state=move || if is_pressed_memo.get() { "on" } else { "off" }
       data-slot="toggle-group-item"
       disabled=is_disabled
       class=cn(

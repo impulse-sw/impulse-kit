@@ -10,7 +10,7 @@ struct TooltipContext {
 
 #[derive(Clone, Copy)]
 struct TooltipTriggerRef {
-  trigger_ref: NodeRef<leptos::html::AnyElement>,
+  trigger_ref: NodeRef<leptos::html::Span>,
 }
 
 #[component]
@@ -31,7 +31,7 @@ pub fn Tooltip(#[prop(optional)] open: Option<RwSignal<bool>>, children: Childre
 pub fn TooltipTrigger(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
   let context = use_context::<TooltipContext>().expect("TooltipTrigger must be used within Tooltip");
 
-  let trigger_ref = NodeRef::<leptos::html::AnyElement>::new();
+  let trigger_ref = NodeRef::<leptos::html::Span>::new();
 
   provide_context(TooltipTriggerRef { trigger_ref });
 

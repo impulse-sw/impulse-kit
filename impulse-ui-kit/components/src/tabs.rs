@@ -55,35 +55,37 @@ pub fn TabsTrigger(
 ) -> impl IntoView {
   let context = use_context::<TabsContext>().expect("TabsTrigger must be used within Tabs");
 
+  let value_for_click = value.clone();
   let handle_click = move |_| {
     if !disabled {
-      context.value.set(value.clone());
+      context.value.set(value_for_click.clone());
       if let Some(callback) = context.on_value_change {
-        callback.run(value.clone());
+        callback.run(value_for_click.clone());
       }
     }
   };
 
+  let value_for_keydown = value.clone();
   let handle_keydown = move |ev: web_sys::KeyboardEvent| {
     if (ev.key() == " " || ev.key() == "Enter") && !disabled {
       ev.prevent_default();
-      context.value.set(value.clone());
+      context.value.set(value_for_keydown.clone());
       if let Some(callback) = context.on_value_change {
-        callback.run(value.clone());
+        callback.run(value_for_keydown.clone());
       }
     }
   };
 
   let value_clone = value.clone();
-  let is_active = move || context.value.get() == value_clone;
+  let is_active_memo = Memo::new(move |_| context.value.get() == value_clone);
 
   view! {
     <button
       type="button"
       role="tab"
       data-slot="tabs-trigger"
-      data-state=move || if is_active() { "active" } else { "inactive" }
-      aria-selected=move || if is_active() { "true" } else { "false" }
+      data-state=move || if is_active_memo.get() { "active" } else { "inactive" }
+      aria-selected=move || if is_active_memo.get() { "true" } else { "false" }
       disabled=disabled
       class=cn(
         &[
@@ -109,15 +111,15 @@ pub fn TabsContent(
   let context = use_context::<TabsContext>().expect("TabsContent must be used within Tabs");
 
   let value_clone = value.clone();
-  let is_active = move || context.value.get() == value_clone;
+  let is_active_memo = Memo::new(move |_| context.value.get() == value_clone);
 
   let children = StoredValue::new(children);
 
   view! {
-    <Show when=is_active>
+    <Show when=move || is_active_memo.get()>
       <div
         data-slot="tabs-content"
-        data-state=move || if is_active() { "active" } else { "inactive" }
+        data-state=move || if is_active_memo.get() { "active" } else { "inactive" }
         role="tabpanel"
         class=cn(
           &[

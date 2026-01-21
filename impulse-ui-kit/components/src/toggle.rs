@@ -19,7 +19,7 @@ pub enum ToggleSize {
 }
 
 impl ToggleVariant {
-  fn class(&self) -> &'static str {
+  pub fn class(&self) -> &'static str {
     match self {
       Self::Default => "bg-transparent",
       Self::Outline => "border border-input bg-transparent hover:bg-accent hover:text-accent-foreground",
@@ -28,7 +28,7 @@ impl ToggleVariant {
 }
 
 impl ToggleSize {
-  fn class(&self) -> &'static str {
+  pub fn class(&self) -> &'static str {
     match self {
       Self::Default => "h-10 px-3",
       Self::Sm => "h-9 px-2.5",

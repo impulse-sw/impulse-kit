@@ -40,10 +40,10 @@ pub fn DataTableHead(
   children: Children,
 ) -> impl IntoView {
   let handle_click = move |_| {
-    if sortable {
-      if let Some(callback) = on_sort {
-        callback.run(());
-      }
+    if sortable
+      && let Some(callback) = on_sort
+    {
+      callback.run(());
     }
   };
 
@@ -85,7 +85,8 @@ pub fn DataTablePagination(
     }
   };
 
-  let handle_next = move |_| {
+  #[allow(unused_variables)]
+  let handle_next = move |_ev: web_sys::MouseEvent| {
     let current = page.get();
     if current < total_pages {
       let new_page = current + 1;

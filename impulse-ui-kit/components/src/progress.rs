@@ -5,7 +5,7 @@ use leptos::prelude::*;
 
 #[component]
 pub fn Progress(
-  #[prop(into, optional)] value: MaybeSignal<f64>,
+  #[prop(into, optional)] value: Signal<f64>,
   #[prop(optional)] max: Option<f64>,
   #[prop(into, optional)] class: String,
 ) -> impl IntoView {
