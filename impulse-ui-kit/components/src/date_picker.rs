@@ -12,7 +12,6 @@ use super::popover::{Popover, PopoverContent, PopoverTrigger};
 #[component]
 pub fn DatePicker(
   #[prop(optional, into)] value: Option<RwSignal<Option<String>>>,
-  #[prop(optional)] _on_value_change: Option<Callback<Option<String>>>,
   #[prop(into, optional)] class: String,
   #[prop(into, optional)] placeholder: String,
 ) -> impl IntoView {

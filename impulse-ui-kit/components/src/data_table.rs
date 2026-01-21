@@ -85,18 +85,6 @@ pub fn DataTablePagination(
     }
   };
 
-  #[allow(unused_variables)]
-  let handle_next = move |_ev: web_sys::MouseEvent| {
-    let current = page.get();
-    if current < total_pages {
-      let new_page = current + 1;
-      page.set(new_page);
-      if let Some(callback) = on_page_change {
-        callback.run(new_page);
-      }
-    }
-  };
-
   view! {
     <div
       data-slot="data-table-pagination"
@@ -118,7 +106,16 @@ pub fn DataTablePagination(
           type="button"
           class="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
           disabled=move || page.get() >= total_pages
-          on:click=handle_next
+          on:click=move |_| {
+            let current = page.get();
+            if current < total_pages {
+              let new_page = current + 1;
+              page.set(new_page);
+              if let Some(callback) = on_page_change {
+                callback.run(new_page);
+              }
+            }
+          }
         >
           "Next"
         </button>
