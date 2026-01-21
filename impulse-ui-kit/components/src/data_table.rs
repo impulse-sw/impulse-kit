@@ -40,9 +40,7 @@ pub fn DataTableHead(
   children: Children,
 ) -> impl IntoView {
   let handle_click = move |_| {
-    if sortable
-      && let Some(callback) = on_sort
-    {
+    if sortable && let Some(callback) = on_sort {
       callback.run(());
     }
   };
@@ -105,8 +103,11 @@ pub fn DataTablePagination(
         <button
           type="button"
           class="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
-          disabled=move || page.get() >= total_pages
-          on:click=move |_| {
+          disabled=move || page.get()
+        >
+          = total_pages
+          on:click=move |_|
+          {
             let current = page.get();
             if current < total_pages {
               let new_page = current + 1;
@@ -116,7 +117,7 @@ pub fn DataTablePagination(
               }
             }
           }
-        >
+          >
           "Next"
         </button>
       </div>

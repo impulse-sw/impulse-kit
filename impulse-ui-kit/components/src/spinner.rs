@@ -22,10 +22,7 @@ impl SpinnerSize {
 }
 
 #[component]
-pub fn Spinner(
-  #[prop(optional)] size: SpinnerSize,
-  #[prop(into, optional)] class: String,
-) -> impl IntoView {
+pub fn Spinner(#[prop(optional)] size: SpinnerSize, #[prop(into, optional)] class: String) -> impl IntoView {
   view! {
     <div
       data-slot="spinner"

@@ -26,7 +26,16 @@ pub fn DatePicker(
 
   view! {
     <Popover open=is_open>
-      <PopoverTrigger variant=ButtonVariant::Outline class=cn(&["w-[280px] justify-start text-left font-normal", if value.get().is_none() { "text-muted-foreground" } else { "" }, class.as_str()])>
+      <PopoverTrigger
+        variant=ButtonVariant::Outline
+        class=cn(
+          &[
+            "w-[280px] justify-start text-left font-normal",
+            if value.get().is_none() { "text-muted-foreground" } else { "" },
+            class.as_str(),
+          ],
+        )
+      >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="24"

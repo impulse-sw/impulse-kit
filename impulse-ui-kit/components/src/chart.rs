@@ -20,12 +20,7 @@ pub fn ChartTooltip(#[prop(into, optional)] class: String, children: Children) -
   view! {
     <div
       data-slot="chart-tooltip"
-      class=cn(
-        &[
-          "rounded-lg border bg-background p-2 text-sm shadow-md",
-          class.as_str(),
-        ],
-      )
+      class=cn(&["rounded-lg border bg-background p-2 text-sm shadow-md", class.as_str()])
     >
       {children()}
     </div>

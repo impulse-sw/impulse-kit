@@ -93,7 +93,10 @@ pub fn TableCell(#[prop(into, optional)] class: String, children: Children) -> i
 #[component]
 pub fn TableCaption(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
   view! {
-    <caption data-slot="table-caption" class=cn(&["text-muted-foreground mt-4 text-sm", class.as_str()])>
+    <caption
+      data-slot="table-caption"
+      class=cn(&["text-muted-foreground mt-4 text-sm", class.as_str()])
+    >
       {children()}
     </caption>
   }

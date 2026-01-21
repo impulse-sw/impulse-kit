@@ -14,9 +14,7 @@ impl ToastVariant {
   fn class(&self) -> &'static str {
     match self {
       Self::Default => "border bg-background text-foreground",
-      Self::Destructive => {
-        "destructive group border-destructive bg-destructive text-destructive-foreground"
-      }
+      Self::Destructive => "destructive group border-destructive bg-destructive text-destructive-foreground",
     }
   }
 }

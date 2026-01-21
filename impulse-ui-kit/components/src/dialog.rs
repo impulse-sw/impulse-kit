@@ -18,7 +18,10 @@ pub fn Dialog(
 ) -> impl IntoView {
   let is_open = open.unwrap_or_else(|| RwSignal::new(default_open.unwrap_or(false)));
 
-  provide_context(DialogContext { is_open, on_open_change });
+  provide_context(DialogContext {
+    is_open,
+    on_open_change,
+  });
 
   view! { <div data-slot="dialog">{children()}</div> }
 }
@@ -169,7 +172,10 @@ pub fn DialogFooter(#[prop(optional)] class: String, children: Children) -> impl
 #[component]
 pub fn DialogTitle(#[prop(optional)] class: String, children: Children) -> impl IntoView {
   view! {
-    <h2 data-slot="dialog-title" class=cn(&["text-lg font-semibold leading-none tracking-tight", class.as_str()])>
+    <h2
+      data-slot="dialog-title"
+      class=cn(&["text-lg font-semibold leading-none tracking-tight", class.as_str()])
+    >
       {children()}
     </h2>
   }
@@ -178,10 +184,7 @@ pub fn DialogTitle(#[prop(optional)] class: String, children: Children) -> impl 
 #[component]
 pub fn DialogDescription(#[prop(optional)] class: String, children: Children) -> impl IntoView {
   view! {
-    <p
-      data-slot="dialog-description"
-      class=cn(&["text-muted-foreground text-sm", class.as_str()])
-    >
+    <p data-slot="dialog-description" class=cn(&["text-muted-foreground text-sm", class.as_str()])>
       {children()}
     </p>
   }

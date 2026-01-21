@@ -41,7 +41,11 @@ pub fn Sheet(
   let is_open = open.unwrap_or_else(|| RwSignal::new(default_open.unwrap_or(false)));
   let side = side.unwrap_or(SheetSide::Right);
 
-  provide_context(SheetContext { is_open, on_open_change, side });
+  provide_context(SheetContext {
+    is_open,
+    on_open_change,
+    side,
+  });
 
   view! { <div data-slot="sheet">{children()}</div> }
 }

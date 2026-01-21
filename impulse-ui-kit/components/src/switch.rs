@@ -54,9 +54,11 @@ pub fn Switch(
       <span
         data-slot="switch-thumb"
         data-state=move || if checked.get() { "checked" } else { "unchecked" }
-        class=cn(&[
-          "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0",
-        ])
+        class=cn(
+          &[
+            "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0",
+          ],
+        )
       />
       <input
         type="checkbox"

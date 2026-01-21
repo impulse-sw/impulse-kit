@@ -28,7 +28,11 @@ pub fn SidebarProvider(
 
   provide_context(SidebarContext { is_open, side });
 
-  view! { <div data-slot="sidebar-provider" class="flex min-h-screen">{children()}</div> }
+  view! {
+    <div data-slot="sidebar-provider" class="flex min-h-screen">
+      {children()}
+    </div>
+  }
 }
 
 #[component]
@@ -41,10 +45,7 @@ pub fn Sidebar(#[prop(into, optional)] class: String, children: ChildrenFn) -> i
       <aside
         data-slot="sidebar"
         class=cn(
-          &[
-            "flex h-full w-64 flex-col border-r bg-background transition-transform",
-            class.as_str(),
-          ],
+          &["flex h-full w-64 flex-col border-r bg-background transition-transform", class.as_str()],
         )
       >
         {children.get_value()()}
@@ -56,7 +57,10 @@ pub fn Sidebar(#[prop(into, optional)] class: String, children: ChildrenFn) -> i
 #[component]
 pub fn SidebarHeader(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
   view! {
-    <div data-slot="sidebar-header" class=cn(&["flex items-center gap-2 border-b p-4", class.as_str()])>
+    <div
+      data-slot="sidebar-header"
+      class=cn(&["flex items-center gap-2 border-b p-4", class.as_str()])
+    >
       {children()}
     </div>
   }

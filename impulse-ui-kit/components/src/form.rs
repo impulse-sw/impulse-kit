@@ -49,7 +49,11 @@ pub fn FormLabel(
   #[prop(into, optional)] r#for: String,
   children: Children,
 ) -> impl IntoView {
-  view! { <Label r#for=r#for class=class>{children()}</Label> }
+  view! {
+    <Label r#for=r#for class=class>
+      {children()}
+    </Label>
+  }
 }
 
 #[component]
@@ -73,10 +77,7 @@ pub fn FormDescription(#[prop(into, optional)] class: String, children: Children
 #[component]
 pub fn FormMessage(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
   view! {
-    <p
-      data-slot="form-message"
-      class=cn(&["text-sm font-medium text-destructive", class.as_str()])
-    >
+    <p data-slot="form-message" class=cn(&["text-sm font-medium text-destructive", class.as_str()])>
       {children()}
     </p>
   }

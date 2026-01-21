@@ -53,11 +53,7 @@ pub fn ScrollBar(
         ScrollAreaOrientation::Both => "both",
       }
       class=cn(
-        &[
-          "flex touch-none select-none transition-colors",
-          orientation_class,
-          class.as_str(),
-        ],
+        &["flex touch-none select-none transition-colors", orientation_class, class.as_str()],
       )
     >
       <div class="bg-border relative flex-1 rounded-full" />
