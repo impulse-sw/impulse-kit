@@ -19,13 +19,28 @@ A comprehensive collection of 60 UI components for Leptos, inspired by shadcn/ui
 
 ### Installation
 
-Add the components to your Leptos project:
+Since Tailwind CSS compiler can't access the library's source code, you need to install components individually by copying them to your project.
+
+#### Option 1: Using Deployer (Recommended)
+
+Use Deployer to sync components with a simple command:
+
+```bash
+depl use -o src/components ui-kit-{component-name}@
+```
+
+#### Option 2: Manual Installation
+
+1. Copy the desired component files from the library to your `src/components/` directory
+2. Add impulse-ui-kit to your `Cargo.toml` for common utilities (cn, theming, etc.):
 
 ```toml
 [dependencies]
 impulse-ui-kit = { path = "../impulse-ui-kit" }
 leptos = "0.7"
 ```
+
+**Note:** Only use `impulse-ui-kit` as a dependency for utilities like `cn()` and theming functions, not for the components themselves.
 
 ### Usage
 
