@@ -146,16 +146,16 @@ pub fn SheetContent(#[prop(optional, into)] class: String, children: ChildrenFn)
 
   let side_classes = match context.side {
     SheetSide::Top => {
-      "inset-x-0 top-0 border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top data-[state=closed]:h-0 data-[state=closed]:overflow-hidden"
+      "inset-x-0 top-0 border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top"
     }
     SheetSide::Bottom => {
-      "inset-x-0 bottom-0 border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom data-[state=closed]:h-0 data-[state=closed]:overflow-hidden"
+      "inset-x-0 bottom-0 border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom"
     }
     SheetSide::Left => {
-      "inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left data-[state=closed]:w-0 data-[state=closed]:overflow-hidden"
+      "inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left"
     }
     SheetSide::Right => {
-      "inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right data-[state=closed]:w-0 data-[state=closed]:overflow-hidden"
+      "inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right"
     }
   };
 

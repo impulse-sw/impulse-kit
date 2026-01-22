@@ -140,7 +140,7 @@ pub fn DropdownMenuContent(
       data-state=data_state
       class=cn(
         &[
-          "bg-popover text-popover-foreground fixed z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 max-h-[300px] overflow-y-auto data-[state=closed]:opacity-0 data-[state=closed]:pointer-events-none data-[state=closed]:h-0 data-[state=closed]:w-0 data-[state=closed]:overflow-hidden",
+          "bg-popover text-popover-foreground fixed z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 max-h-[300px] overflow-y-auto data-[state=closed]:opacity-0 data-[state=closed]:pointer-events-none",
           slide_class,
           class.read_value().as_str(),
         ],
@@ -489,7 +489,7 @@ pub fn DropdownMenuSubContent(#[prop(optional, into)] class: String, children: C
       data-state=data_state
       class=cn(
         &[
-          "bg-popover text-popover-foreground fixed z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=right]:slide-in-from-left-2 data-[state=closed]:pointer-events-none data-[state=closed]:h-0 data-[state=closed]:opacity-0",
+          "bg-popover text-popover-foreground fixed z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=right]:slide-in-from-left-2 data-[state=closed]:pointer-events-none data-[state=closed]:opacity-0",
           class.as_str(),
         ],
       )
