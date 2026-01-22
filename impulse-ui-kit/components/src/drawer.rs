@@ -373,7 +373,7 @@ pub fn DrawerContent(#[prop(optional, into)] class: String, children: ChildrenFn
       data-show-handle=show_handle
       class=cn(
         &[
-          "group/drawer-content bg-background fixed z-50 flex h-auto flex-col touch-none",
+          "group/drawer-content bg-background fixed z-50 flex h-auto flex-col touch-none data-[state=closed]:invisible",
           direction_classes,
           animation_class(),
           class.read_value().as_str(),

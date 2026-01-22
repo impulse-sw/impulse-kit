@@ -170,7 +170,7 @@ pub fn SheetContent(#[prop(optional, into)] class: String, children: ChildrenFn)
       data-side=context.side.as_str()
       class=cn(
         &[
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-300 fixed z-50 gap-4 p-6 shadow-lg data-[state=closed]:pointer-events-none",
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-300 fixed z-50 gap-4 p-6 shadow-lg data-[state=closed]:pointer-events-none data-[state=closed]:invisible",
           side_classes,
           class.read_value().as_str(),
         ],
