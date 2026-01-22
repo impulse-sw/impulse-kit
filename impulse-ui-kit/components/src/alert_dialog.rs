@@ -3,7 +3,7 @@
 use impulse_ui_kit::utils::cn;
 use leptos::prelude::*;
 
-use super::button::{Button, ButtonSize, ButtonVariant};
+use super::button::{Button, ButtonVariant};
 
 #[derive(Clone, Copy)]
 struct AlertDialogContext {
@@ -24,24 +24,17 @@ pub fn AlertDialog(
 }
 
 #[component]
-pub fn AlertDialogTrigger(
-  #[prop(optional)] variant: ButtonVariant,
-  #[prop(optional)] size: ButtonSize,
-  #[prop(into, optional)] class: String,
-  children: Children,
-) -> impl IntoView {
+pub fn AlertDialogTrigger(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
   let context = use_context::<AlertDialogContext>().expect("AlertDialogTrigger must be used within AlertDialog");
 
   view! {
-    <Button
+    <div
       attr:data-slot="alert-dialog-trigger"
       on:click=move |_| context.is_open.set(true)
-      variant=variant
-      size=size
       class=class
     >
       {children()}
-    </Button>
+    </div>
   }
 }
 

@@ -6,13 +6,13 @@
 
 #![deny(warnings, clippy::todo, clippy::unimplemented)]
 
-mod components;
+use impulse_ui_kit_components as components;
 
 use impulse_ui_kit::prelude::*;
 use impulse_ui_kit::router::{get_path, redirect};
 use leptos_meta::*;
 
-use crate::components::button::Button;
+use components::button::Button;
 
 fn main() {
   setup_app(log::Level::Info, Box::new(move || view! { <App /> }.into_any()))
