@@ -164,17 +164,21 @@ pub fn ContextMenuSubContent(#[prop(optional, into)] class: String, children: Ch
     }
   });
 
+  // Position calculation - wait for content to be rendered
   Effect::new(move |_| {
-    if sub_context.is_open.get()
-      && should_render.get()
-      && let Some(trigger_ref) = sub_trigger_context
-      && let Some(trigger) = trigger_ref.trigger_ref.get()
-    {
-      let trigger_rect = trigger.get_bounding_client_rect();
-      let top = trigger_rect.top();
-      let left = trigger_rect.right() + 4.0;
+    if sub_context.is_open.get() && should_render.get() {
+      // Use requestAnimationFrame to ensure content is laid out
+      request_animation_frame(move || {
+        if let Some(trigger_ref) = sub_trigger_context
+          && let Some(trigger) = trigger_ref.trigger_ref.get()
+        {
+          let trigger_rect = trigger.get_bounding_client_rect();
+          let top = trigger_rect.top();
+          let left = trigger_rect.right() + 4.0;
 
-      position_style.set(format!("position: fixed; top: {}px; left: {}px;", top, left));
+          position_style.set(format!("position: fixed; top: {}px; left: {}px;", top, left));
+        }
+      });
     }
   });
 
@@ -251,10 +255,14 @@ pub fn ContextMenuContent(#[prop(optional, into)] class: String, children: Child
     }
   });
 
+  // Position calculation - wait for content to be rendered
   Effect::new(move |_| {
     if context.is_open.get() && should_render.get() {
-      let (x, y) = context.position.get();
-      position_style.set(format!("position: fixed; top: {}px; left: {}px;", y, x));
+      // Use requestAnimationFrame to ensure content is laid out
+      request_animation_frame(move || {
+        let (x, y) = context.position.get();
+        position_style.set(format!("position: fixed; top: {}px; left: {}px;", y, x));
+      });
     }
   });
 

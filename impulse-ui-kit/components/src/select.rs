@@ -218,41 +218,43 @@ pub fn SelectContent(
     }
   });
 
+  // Position calculation - wait for content to be rendered
   Effect::new(move |_| {
-    if context.is_open.get()
-      && should_render.get()
-      && let Some(trigger_ref) = trigger_context
-      && let Some(trigger) = trigger_ref.trigger_ref.get()
-      && let Some(content) = content_ref.get()
-    {
-      let trigger_rect = trigger.get_bounding_client_rect();
-      let content_rect = content.get_bounding_client_rect();
-
-      let (top, left) = calculate_position(
-        trigger_rect.top(),
-        trigger_rect.left(),
-        trigger_rect.width(),
-        trigger_rect.height(),
-        content_rect.width(),
-        content_rect.height(),
-        side,
-        align,
-        side_offset,
-      );
-
-      let width_style = if position == SelectContentPosition::Popper {
-        format!("min-width: {}px;", trigger_rect.width())
-      } else {
-        String::new()
-      };
-
-      position_style.set(format!(
-        "position: fixed; top: {}px; left: {}px; {}",
-        top, left, width_style
-      ));
-
+    if context.is_open.get() && should_render.get() {
+      // Use requestAnimationFrame to ensure content is laid out
       request_animation_frame(move || {
-        update_scroll_state();
+        if let Some(trigger_ref) = trigger_context
+          && let Some(trigger) = trigger_ref.trigger_ref.get()
+          && let Some(content) = content_ref.get()
+        {
+          let trigger_rect = trigger.get_bounding_client_rect();
+          let content_rect = content.get_bounding_client_rect();
+
+          let (top, left) = calculate_position(
+            trigger_rect.top(),
+            trigger_rect.left(),
+            trigger_rect.width(),
+            trigger_rect.height(),
+            content_rect.width(),
+            content_rect.height(),
+            side,
+            align,
+            side_offset,
+          );
+
+          let width_style = if position == SelectContentPosition::Popper {
+            format!("min-width: {}px;", trigger_rect.width())
+          } else {
+            String::new()
+          };
+
+          position_style.set(format!(
+            "position: fixed; top: {}px; left: {}px; {}",
+            top, left, width_style
+          ));
+
+          update_scroll_state();
+        }
       });
     }
   });

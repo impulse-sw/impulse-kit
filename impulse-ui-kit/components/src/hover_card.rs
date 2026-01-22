@@ -117,28 +117,33 @@ pub fn HoverCardContent(
     }
   });
 
+  // Position calculation - wait for content to be rendered
   Effect::new(move |_| {
-    if context.is_open.get()
-      && let Some(trigger_ref) = trigger_context
-      && let Some(trigger) = trigger_ref.trigger_ref.get()
-      && let Some(content) = content_ref.get()
-    {
-      let trigger_rect = trigger.get_bounding_client_rect();
-      let content_rect = content.get_bounding_client_rect();
+    if context.is_open.get() && rendered.get() {
+      // Use requestAnimationFrame to ensure content is laid out
+      request_animation_frame(move || {
+        if let Some(trigger_ref) = trigger_context
+          && let Some(trigger) = trigger_ref.trigger_ref.get()
+          && let Some(content) = content_ref.get()
+        {
+          let trigger_rect = trigger.get_bounding_client_rect();
+          let content_rect = content.get_bounding_client_rect();
 
-      let (top, left) = calculate_position(
-        trigger_rect.top(),
-        trigger_rect.left(),
-        trigger_rect.width(),
-        trigger_rect.height(),
-        content_rect.width(),
-        content_rect.height(),
-        side,
-        align,
-        side_offset,
-      );
+          let (top, left) = calculate_position(
+            trigger_rect.top(),
+            trigger_rect.left(),
+            trigger_rect.width(),
+            trigger_rect.height(),
+            content_rect.width(),
+            content_rect.height(),
+            side,
+            align,
+            side_offset,
+          );
 
-      position_style.set(format!("position: fixed; top: {}px; left: {}px;", top, left));
+          position_style.set(format!("position: fixed; top: {}px; left: {}px;", top, left));
+        }
+      });
     } else {
       position_style.set("position: fixed; top: 0px; left: 0px;".to_string());
     }
