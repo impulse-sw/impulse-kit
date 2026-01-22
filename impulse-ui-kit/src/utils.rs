@@ -1,7 +1,9 @@
 //! Some utility for UI kit.
 
+mod portal;
 mod position;
 
+pub use portal::Portal;
 pub use position::{OverlayAlign, OverlaySide, calculate_position};
 
 /// Utility function to combine classes

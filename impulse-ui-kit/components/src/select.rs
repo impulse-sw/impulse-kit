@@ -1,7 +1,7 @@
 #![allow(missing_docs, dead_code)]
 
 use impulse_ui_kit::utils::cn;
-use impulse_ui_kit::utils::{OverlayAlign, OverlaySide, calculate_position};
+use impulse_ui_kit::utils::{OverlayAlign, OverlaySide, Portal, calculate_position};
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 use web_sys::{Element, HtmlElement};
@@ -292,10 +292,10 @@ pub fn SelectContent(
   };
 
   let slide_class = match side {
-    OverlaySide::Top => "data-[state=open]:slide-in-from-bottom-2",
-    OverlaySide::Right => "data-[state=open]:slide-in-from-left-2",
-    OverlaySide::Bottom => "data-[state=open]:slide-in-from-top-2",
-    OverlaySide::Left => "data-[state=open]:slide-in-from-right-2",
+    OverlaySide::Top => "data-[state=open]:slide-in-from-bottom-2 data-[state=closed]:slide-out-to-bottom-2",
+    OverlaySide::Right => "data-[state=open]:slide-in-from-left-2 data-[state=closed]:slide-out-to-left-2",
+    OverlaySide::Bottom => "data-[state=open]:slide-in-from-top-2 data-[state=closed]:slide-out-to-top-2",
+    OverlaySide::Left => "data-[state=open]:slide-in-from-right-2 data-[state=closed]:slide-out-to-right-2",
   };
 
   let popper_class = if position == SelectContentPosition::Popper {
@@ -310,35 +310,39 @@ pub fn SelectContent(
     ""
   };
 
+  let class = StoredValue::new(class);
+
   view! {
     <Show when=move || should_render.get()>
-      <div
-        node_ref=content_ref
-        role="listbox"
-        data-slot="select-content"
-        data-state=data_state
-        data-side=side_as_str(side)
-        class=cn(
-          &[
-            "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border shadow-md",
-            slide_class,
-            popper_class,
-            class.as_str(),
-          ],
-        )
-        style=move || position_style.get()
-      >
-        <SelectScrollUpButton />
+      <Portal>
         <div
-          node_ref=viewport_ref
-          data-slot="select-viewport"
-          class=cn(&["p-1 overflow-y-auto max-h-[calc(24rem-2rem)]", viewport_popper_class])
-          on:scroll=move |_| update_scroll_state()
+          node_ref=content_ref
+          role="listbox"
+          data-slot="select-content"
+          data-state=data_state
+          data-side=side_as_str(side)
+          class=cn(
+            &[
+              "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border shadow-md",
+              slide_class,
+              popper_class,
+              class.read_value().as_str(),
+            ],
+          )
+          style=move || position_style.get()
         >
-          {children_stored.get_value()()}
+          <SelectScrollUpButton />
+          <div
+            node_ref=viewport_ref
+            data-slot="select-viewport"
+            class=cn(&["p-1 overflow-y-auto max-h-[calc(24rem-2rem)]", viewport_popper_class])
+            on:scroll=move |_| update_scroll_state()
+          >
+            {children_stored.get_value()()}
+          </div>
+          <SelectScrollDownButton />
         </div>
-        <SelectScrollDownButton />
-      </div>
+      </Portal>
     </Show>
   }
 }

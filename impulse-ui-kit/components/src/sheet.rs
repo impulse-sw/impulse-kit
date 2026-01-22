@@ -1,6 +1,6 @@
 #![allow(missing_docs, dead_code)]
 
-use impulse_ui_kit::utils::cn;
+use impulse_ui_kit::utils::{Portal, cn};
 use leptos::prelude::*;
 
 #[derive(Clone, Copy, PartialEq, Default)]
@@ -164,24 +164,27 @@ pub fn SheetContent(#[prop(optional, into)] class: String, children: ChildrenFn)
   };
 
   let children = StoredValue::new(children);
+  let class = StoredValue::new(class);
 
   view! {
     <Show when=move || rendered.get()>
-      <SheetOverlay />
-      <div
-        data-slot="sheet-content"
-        data-state=move || if context.is_open.get() { "open" } else { "closed" }
-        data-side=context.side.as_str()
-        class=cn(
-          &[
-            "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-300 fixed z-50 gap-4 p-6 shadow-lg data-[state=closed]:pointer-events-none",
-            side_classes,
-            class.as_str(),
-          ],
-        )
-      >
-        {children.get_value()()}
-      </div>
+      <Portal>
+        <SheetOverlay />
+        <div
+          data-slot="sheet-content"
+          data-state=move || if context.is_open.get() { "open" } else { "closed" }
+          data-side=context.side.as_str()
+          class=cn(
+            &[
+              "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-300 fixed z-50 gap-4 p-6 shadow-lg",
+              side_classes,
+              class.read_value().as_str(),
+            ],
+          )
+        >
+          {children.get_value()()}
+        </div>
+      </Portal>
     </Show>
   }
 }

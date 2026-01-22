@@ -595,7 +595,9 @@ fn OverlayComponentsSection() -> impl IntoView {
       // Popover
       <ComponentCard title="Popover" description="Popup content component">
         <Popover>
-          <PopoverTrigger variant=ButtonVariant::Outline>"Open Popover"</PopoverTrigger>
+          <PopoverTrigger>
+            <Button variant=ButtonVariant::Outline>"Open Popover"</Button>
+          </PopoverTrigger>
           <PopoverContent>
             <div class="space-y-2">
               <h4 class="font-medium leading-none">"Popover Title"</h4>

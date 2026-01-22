@@ -1,6 +1,6 @@
 #![allow(missing_docs, dead_code)]
 
-use impulse_ui_kit::utils::cn;
+use impulse_ui_kit::utils::{Portal, cn};
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 use web_sys::Element;
@@ -193,24 +193,29 @@ pub fn ContextMenuSubContent(#[prop(optional, into)] class: String, children: Ch
     if sub_context.is_open.get() { "open" } else { "closed" }
   };
 
+  let class = StoredValue::new(class);
+
   view! {
     <Show when=move || should_render.get()>
-      <div
-        node_ref=content_ref
-        data-slot="context-menu-sub-content"
-        data-state=data_state
-        class=cn(
-          &[
-            "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-lg",
-            class.as_str(),
-          ],
-        )
-        style=move || position_style.get()
-        on:mouseenter=handle_mouse_enter
-        on:mouseleave=handle_mouse_leave
-      >
-        {children_stored.get_value()()}
-      </div>
+      <Portal>
+        <div
+          node_ref=content_ref
+          data-slot="context-menu-sub-content"
+          data-state=data_state
+          data-side="right"
+          class=cn(
+            &[
+              "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=bottom]:slide-out-to-top-2 data-[side=left]:slide-in-from-right-2 data-[side=left]:slide-out-to-right-2 data-[side=right]:slide-in-from-left-2 data-[side=right]:slide-out-to-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=top]:slide-out-to-bottom-2 fixed z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-lg",
+              class.read_value().as_str(),
+            ],
+          )
+          style=move || position_style.get()
+          on:mouseenter=handle_mouse_enter
+          on:mouseleave=handle_mouse_leave
+        >
+          {children_stored.get_value()()}
+        </div>
+      </Portal>
     </Show>
   }
 }
@@ -287,22 +292,26 @@ pub fn ContextMenuContent(#[prop(optional, into)] class: String, children: Child
     if context.is_open.get() { "open" } else { "closed" }
   };
 
+  let class = StoredValue::new(class);
+
   view! {
     <Show when=move || should_render.get()>
-      <div
-        node_ref=content_ref
-        data-slot="context-menu-content"
-        data-state=data_state
-        class=cn(
-          &[
-            "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-96 min-w-[8rem] overflow-x-hidden overflow-y-auto rounded-md border p-1 shadow-md",
-            class.as_str(),
-          ],
-        )
-        style=move || position_style.get()
-      >
-        {children_stored.get_value()()}
-      </div>
+      <Portal>
+        <div
+          node_ref=content_ref
+          data-slot="context-menu-content"
+          data-state=data_state
+          class=cn(
+            &[
+              "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=bottom]:slide-out-to-top-2 data-[side=left]:slide-in-from-right-2 data-[side=left]:slide-out-to-right-2 data-[side=right]:slide-in-from-left-2 data-[side=right]:slide-out-to-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=top]:slide-out-to-bottom-2 fixed z-50 max-h-96 min-w-[8rem] overflow-x-hidden overflow-y-auto rounded-md border p-1 shadow-md",
+              class.read_value().as_str(),
+            ],
+          )
+          style=move || position_style.get()
+        >
+          {children_stored.get_value()()}
+        </div>
+      </Portal>
     </Show>
   }
 }

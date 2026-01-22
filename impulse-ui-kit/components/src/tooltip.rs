@@ -1,6 +1,6 @@
 #![allow(missing_docs, dead_code)]
 
-use impulse_ui_kit::utils::cn;
+use impulse_ui_kit::utils::{Portal, cn};
 use leptos::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -70,23 +70,37 @@ pub fn TooltipTrigger(#[prop(into, optional)] class: String, children: Children)
 pub fn TooltipContent(#[prop(optional, into)] class: String, children: ChildrenFn) -> impl IntoView {
   let context = use_context::<TooltipContext>().expect("TooltipContent must be used within Tooltip");
 
+  let rendered = RwSignal::new(false);
+
+  // Delayed unmounting for animations
+  Effect::new(move |_| {
+    if context.is_open.get() {
+      rendered.set(true);
+    } else {
+      set_timeout(move || rendered.set(false), std::time::Duration::from_millis(150));
+    }
+  });
+
   let children = StoredValue::new(children);
+  let class = StoredValue::new(class);
 
   view! {
-    <Show when=move || context.is_open.get()>
-      <div
-        data-slot="tooltip-content"
-        data-state=move || if context.is_open.get() { "open" } else { "closed" }
-        role="tooltip"
-        class=cn(
-          &[
-            "z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95",
-            class.as_str(),
-          ],
-        )
-      >
-        {children.get_value()()}
-      </div>
+    <Show when=move || rendered.get()>
+      <Portal>
+        <div
+          data-slot="tooltip-content"
+          data-state=move || if context.is_open.get() { "open" } else { "closed" }
+          role="tooltip"
+          class=cn(
+            &[
+              "fixed z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+              class.read_value().as_str(),
+            ],
+          )
+        >
+          {children.get_value()()}
+        </div>
+      </Portal>
     </Show>
   }
 }
