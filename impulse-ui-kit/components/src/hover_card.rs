@@ -78,6 +78,7 @@ pub fn HoverCardTrigger(#[prop(into, optional)] class: String, children: Childre
     <div
       node_ref=trigger_ref
       data-slot="hover-card-trigger"
+      style="display: inline-block;"
       class=class
       on:mouseenter=handle_mouse_enter
       on:mouseleave=handle_mouse_leave
@@ -179,21 +180,27 @@ pub fn HoverCardContent(
   let class = StoredValue::new(class);
 
   view! {
-    <Show when=move || rendered.get()>
-      <Portal>
-        <div
-          node_ref=content_ref
-          data-slot="hover-card-content"
-          data-state=move || if context.is_open.get() { "open" } else { "closed" }
-          class=cn(&[BASE_CONTENT_CLASSES, slide_class, class.read_value().as_str()])
-          style=move || position_style.get()
-          on:mouseenter=handle_mouse_enter
-          on:mouseleave=handle_mouse_leave
-        >
-          {children.read_value()()}
-        </div>
-      </Portal>
-    </Show>
+    {move || {
+      if rendered.get() {
+        Some(view! {
+          <Portal>
+            <div
+              node_ref=content_ref
+              data-slot="hover-card-content"
+              data-state=move || if context.is_open.get() { "open" } else { "closed" }
+              class=cn(&[BASE_CONTENT_CLASSES, slide_class, class.read_value().as_str()])
+              style=move || position_style.get()
+              on:mouseenter=handle_mouse_enter
+              on:mouseleave=handle_mouse_leave
+            >
+              {children.read_value()()}
+            </div>
+          </Portal>
+        })
+      } else {
+        None
+      }
+    }}
   }
 }
 

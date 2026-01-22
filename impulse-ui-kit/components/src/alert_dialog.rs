@@ -30,6 +30,7 @@ pub fn AlertDialogTrigger(#[prop(into, optional)] class: String, children: Child
   view! {
     <div
       attr:data-slot="alert-dialog-trigger"
+      style="display: inline-block;"
       on:click=move |_| context.is_open.set(true)
       class=class
     >
@@ -73,23 +74,29 @@ pub fn AlertDialogContent(#[prop(optional)] class: String, children: ChildrenFn)
   let class = StoredValue::new(class);
 
   view! {
-    <Show when=move || rendered.get()>
-      <Portal>
-        <AlertDialogOverlay />
-        <div
-          data-slot="alert-dialog-content"
-          data-state=if context.is_open.get() { "open" } else { "closed" }
-          class=cn(
-            &[
-              "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg",
-              class.read_value().as_str(),
-            ],
-          )
-        >
-          {children.read_value()()}
-        </div>
-      </Portal>
-    </Show>
+    {move || {
+      if rendered.get() {
+        Some(view! {
+          <Portal>
+            <AlertDialogOverlay />
+            <div
+              data-slot="alert-dialog-content"
+              data-state=if context.is_open.get() { "open" } else { "closed" }
+              class=cn(
+                &[
+                  "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg",
+                  class.read_value().as_str(),
+                ],
+              )
+            >
+              {children.read_value()()}
+            </div>
+          </Portal>
+        })
+      } else {
+        None
+      }
+    }}
   }
 }
 

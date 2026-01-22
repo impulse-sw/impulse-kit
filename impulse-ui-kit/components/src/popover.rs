@@ -49,7 +49,13 @@ pub fn PopoverTrigger(#[prop(into, optional)] class: String, children: Children)
   };
 
   view! {
-    <div node_ref=trigger_ref attr:data-slot="popover-trigger" class=class on:click=handle_click>
+    <div
+      node_ref=trigger_ref
+      attr:data-slot="popover-trigger"
+      class=class
+      style="display: inline-block;"
+      on:click=handle_click
+    >
       {children()}
     </div>
   }
@@ -156,19 +162,25 @@ pub fn PopoverContent(
   let class = StoredValue::new(class);
 
   view! {
-    <Show when=move || rendered.get()>
-      <Portal>
-        <div
-          node_ref=content_ref
-          data-slot="popover-content"
-          data-state=move || if context.is_open.get() { "open" } else { "closed" }
-          class=cn(&[BASE_CONTENT_CLASSES, slide_class, class.read_value().as_str()])
-          style=move || position_style.get()
-        >
-          {children.read_value()()}
-        </div>
-      </Portal>
-    </Show>
+    {move || {
+      if rendered.get() {
+        Some(view! {
+          <Portal>
+            <div
+              node_ref=content_ref
+              data-slot="popover-content"
+              data-state=move || if context.is_open.get() { "open" } else { "closed" }
+              class=cn(&[BASE_CONTENT_CLASSES, slide_class, class.read_value().as_str()])
+              style=move || position_style.get()
+            >
+              {children.read_value()()}
+            </div>
+          </Portal>
+        })
+      } else {
+        None
+      }
+    }}
   }
 }
 

@@ -56,6 +56,7 @@ pub fn TooltipTrigger(#[prop(into, optional)] class: String, children: Children)
       node_ref=trigger_ref
       data-slot="tooltip-trigger"
       class=class
+      style="display: inline-block;"
       on:mouseenter=handle_mouseenter
       on:mouseleave=handle_mouseleave
       on:focus=handle_focus
@@ -135,25 +136,31 @@ pub fn TooltipContent(
   let class = StoredValue::new(class);
 
   view! {
-    <Show when=move || rendered.get()>
-      <Portal>
-        <div
-          node_ref=content_ref
-          data-slot="tooltip-content"
-          data-state=move || if context.is_open.get() { "open" } else { "closed" }
-          role="tooltip"
-          class=cn(
-            &[
-              "fixed z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-              slide_class,
-              class.read_value().as_str(),
-            ],
-          )
-          style=move || position_style.get()
-        >
-          {children.get_value()()}
-        </div>
-      </Portal>
-    </Show>
+    {move || {
+      if rendered.get() {
+        Some(view! {
+          <Portal>
+            <div
+              node_ref=content_ref
+              data-slot="tooltip-content"
+              data-state=move || if context.is_open.get() { "open" } else { "closed" }
+              role="tooltip"
+              class=cn(
+                &[
+                  "fixed z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+                  slide_class,
+                  class.read_value().as_str(),
+                ],
+              )
+              style=move || position_style.get()
+            >
+              {children.get_value()()}
+            </div>
+          </Portal>
+        })
+      } else {
+        None
+      }
+    }}
   }
 }

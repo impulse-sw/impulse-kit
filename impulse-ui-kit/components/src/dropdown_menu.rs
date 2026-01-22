@@ -28,7 +28,7 @@ pub fn DropdownMenuTrigger(#[prop(optional, into)] class: String, children: Chil
   };
 
   view! {
-    <div node_ref=trigger_ref data-slot="dropdown-menu-trigger" class=class on:click=handle_click>
+    <div node_ref=trigger_ref data-slot="dropdown-menu-trigger" style="display: inline-block;" class=class on:click=handle_click>
       {children()}
     </div>
   }
@@ -139,25 +139,31 @@ pub fn DropdownMenuContent(
   let class = StoredValue::new(class);
 
   view! {
-    <Show when=move || rendered.get()>
-      <Portal>
-        <div
-          node_ref=content_ref
-          data-slot="dropdown-menu-content"
-          data-state=data_state
-          class=cn(
-            &[
-              "bg-popover text-popover-foreground fixed z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 max-h-[300px] overflow-y-auto",
-              slide_class,
-              class.read_value().as_str(),
-            ],
-          )
-          style=move || position_style.get()
-        >
-          {children_stored.get_value()()}
-        </div>
-      </Portal>
-    </Show>
+    {move || {
+      if rendered.get() {
+        Some(view! {
+          <Portal>
+            <div
+              node_ref=content_ref
+              data-slot="dropdown-menu-content"
+              data-state=data_state
+              class=cn(
+                &[
+                  "bg-popover text-popover-foreground fixed z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 max-h-[300px] overflow-y-auto",
+                  slide_class,
+                  class.read_value().as_str(),
+                ],
+              )
+              style=move || position_style.get()
+            >
+              {children_stored.get_value()()}
+            </div>
+          </Portal>
+        })
+      } else {
+        None
+      }
+    }}
   }
 }
 
