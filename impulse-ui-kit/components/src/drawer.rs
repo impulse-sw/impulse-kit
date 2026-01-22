@@ -1,6 +1,7 @@
 #![allow(missing_docs, dead_code)]
 
-use impulse_ui_kit::utils::{Portal, cn};
+use impulse_ui_kit::utils::cn;
+use leptos::portal::Portal;
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 use web_sys::{HtmlElement, PointerEvent};

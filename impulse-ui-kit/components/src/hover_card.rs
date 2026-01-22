@@ -5,7 +5,8 @@
 //! web-sys = { version = "0.3.82", features = ["DomRect", "Element", "HtmlDivElement"] }
 
 use impulse_ui_kit::utils::cn;
-use impulse_ui_kit::utils::{OverlayAlign, OverlaySide, Portal, calculate_position};
+use impulse_ui_kit::utils::{OverlayAlign, OverlaySide, calculate_position};
+use leptos::portal::Portal;
 use leptos::prelude::*;
 
 const BASE_CONTENT_CLASSES: &str = "bg-popover text-popover-foreground fixed z-50 w-64 rounded-md border p-4 shadow-md outline-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95";

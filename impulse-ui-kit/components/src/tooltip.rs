@@ -1,6 +1,8 @@
 #![allow(missing_docs, dead_code)]
 
-use impulse_ui_kit::utils::{OverlayAlign, OverlaySide, Portal, calculate_position, cn};
+use impulse_ui_kit::utils::cn;
+use impulse_ui_kit::utils::{OverlayAlign, OverlaySide, calculate_position};
+use leptos::portal::Portal;
 use leptos::prelude::*;
 
 #[derive(Clone, Copy)]

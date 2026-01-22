@@ -5,7 +5,8 @@
 //! web-sys = { version = "0.3.82", features = ["DomRect", "Element", "HtmlButtonElement", "HtmlDivElement"] }
 
 use impulse_ui_kit::utils::cn;
-use impulse_ui_kit::utils::{OverlayAlign, OverlaySide, Portal, calculate_position};
+use impulse_ui_kit::utils::{OverlayAlign, OverlaySide, calculate_position};
+use leptos::portal::Portal;
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 use leptos::web_sys::Element;

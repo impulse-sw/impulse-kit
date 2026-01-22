@@ -93,19 +93,15 @@ fn App() -> impl IntoView {
       <div class="min-h-screen bg-background">
         // Header
         <header class="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div class="container flex h-14 items-center">
-            <div class="mr-4 flex">
-              <a class="mr-6 flex items-center space-x-2" href="/">
-                <span class="font-bold text-xl">"Impulse UI Kit"</span>
-              </a>
-            </div>
-            <div class="flex flex-1 items-center justify-between space-x-2 md:justify-end">
-              <nav class="flex items-center space-x-2">
-                <ThemeToggle size=ButtonSize::Sm variant=ButtonVariant::Outline>
-                  <span>"Change theme"</span>
-                </ThemeToggle>
-              </nav>
-            </div>
+          <div class="px-4 flex h-14 items-center space-x-2 justify-between">
+            <a href="/">
+              <span class="font-bold text-xl">"Impulse UI Kit"</span>
+            </a>
+            <nav class="flex items-center space-x-2">
+              <ThemeToggle size=ButtonSize::Sm variant=ButtonVariant::Outline>
+                <span>"Change theme"</span>
+              </ThemeToggle>
+            </nav>
           </div>
         </header>
 
@@ -930,15 +926,17 @@ fn UtilityComponentsSection() -> impl IntoView {
       // Sidebar
       <ComponentCard title="Sidebar" description="Sidebar navigation component">
         <div class="h-[300px] border rounded-md overflow-hidden">
-          <Sidebar>
-            <SidebarContent>
-              <SidebarMenu>
-                <SidebarMenuItem>"Dashboard"</SidebarMenuItem>
-                <SidebarMenuItem>"Projects"</SidebarMenuItem>
-                <SidebarMenuItem>"Settings"</SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarContent>
-          </Sidebar>
+          <SidebarProvider>
+            <Sidebar>
+              <SidebarContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>"Dashboard"</SidebarMenuItem>
+                  <SidebarMenuItem>"Projects"</SidebarMenuItem>
+                  <SidebarMenuItem>"Settings"</SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarContent>
+            </Sidebar>
+          </SidebarProvider>
         </div>
       </ComponentCard>
     </div>
