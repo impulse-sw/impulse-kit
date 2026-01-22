@@ -1,7 +1,6 @@
 #![allow(missing_docs, dead_code)]
 
 use impulse_ui_kit::utils::cn;
-use leptos::portal::Portal;
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 use web_sys::Element;
@@ -153,21 +152,12 @@ pub fn ContextMenuSubContent(#[prop(optional, into)] class: String, children: Ch
 
   let content_ref = NodeRef::<leptos::html::Div>::new();
   let position_style = RwSignal::new(String::new());
-  let should_render = RwSignal::new(false);
 
   let children_stored = StoredValue::new(children);
 
+  // Position calculation
   Effect::new(move |_| {
     if sub_context.is_open.get() {
-      should_render.set(true);
-    } else if should_render.get() {
-      set_timeout(move || should_render.set(false), std::time::Duration::from_millis(150));
-    }
-  });
-
-  // Position calculation - wait for content to be rendered
-  Effect::new(move |_| {
-    if sub_context.is_open.get() && should_render.get() {
       // Use requestAnimationFrame to ensure content is laid out
       request_animation_frame(move || {
         if let Some(trigger_ref) = sub_trigger_context
@@ -201,35 +191,23 @@ pub fn ContextMenuSubContent(#[prop(optional, into)] class: String, children: Ch
   let class = StoredValue::new(class);
 
   view! {
-    {move || {
-      if should_render.get() {
-        Some(
-          view! {
-            <Portal>
-              <div
-                node_ref=content_ref
-                data-slot="context-menu-sub-content"
-                data-state=data_state
-                data-side="right"
-                class=cn(
-                  &[
-                    "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=bottom]:slide-out-to-top-2 data-[side=left]:slide-in-from-right-2 data-[side=left]:slide-out-to-right-2 data-[side=right]:slide-in-from-left-2 data-[side=right]:slide-out-to-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=top]:slide-out-to-bottom-2 fixed z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-lg",
-                    class.read_value().as_str(),
-                  ],
-                )
-                style=move || position_style.get()
-                on:mouseenter=handle_mouse_enter
-                on:mouseleave=handle_mouse_leave
-              >
-                {children_stored.get_value()()}
-              </div>
-            </Portal>
-          },
-        )
-      } else {
-        None
-      }
-    }}
+    <div
+      node_ref=content_ref
+      data-slot="context-menu-sub-content"
+      data-state=data_state
+      data-side="right"
+      class=cn(
+        &[
+          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=bottom]:slide-out-to-top-2 data-[side=left]:slide-in-from-right-2 data-[side=left]:slide-out-to-right-2 data-[side=right]:slide-in-from-left-2 data-[side=right]:slide-out-to-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=top]:slide-out-to-bottom-2 fixed z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-lg data-[state=closed]:opacity-0 data-[state=closed]:pointer-events-none",
+          class.read_value().as_str(),
+        ],
+      )
+      style=move || position_style.get()
+      on:mouseenter=handle_mouse_enter
+      on:mouseleave=handle_mouse_leave
+    >
+      {children_stored.get_value()()}
+    </div>
   }
 }
 
@@ -242,17 +220,8 @@ pub fn ContextMenuContent(#[prop(optional, into)] class: String, children: Child
   let content_ref = NodeRef::<leptos::html::Div>::new();
 
   let position_style = RwSignal::new(String::new());
-  let should_render = RwSignal::new(false);
 
   let children_stored = StoredValue::new(children);
-
-  Effect::new(move |_| {
-    if context.is_open.get() {
-      should_render.set(true);
-    } else if should_render.get() {
-      set_timeout(move || should_render.set(false), std::time::Duration::from_millis(150));
-    }
-  });
 
   Effect::new(move |_| {
     if context.is_open.get() {
@@ -264,9 +233,9 @@ pub fn ContextMenuContent(#[prop(optional, into)] class: String, children: Child
     }
   });
 
-  // Position calculation - wait for content to be rendered
+  // Position calculation
   Effect::new(move |_| {
-    if context.is_open.get() && should_render.get() {
+    if context.is_open.get() {
       // Use requestAnimationFrame to ensure content is laid out
       request_animation_frame(move || {
         let (x, y) = context.position.get();
@@ -312,32 +281,20 @@ pub fn ContextMenuContent(#[prop(optional, into)] class: String, children: Child
   let class = StoredValue::new(class);
 
   view! {
-    {move || {
-      if should_render.get() {
-        Some(
-          view! {
-            <Portal>
-              <div
-                node_ref=content_ref
-                data-slot="context-menu-content"
-                data-state=data_state
-                class=cn(
-                  &[
-                    "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=bottom]:slide-out-to-top-2 data-[side=left]:slide-in-from-right-2 data-[side=left]:slide-out-to-right-2 data-[side=right]:slide-in-from-left-2 data-[side=right]:slide-out-to-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=top]:slide-out-to-bottom-2 fixed z-50 max-h-96 min-w-[8rem] overflow-x-hidden overflow-y-auto rounded-md border p-1 shadow-md",
-                    class.read_value().as_str(),
-                  ],
-                )
-                style=move || position_style.get()
-              >
-                {children_stored.get_value()()}
-              </div>
-            </Portal>
-          },
-        )
-      } else {
-        None
-      }
-    }}
+    <div
+      node_ref=content_ref
+      data-slot="context-menu-content"
+      data-state=data_state
+      class=cn(
+        &[
+          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=bottom]:slide-out-to-top-2 data-[side=left]:slide-in-from-right-2 data-[side=left]:slide-out-to-right-2 data-[side=right]:slide-in-from-left-2 data-[side=right]:slide-out-to-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=top]:slide-out-to-bottom-2 fixed z-50 max-h-96 min-w-[8rem] overflow-x-hidden overflow-y-auto rounded-md border p-1 shadow-md data-[state=closed]:opacity-0 data-[state=closed]:pointer-events-none",
+          class.read_value().as_str(),
+        ],
+      )
+      style=move || position_style.get()
+    >
+      {children_stored.get_value()()}
+    </div>
   }
 }
 
@@ -417,23 +374,25 @@ pub fn ContextMenuCheckboxItem(
       )
       on:click=handle_click
     >
-      <span class="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
-        <Show when=move || checked.get()>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="size-4"
-          >
-            <path d="M20 6 9 17l-5-5" />
-          </svg>
-        </Show>
+      <span
+        class="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center"
+        data-checked=move || checked.get()
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="size-4 data-[checked=false]:opacity-0"
+          data-checked=move || checked.get()
+        >
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
       </span>
       {children()}
     </div>
@@ -471,23 +430,25 @@ pub fn ContextMenuRadioItem(
       )
       on:click=handle_click
     >
-      <span class="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
-        <Show when=move || is_checked.get()>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="size-2 fill-current"
-          >
-            <circle cx="12" cy="12" r="10" />
-          </svg>
-        </Show>
+      <span
+        class="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center"
+        data-checked=move || is_checked.get()
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="size-2 fill-current data-[checked=false]:opacity-0"
+          data-checked=move || is_checked.get()
+        >
+          <circle cx="12" cy="12" r="10" />
+        </svg>
       </span>
       {children()}
     </div>

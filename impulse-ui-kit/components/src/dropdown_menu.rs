@@ -2,7 +2,6 @@
 
 use impulse_ui_kit::utils::cn;
 use impulse_ui_kit::utils::{OverlayAlign, OverlaySide, calculate_position};
-use leptos::portal::Portal;
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 use web_sys::Element;
@@ -58,22 +57,12 @@ pub fn DropdownMenuContent(
   let side_offset = side_offset.unwrap_or(4);
 
   let position_style = RwSignal::new(String::new());
-  let rendered = RwSignal::new(false);
 
   let children_stored = StoredValue::new(children);
 
-  // Delayed unmounting for animations
+  // Position calculation
   Effect::new(move |_| {
     if context.is_open.get() {
-      rendered.set(true);
-    } else {
-      set_timeout(move || rendered.set(false), std::time::Duration::from_millis(200));
-    }
-  });
-
-  // Position calculation - wait for content to be rendered
-  Effect::new(move |_| {
-    if context.is_open.get() && rendered.get() {
       // Use requestAnimationFrame to ensure content is laid out
       request_animation_frame(move || {
         if let Some(trigger_ref) = trigger_context
@@ -145,33 +134,21 @@ pub fn DropdownMenuContent(
   let class = StoredValue::new(class);
 
   view! {
-    {move || {
-      if rendered.get() {
-        Some(
-          view! {
-            <Portal>
-              <div
-                node_ref=content_ref
-                data-slot="dropdown-menu-content"
-                data-state=data_state
-                class=cn(
-                  &[
-                    "bg-popover text-popover-foreground fixed z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 max-h-[300px] overflow-y-auto",
-                    slide_class,
-                    class.read_value().as_str(),
-                  ],
-                )
-                style=move || position_style.get()
-              >
-                {children_stored.get_value()()}
-              </div>
-            </Portal>
-          },
-        )
-      } else {
-        None
-      }
-    }}
+    <div
+      node_ref=content_ref
+      data-slot="dropdown-menu-content"
+      data-state=data_state
+      class=cn(
+        &[
+          "bg-popover text-popover-foreground fixed z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 max-h-[300px] overflow-y-auto data-[state=closed]:opacity-0 data-[state=closed]:pointer-events-none",
+          slide_class,
+          class.read_value().as_str(),
+        ],
+      )
+      style=move || position_style.get()
+    >
+      {children_stored.get_value()()}
+    </div>
   }
 }
 
@@ -260,23 +237,25 @@ pub fn DropdownMenuCheckboxItem(
       )
       on:click=handle_click
     >
-      <span class="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
-        <Show when=move || checked.get()>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="size-4"
-          >
-            <path d="M20 6 9 17l-5-5" />
-          </svg>
-        </Show>
+      <span
+        class="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center"
+        data-checked=move || checked.get()
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="size-4 data-[checked=false]:opacity-0"
+          data-checked=move || checked.get()
+        >
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
       </span>
       {children()}
     </div>
@@ -321,23 +300,25 @@ pub fn DropdownMenuRadioItem(
       )
       on:click=handle_click
     >
-      <span class="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
-        <Show when=move || is_checked.get()>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="size-2 fill-current"
-          >
-            <circle cx="12" cy="12" r="10" />
-          </svg>
-        </Show>
+      <span
+        class="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center"
+        data-checked=move || is_checked.get()
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="size-2 fill-current data-[checked=false]:opacity-0"
+          data-checked=move || is_checked.get()
+        >
+          <circle cx="12" cy="12" r="10" />
+        </svg>
       </span>
       {children()}
     </div>

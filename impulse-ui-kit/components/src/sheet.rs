@@ -1,7 +1,6 @@
 #![allow(missing_docs, dead_code)]
 
 use impulse_ui_kit::utils::cn;
-use leptos::portal::Portal;
 use leptos::prelude::*;
 
 #[derive(Clone, Copy, PartialEq, Default)]
@@ -122,15 +121,6 @@ pub fn SheetOverlay(#[prop(into, optional)] class: String) -> impl IntoView {
 pub fn SheetContent(#[prop(optional, into)] class: String, children: ChildrenFn) -> impl IntoView {
   let context = use_context::<SheetContext>().expect("SheetContent must be used within Sheet");
 
-  let rendered = RwSignal::new(false);
-  Effect::new(move |_| {
-    if context.is_open.get() {
-      rendered.set(true);
-    } else {
-      set_timeout(move || rendered.set(false), std::time::Duration::from_millis(300));
-    }
-  });
-
   Effect::new(move |_| {
     if context.is_open.get() {
       window_event_listener(leptos::ev::keydown, move |ev: web_sys::KeyboardEvent| {
@@ -173,33 +163,21 @@ pub fn SheetContent(#[prop(optional, into)] class: String, children: ChildrenFn)
   let class = StoredValue::new(class);
 
   view! {
-    {move || {
-      if rendered.get() {
-        Some(
-          view! {
-            <Portal>
-              <SheetOverlay />
-              <div
-                data-slot="sheet-content"
-                data-state=move || if context.is_open.get() { "open" } else { "closed" }
-                data-side=context.side.as_str()
-                class=cn(
-                  &[
-                    "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-300 fixed z-50 gap-4 p-6 shadow-lg",
-                    side_classes,
-                    class.read_value().as_str(),
-                  ],
-                )
-              >
-                {children.get_value()()}
-              </div>
-            </Portal>
-          },
-        )
-      } else {
-        None
-      }
-    }}
+    <SheetOverlay />
+    <div
+      data-slot="sheet-content"
+      data-state=move || if context.is_open.get() { "open" } else { "closed" }
+      data-side=context.side.as_str()
+      class=cn(
+        &[
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-300 fixed z-50 gap-4 p-6 shadow-lg data-[state=closed]:pointer-events-none",
+          side_classes,
+          class.read_value().as_str(),
+        ],
+      )
+    >
+      {children.get_value()()}
+    </div>
   }
 }
 

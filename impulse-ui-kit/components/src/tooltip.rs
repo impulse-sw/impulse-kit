@@ -2,7 +2,6 @@
 
 use impulse_ui_kit::utils::cn;
 use impulse_ui_kit::utils::{OverlayAlign, OverlaySide, calculate_position};
-use leptos::portal::Portal;
 use leptos::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -84,21 +83,11 @@ pub fn TooltipContent(
   let align = align.unwrap_or(OverlayAlign::Center);
   let side_offset = side_offset.unwrap_or(4);
 
-  let rendered = RwSignal::new(false);
   let position_style = RwSignal::new(String::new());
 
-  // Delayed unmounting for animations
+  // Position calculation
   Effect::new(move |_| {
     if context.is_open.get() {
-      rendered.set(true);
-    } else {
-      set_timeout(move || rendered.set(false), std::time::Duration::from_millis(150));
-    }
-  });
-
-  // Position calculation - wait for content to be rendered
-  Effect::new(move |_| {
-    if context.is_open.get() && rendered.get() {
       // Use requestAnimationFrame to ensure content is laid out
       request_animation_frame(move || {
         if let Some(trigger_ref) = trigger_context
@@ -137,33 +126,21 @@ pub fn TooltipContent(
   let class = StoredValue::new(class);
 
   view! {
-    {move || {
-      if rendered.get() {
-        Some(
-          view! {
-            <Portal>
-              <div
-                node_ref=content_ref
-                data-slot="tooltip-content"
-                data-state=move || if context.is_open.get() { "open" } else { "closed" }
-                role="tooltip"
-                class=cn(
-                  &[
-                    "fixed z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-                    slide_class,
-                    class.read_value().as_str(),
-                  ],
-                )
-                style=move || position_style.get()
-              >
-                {children.get_value()()}
-              </div>
-            </Portal>
-          },
-        )
-      } else {
-        None
-      }
-    }}
+    <div
+      node_ref=content_ref
+      data-slot="tooltip-content"
+      data-state=move || if context.is_open.get() { "open" } else { "closed" }
+      role="tooltip"
+      class=cn(
+        &[
+          "fixed z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:opacity-0 data-[state=closed]:pointer-events-none",
+          slide_class,
+          class.read_value().as_str(),
+        ],
+      )
+      style=move || position_style.get()
+    >
+      {children.get_value()()}
+    </div>
   }
 }

@@ -6,10 +6,9 @@
 
 use impulse_ui_kit::utils::cn;
 use impulse_ui_kit::utils::{OverlayAlign, OverlaySide, calculate_position};
-use leptos::portal::Portal;
 use leptos::prelude::*;
 
-const BASE_CONTENT_CLASSES: &str = "bg-popover text-popover-foreground fixed z-50 w-64 rounded-md border p-4 shadow-md outline-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95";
+const BASE_CONTENT_CLASSES: &str = "bg-popover text-popover-foreground fixed z-50 w-64 rounded-md border p-4 shadow-md outline-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:opacity-0 data-[state=closed]:pointer-events-none";
 
 #[component]
 pub fn HoverCard(
@@ -106,21 +105,11 @@ pub fn HoverCardContent(
   let side_offset = side_offset.unwrap_or(4);
 
   let position_style = RwSignal::new(String::new());
-  let rendered = RwSignal::new(false);
   let close_timeout = StoredValue::new(None::<leptos::prelude::TimeoutHandle>);
 
-  // Delayed unmounting for animations
+  // Position calculation
   Effect::new(move |_| {
     if context.is_open.get() {
-      rendered.set(true);
-    } else {
-      set_timeout(move || rendered.set(false), std::time::Duration::from_millis(200));
-    }
-  });
-
-  // Position calculation - wait for content to be rendered
-  Effect::new(move |_| {
-    if context.is_open.get() && rendered.get() {
       // Use requestAnimationFrame to ensure content is laid out
       request_animation_frame(move || {
         if let Some(trigger_ref) = trigger_context
@@ -145,8 +134,6 @@ pub fn HoverCardContent(
           position_style.set(format!("position: fixed; top: {}px; left: {}px;", top, left));
         }
       });
-    } else {
-      position_style.set("position: fixed; top: 0px; left: 0px;".to_string());
     }
   });
 
@@ -180,29 +167,17 @@ pub fn HoverCardContent(
   let class = StoredValue::new(class);
 
   view! {
-    {move || {
-      if rendered.get() {
-        Some(
-          view! {
-            <Portal>
-              <div
-                node_ref=content_ref
-                data-slot="hover-card-content"
-                data-state=move || if context.is_open.get() { "open" } else { "closed" }
-                class=cn(&[BASE_CONTENT_CLASSES, slide_class, class.read_value().as_str()])
-                style=move || position_style.get()
-                on:mouseenter=handle_mouse_enter
-                on:mouseleave=handle_mouse_leave
-              >
-                {children.read_value()()}
-              </div>
-            </Portal>
-          },
-        )
-      } else {
-        None
-      }
-    }}
+    <div
+      node_ref=content_ref
+      data-slot="hover-card-content"
+      data-state=move || if context.is_open.get() { "open" } else { "closed" }
+      class=cn(&[BASE_CONTENT_CLASSES, slide_class, class.read_value().as_str()])
+      style=move || position_style.get()
+      on:mouseenter=handle_mouse_enter
+      on:mouseleave=handle_mouse_leave
+    >
+      {children.read_value()()}
+    </div>
   }
 }
 

@@ -1,7 +1,6 @@
 #![allow(missing_docs, dead_code)]
 
 use impulse_ui_kit::utils::cn;
-use leptos::portal::Portal;
 use leptos::prelude::*;
 
 use super::button::{Button, ButtonVariant};
@@ -49,7 +48,7 @@ pub fn AlertDialogOverlay(#[prop(optional)] class: String) -> impl IntoView {
       data-state=if context.is_open.get() { "open" } else { "closed" }
       class=cn(
         &[
-          "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50",
+          "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50 data-[state=closed]:pointer-events-none",
           class.as_str(),
         ],
       )
@@ -61,44 +60,23 @@ pub fn AlertDialogOverlay(#[prop(optional)] class: String) -> impl IntoView {
 pub fn AlertDialogContent(#[prop(optional)] class: String, children: ChildrenFn) -> impl IntoView {
   let context = use_context::<AlertDialogContext>().expect("AlertDialogContent must be used within AlertDialog");
 
-  let rendered = RwSignal::new(false);
-  Effect::new(move |_| {
-    if context.is_open.get() {
-      rendered.set(true);
-    } else {
-      set_timeout(move || rendered.set(false), std::time::Duration::from_millis(150));
-    }
-  });
-
   let children = StoredValue::new(children);
   let class = StoredValue::new(class);
 
   view! {
-    {move || {
-      if rendered.get() {
-        Some(
-          view! {
-            <Portal>
-              <AlertDialogOverlay />
-              <div
-                data-slot="alert-dialog-content"
-                data-state=if context.is_open.get() { "open" } else { "closed" }
-                class=cn(
-                  &[
-                    "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg",
-                    class.read_value().as_str(),
-                  ],
-                )
-              >
-                {children.read_value()()}
-              </div>
-            </Portal>
-          },
-        )
-      } else {
-        None
-      }
-    }}
+    <AlertDialogOverlay />
+    <div
+      data-slot="alert-dialog-content"
+      data-state=if context.is_open.get() { "open" } else { "closed" }
+      class=cn(
+        &[
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg data-[state=closed]:pointer-events-none",
+          class.read_value().as_str(),
+        ],
+      )
+    >
+      {children.read_value()()}
+    </div>
   }
 }
 

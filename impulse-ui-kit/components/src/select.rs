@@ -2,7 +2,6 @@
 
 use impulse_ui_kit::utils::cn;
 use impulse_ui_kit::utils::{OverlayAlign, OverlaySide, calculate_position};
-use leptos::portal::Portal;
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 use web_sys::{Element, HtmlElement};
@@ -176,7 +175,6 @@ pub fn SelectContent(
   let position = position.unwrap_or(SelectContentPosition::ItemAligned);
 
   let position_style = RwSignal::new(String::new());
-  let should_render = RwSignal::new(false);
 
   let can_scroll_up = RwSignal::new(false);
   let can_scroll_down = RwSignal::new(false);
@@ -203,14 +201,6 @@ pub fn SelectContent(
 
   Effect::new(move |_| {
     if context.is_open.get() {
-      should_render.set(true);
-    } else if should_render.get() {
-      set_timeout(move || should_render.set(false), std::time::Duration::from_millis(150));
-    }
-  });
-
-  Effect::new(move |_| {
-    if context.is_open.get() {
       if let Some(body) = document().body() {
         let _ = body.style().set_property("overflow", "hidden");
       }
@@ -219,9 +209,9 @@ pub fn SelectContent(
     }
   });
 
-  // Position calculation - wait for content to be rendered
+  // Position calculation
   Effect::new(move |_| {
-    if context.is_open.get() && should_render.get() {
+    if context.is_open.get() {
       // Use requestAnimationFrame to ensure content is laid out
       request_animation_frame(move || {
         if let Some(trigger_ref) = trigger_context
@@ -316,45 +306,33 @@ pub fn SelectContent(
   let class = StoredValue::new(class);
 
   view! {
-    {move || {
-      if should_render.get() {
-        Some(
-          view! {
-            <Portal>
-              <div
-                node_ref=content_ref
-                role="listbox"
-                data-slot="select-content"
-                data-state=data_state
-                data-side=side_as_str(side)
-                class=cn(
-                  &[
-                    "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border shadow-md",
-                    slide_class,
-                    popper_class,
-                    class.read_value().as_str(),
-                  ],
-                )
-                style=move || position_style.get()
-              >
-                <SelectScrollUpButton />
-                <div
-                  node_ref=viewport_ref
-                  data-slot="select-viewport"
-                  class=cn(&["p-1 overflow-y-auto max-h-[calc(24rem-2rem)]", viewport_popper_class])
-                  on:scroll=move |_| update_scroll_state()
-                >
-                  {children_stored.get_value()()}
-                </div>
-                <SelectScrollDownButton />
-              </div>
-            </Portal>
-          },
-        )
-      } else {
-        None
-      }
-    }}
+    <div
+      node_ref=content_ref
+      role="listbox"
+      data-slot="select-content"
+      data-state=data_state
+      data-side=side_as_str(side)
+      class=cn(
+        &[
+          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border shadow-md data-[state=closed]:opacity-0 data-[state=closed]:pointer-events-none",
+          slide_class,
+          popper_class,
+          class.read_value().as_str(),
+        ],
+      )
+      style=move || position_style.get()
+    >
+      <SelectScrollUpButton />
+      <div
+        node_ref=viewport_ref
+        data-slot="select-viewport"
+        class=cn(&["p-1 overflow-y-auto max-h-[calc(24rem-2rem)]", viewport_popper_class])
+        on:scroll=move |_| update_scroll_state()
+      >
+        {children_stored.get_value()()}
+      </div>
+      <SelectScrollDownButton />
+    </div>
   }
 }
 
@@ -452,23 +430,23 @@ pub fn SelectItem(
       <span
         data-slot="select-item-indicator"
         class="absolute right-2 flex size-3.5 items-center justify-center"
+        data-selected=move || is_selected.get()
       >
-        <Show when=move || is_selected.get()>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="size-4"
-          >
-            <path d="M20 6 9 17l-5-5" />
-          </svg>
-        </Show>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="size-4 data-[selected=false]:opacity-0"
+          data-selected=move || is_selected.get()
+        >
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
       </span>
       <span data-slot="select-item-text">{children_stored.get_value()()}</span>
     </div>
@@ -502,28 +480,32 @@ pub fn SelectScrollUpButton(#[prop(optional, into)] class: String) -> impl IntoV
   };
 
   view! {
-    <Show when=can_scroll>
-      <div
-        data-slot="select-scroll-up-button"
-        class=cn(&["flex cursor-default items-center justify-center py-1", class.as_str()])
-        on:click=handle_click
+    <div
+      data-slot="select-scroll-up-button"
+      data-can-scroll=can_scroll
+      class=cn(
+        &[
+          "flex cursor-default items-center justify-center py-1 data-[can-scroll=false]:hidden",
+          class.as_str(),
+        ],
+      )
+      on:click=handle_click
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="size-4"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="size-4"
-        >
-          <path d="m18 15-6-6-6 6" />
-        </svg>
-      </div>
-    </Show>
+        <path d="m18 15-6-6-6 6" />
+      </svg>
+    </div>
   }
 }
 
@@ -544,28 +526,32 @@ pub fn SelectScrollDownButton(#[prop(optional, into)] class: String) -> impl Int
   };
 
   view! {
-    <Show when=can_scroll>
-      <div
-        data-slot="select-scroll-down-button"
-        class=cn(&["flex cursor-default items-center justify-center py-1", class.as_str()])
-        on:click=handle_click
+    <div
+      data-slot="select-scroll-down-button"
+      data-can-scroll=can_scroll
+      class=cn(
+        &[
+          "flex cursor-default items-center justify-center py-1 data-[can-scroll=false]:hidden",
+          class.as_str(),
+        ],
+      )
+      on:click=handle_click
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="size-4"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="size-4"
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </div>
-    </Show>
+        <path d="m6 9 6 6 6-6" />
+      </svg>
+    </div>
   }
 }
 
