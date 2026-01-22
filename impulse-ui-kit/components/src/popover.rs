@@ -37,10 +37,7 @@ pub fn Popover(#[prop(optional)] open: Option<RwSignal<bool>>, children: Childre
 }
 
 #[component]
-pub fn PopoverTrigger(
-  #[prop(into, optional)] class: String,
-  children: Children,
-) -> impl IntoView {
+pub fn PopoverTrigger(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
   let context = use_context::<PopoverContext>().expect("PopoverTrigger must be used within Popover");
 
   let trigger_ref = NodeRef::<leptos::html::Div>::new();
@@ -52,12 +49,7 @@ pub fn PopoverTrigger(
   };
 
   view! {
-    <div
-      node_ref=trigger_ref
-      attr:data-slot="popover-trigger"
-      class=class
-      on:click=handle_click
-    >
+    <div node_ref=trigger_ref attr:data-slot="popover-trigger" class=class on:click=handle_click>
       {children()}
     </div>
   }

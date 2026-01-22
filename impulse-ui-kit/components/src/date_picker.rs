@@ -25,15 +25,13 @@ pub fn DatePicker(
 
   view! {
     <Popover open=is_open>
-      <PopoverTrigger
-        class=cn(
-          &[
-            "border-input data-[placeholder]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex items-center justify-start gap-2 rounded-md border bg-transparent px-3 py-2 text-left text-sm font-normal shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] w-[280px]",
-            if value.get().is_none() { "text-muted-foreground" } else { "" },
-            class.as_str(),
-          ],
-        )
-      >
+      <PopoverTrigger class=cn(
+        &[
+          "border-input data-[placeholder]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex items-center justify-start gap-2 rounded-md border bg-transparent px-3 py-2 text-left text-sm font-normal shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] w-[280px]",
+          if value.get().is_none() { "text-muted-foreground" } else { "" },
+          class.as_str(),
+        ],
+      )>
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="24"

@@ -2,8 +2,6 @@
 
 use impulse_ui_kit::utils::{OverlayAlign, OverlaySide, Portal, calculate_position, cn};
 use leptos::prelude::*;
-use leptos::wasm_bindgen::JsCast;
-use leptos::web_sys::Element;
 
 #[derive(Clone, Copy)]
 struct TooltipContext {
