@@ -285,10 +285,18 @@ variables:
     value:
       type: plain
       value: toggle_group
+  folder-error-pages:
+    value:
+      type: plain
+      value: impulse-error-pages/
   folder-error-pages-dist:
     value:
       type: plain
       value: impulse-error-pages/dist/
+  folder-showcase:
+    value:
+      type: plain
+      value: impulse-ui-kit/examples/showcase/
   kit-version:
     value:
       type: from_cmd
@@ -317,6 +325,10 @@ variables:
     value:
       type: plain
       value: impulse-ui-kit-components
+  package-ui-kit-showcase:
+    value:
+      type: plain
+      value: ui-kit-showcase
   package-utils:
     value:
       type: plain
@@ -325,6 +337,22 @@ variables:
     value:
       type: plain
       value: 'RUSTFLAGS=''--cfg reqwest_unstable'' '
+  showcase-favicon:
+    value:
+      type: plain
+      value: ./impulse-ui-kit/examples/showcase/public/favicon.ico
+  showcase-tw-input:
+    value:
+      type: plain
+      value: ./impulse-ui-kit/examples/showcase/input.css
+  showcase-tw-output:
+    value:
+      type: plain
+      value: ./impulse-ui-kit/examples/showcase/public/tailwind.css
+  showcase-wasm-file:
+    value:
+      type: plain
+      value: ./impulse-ui-kit/examples/showcase/dist/ui-kit-showcase_bg.wasm
   target-wasm:
     value:
       type: plain
@@ -376,17 +404,6 @@ actions:
         - "{package}"
         - "{target}"
         - "{features}"
-      show_success_output: true
-  - info: cargo-lint-with-target@0.1.0
-    requirements:
-      - type: in_path
-        executable: cargo
-    action:
-      type: staged
-      stage: build
-      cmd: cargo clippy --target {target}
-      placeholders:
-        - "{target}"
       show_success_output: true
   - info: cargo-publish@0.2.0
     tags:
@@ -463,6 +480,23 @@ actions:
       type: staged
       stage: build
       cmd: leptosfmt -t 2 ./**/*.rs
+  - info: run-showcase-static-server@0.1.0
+    action:
+      type: observe
+      cmd: cd impulse-ui-kit/examples/showcase && ./iks
+      ignore_fails: true
+      show_success_output: true
+      show_cmd: false
+      only_when_fresh: false
+  - info: sync-static-server@0.1.0
+    action:
+      type: use_from_storage
+      content_info: static-server@latest
+  - info: sync-static-server@0.1.1
+    action:
+      type: staged
+      stage: build
+      cmd: mv iks static-server.yaml impulse-ui-kit/examples/showcase
   - info: tailwindcss-compile@0.2.0
     tags:
       - tailwind
@@ -493,7 +527,9 @@ actions:
     action:
       type: staged
       stage: build
-      cmd: cd impulse-error-pages && RUSTFLAGS="-Zlocation-detail=none -Zfmt-debug=none -Zunstable-options -Cpanic=immediate-abort" CARGO_UNSTABLE_BUILD_STD="std,panic_abort" CARGO_UNSTABLE_BUILD_STD_FEATURES="optimize_for_size" trunk build --release
+      cmd: cd {project-folder} && RUSTFLAGS="-Zlocation-detail=none -Zfmt-debug=none -Zunstable-options -Cpanic=immediate-abort" CARGO_UNSTABLE_BUILD_STD="std,panic_abort" CARGO_UNSTABLE_BUILD_STD_FEATURES="optimize_for_size" trunk build --release
+      placeholders:
+        - "{project-folder}"
   - info: upx@0.1.0
     requirements:
       - type: in_path
@@ -520,6 +556,25 @@ actions:
       type: staged
       stage: build
       cmd: wasm-opt -Oz --all-features --strip-debug -o {file} {file}
+      placeholders:
+        - "{file}"
+  - info: wasm-prepare-showcase-dist-folder@0.1.0
+    action:
+      type: staged
+      stage: build
+      cmd: cp {tw-output} {favicon} impulse-ui-kit/examples/showcase/dist/
+      placeholders:
+        - "{tw-output}"
+        - "{favicon}"
+  - info: wasm-strip@0.1.0
+    requirements:
+      - type: in_path
+        executable: wasm-strip
+        desc: "Install `binaryen` package or download it from this: https://github.com/WebAssembly/binaryen/releases"
+    action:
+      type: staged
+      stage: build
+      cmd: wasm-strip {file}
       placeholders:
         - "{file}"
 pipelines:
@@ -962,6 +1017,8 @@ pipelines:
         used: cargo-fmt@0.1.0
       - title: Build WASM
         used: trunk-build-rel@0.1.0
+        with:
+          "{project-folder}": folder-error-pages
       - title: Compile TailwindCSS
         used: tailwindcss-compile@0.2.0
         with:
@@ -1002,3 +1059,59 @@ pipelines:
         to: static-server/iks
       - from: impulse-static-server/static-server.yaml
         to: static-server/static-server.yaml
+  - title: deploy-showcase
+    info: ui-kit-example-deploy@0.1.0
+    default: false
+    actions:
+      - title: Lint
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ui-kit-showcase
+          "{target}": target-wasm
+      - title: "Format #1"
+        used: leptos-fmt@0.1.0
+      - title: "Format #2"
+        used: cargo-fmt@0.1.0
+      - title: Compile TailwindCSS
+        used: tailwindcss-compile@0.2.0
+        with:
+          "{tw-input}": showcase-tw-input
+          "{tw-output}": showcase-tw-output
+      - title: Build WASM
+        used: trunk-build-rel@0.1.0
+        with:
+          "{project-folder}": folder-showcase
+      - title: Strip WASM
+        used: wasm-strip@0.1.0
+        with:
+          "{file}": showcase-wasm-file
+      - title: Optimize WASM
+        used: wasm-opt@0.1.0
+        with:
+          "{file}": showcase-wasm-file
+      - title: Add files to `dist`
+        used: wasm-prepare-showcase-dist-folder@0.1.0
+        with:
+          "{favicon}": showcase-favicon
+          "{tw-output}": showcase-tw-output
+      - title: Sync static server
+        used: sync-static-server@0.1.0
+      - title: Move static server to showcase directory
+        used: sync-static-server@0.1.1
+      - title: Run static server at `0.0.0.0:8807`
+        used: run-showcase-static-server@0.1.0
+    artifacts:
+      - from: iks
+        to: showcase/iks
+      - from: static-server.yaml
+        to: showcase/static-server.yaml
+      - from: dist
+        to: showcase/dist
+  - title: run-showcase
+    info: ui-kit-example-run@0.1.0
+    default: true
+    actions:
+      - title: Run static server at `0.0.0.0:8807`
+        used: run-showcase-static-server@0.1.0

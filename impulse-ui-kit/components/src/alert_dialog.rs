@@ -11,8 +11,12 @@ struct AlertDialogContext {
 }
 
 #[component]
-pub fn AlertDialog(#[prop(optional)] open: bool, children: Children) -> impl IntoView {
-  let is_open = RwSignal::new(open);
+pub fn AlertDialog(
+  #[prop(optional)] open: Option<RwSignal<bool>>,
+  #[prop(optional)] default_open: Option<bool>,
+  children: Children,
+) -> impl IntoView {
+  let is_open = open.unwrap_or_else(|| RwSignal::new(default_open.unwrap_or(false)));
 
   provide_context(AlertDialogContext { is_open });
 
