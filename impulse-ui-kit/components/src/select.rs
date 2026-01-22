@@ -317,37 +317,39 @@ pub fn SelectContent(
   view! {
     {move || {
       if should_render.get() {
-        Some(view! {
-          <Portal>
-            <div
-              node_ref=content_ref
-              role="listbox"
-              data-slot="select-content"
-              data-state=data_state
-              data-side=side_as_str(side)
-              class=cn(
-                &[
-                  "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border shadow-md",
-                  slide_class,
-                  popper_class,
-                  class.read_value().as_str(),
-                ],
-              )
-              style=move || position_style.get()
-            >
-              <SelectScrollUpButton />
+        Some(
+          view! {
+            <Portal>
               <div
-                node_ref=viewport_ref
-                data-slot="select-viewport"
-                class=cn(&["p-1 overflow-y-auto max-h-[calc(24rem-2rem)]", viewport_popper_class])
-                on:scroll=move |_| update_scroll_state()
+                node_ref=content_ref
+                role="listbox"
+                data-slot="select-content"
+                data-state=data_state
+                data-side=side_as_str(side)
+                class=cn(
+                  &[
+                    "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border shadow-md",
+                    slide_class,
+                    popper_class,
+                    class.read_value().as_str(),
+                  ],
+                )
+                style=move || position_style.get()
               >
-                {children_stored.get_value()()}
+                <SelectScrollUpButton />
+                <div
+                  node_ref=viewport_ref
+                  data-slot="select-viewport"
+                  class=cn(&["p-1 overflow-y-auto max-h-[calc(24rem-2rem)]", viewport_popper_class])
+                  on:scroll=move |_| update_scroll_state()
+                >
+                  {children_stored.get_value()()}
+                </div>
+                <SelectScrollDownButton />
               </div>
-              <SelectScrollDownButton />
-            </div>
-          </Portal>
-        })
+            </Portal>
+          },
+        )
       } else {
         None
       }

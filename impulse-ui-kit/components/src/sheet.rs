@@ -62,7 +62,12 @@ pub fn SheetTrigger(#[prop(into, optional)] class: String, children: Children) -
   };
 
   view! {
-    <button type="button" data-slot="sheet-trigger" style="display: inline-block;" class=class on:click=handle_click>
+    <button
+      type="button"
+      data-slot="sheet-trigger"
+      class=cn(&["inline-block", class.as_str()])
+      on:click=handle_click
+    >
       {children()}
     </button>
   }
@@ -169,25 +174,27 @@ pub fn SheetContent(#[prop(optional, into)] class: String, children: ChildrenFn)
   view! {
     {move || {
       if rendered.get() {
-        Some(view! {
-          <Portal>
-            <SheetOverlay />
-            <div
-              data-slot="sheet-content"
-              data-state=move || if context.is_open.get() { "open" } else { "closed" }
-              data-side=context.side.as_str()
-              class=cn(
-                &[
-                  "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-300 fixed z-50 gap-4 p-6 shadow-lg",
-                  side_classes,
-                  class.read_value().as_str(),
-                ],
-              )
-            >
-              {children.get_value()()}
-            </div>
-          </Portal>
-        })
+        Some(
+          view! {
+            <Portal>
+              <SheetOverlay />
+              <div
+                data-slot="sheet-content"
+                data-state=move || if context.is_open.get() { "open" } else { "closed" }
+                data-side=context.side.as_str()
+                class=cn(
+                  &[
+                    "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-300 fixed z-50 gap-4 p-6 shadow-lg",
+                    side_classes,
+                    class.read_value().as_str(),
+                  ],
+                )
+              >
+                {children.get_value()()}
+              </div>
+            </Portal>
+          },
+        )
       } else {
         None
       }

@@ -85,7 +85,12 @@ pub fn DrawerTrigger(#[prop(optional, into)] class: String, children: Children) 
   };
 
   view! {
-    <button type="button" data-slot="drawer-trigger" style="display: inline-block;" class=class on:click=handle_click>
+    <button
+      type="button"
+      data-slot="drawer-trigger"
+      class=cn(&["inline-block", class.as_str()])
+      on:click=handle_click
+    >
       {children()}
     </button>
   }
@@ -371,35 +376,37 @@ pub fn DrawerContent(#[prop(optional, into)] class: String, children: ChildrenFn
   view! {
     {move || {
       if rendered.get() {
-        Some(view! {
-          <Portal>
-            <DrawerOverlay />
-            <div
-              node_ref=content_ref
-              data-slot="drawer-content"
-              data-state=data_state
-              data-vaul-drawer-direction=context.direction.as_str()
-              class=cn(
-                &[
-                  "group/drawer-content bg-background fixed z-50 flex h-auto flex-col touch-none",
-                  direction_classes,
-                  animation_class(),
-                  class.read_value().as_str(),
-                ],
-              )
-              style=move || transform_style.get()
-              on:pointerdown=handle_pointer_down
-              on:pointermove=handle_pointer_move
-              on:pointerup=handle_pointer_up
-              on:pointercancel=move |_| context.is_dragging.set(false)
-            >
-              <Show when=move || show_handle>
-                <div class="bg-muted mx-auto mt-4 h-2 w-[100px] shrink-0 rounded-full" />
-              </Show>
-              {children_stored.get_value()()}
-            </div>
-          </Portal>
-        })
+        Some(
+          view! {
+            <Portal>
+              <DrawerOverlay />
+              <div
+                node_ref=content_ref
+                data-slot="drawer-content"
+                data-state=data_state
+                data-vaul-drawer-direction=context.direction.as_str()
+                class=cn(
+                  &[
+                    "group/drawer-content bg-background fixed z-50 flex h-auto flex-col touch-none",
+                    direction_classes,
+                    animation_class(),
+                    class.read_value().as_str(),
+                  ],
+                )
+                style=move || transform_style.get()
+                on:pointerdown=handle_pointer_down
+                on:pointermove=handle_pointer_move
+                on:pointerup=handle_pointer_up
+                on:pointercancel=move |_| context.is_dragging.set(false)
+              >
+                <Show when=move || show_handle>
+                  <div class="bg-muted mx-auto mt-4 h-2 w-[100px] shrink-0 rounded-full" />
+                </Show>
+                {children_stored.get_value()()}
+              </div>
+            </Portal>
+          },
+        )
       } else {
         None
       }
