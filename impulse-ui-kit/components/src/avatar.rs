@@ -7,7 +7,7 @@ use leptos::prelude::*;
 #[component]
 pub fn Avatar(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
   provide_context(AvatarContext {
-    fallback: RwSignal::new(false),
+    fallback: RwSignal::new(true),
   });
 
   view! {
@@ -23,6 +23,8 @@ pub fn Avatar(#[prop(into, optional)] class: String, children: Children) -> impl
 #[component]
 pub fn AvatarImage(#[prop(into, optional)] class: String) -> impl IntoView {
   let context = use_context::<AvatarContext>().expect("AvatarImage must be used within Avatar");
+  context.fallback.set(false);
+
   let class = StoredValue::new_local(class);
 
   view! {
