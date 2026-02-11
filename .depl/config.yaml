@@ -648,7 +648,7 @@ pipelines:
           uses: actions-rust-lang/setup-rust-toolchain@v1
           with:
             target: x86_64-unknown-linux-gnu
-            toolchain: unstable
+            toolchain: nightly
             components: clippy
   - title: common-ops
     desc: Common monorepo operations
