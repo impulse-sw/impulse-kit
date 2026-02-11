@@ -577,6 +577,79 @@ actions:
       placeholders:
         - "{file}"
 pipelines:
+  - title: lints
+    desc: Lints for Impulse Kit
+    info: impulse-kit-lints@0.1.0
+    tags:
+      - cargo
+      - clippy
+      - lint
+      - docs
+    actions:
+      - title: Lint `impulse-utils` on x86-64
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": reqwest-unstable-flag
+          "{package}": package-utils
+          "{target}": target-x86
+      - title: Lint `impulse-utils` on wasm32
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": featureset-utils-wasm32
+          "{flags}": reqwest-unstable-flag
+          "{package}": package-utils
+          "{target}": target-wasm
+      - title: Lint `impulse-ui-kit`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ui-kit
+          "{target}": target-wasm
+      - title: Lint `impulse-error-pages`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-error-pages
+          "{target}": target-wasm
+      - title: Lint `impulse-server-kit`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": reqwest-unstable-flag
+          "{package}": package-server-kit
+          "{target}": target-x86
+      - title: Lint `impulse-server-kit-dsl`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-dsl
+          "{target}": target-x86
+      - title: Lint `impulse-static-server`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-static-server
+          "{target}": target-x86
+      - title: Test docs
+        used: cargo-test-doc@0.1.0
+    gh_opts:
+      on_push_branches:
+        - stable
+        - unstable
+      on_pull_requests_branches:
+        - unstable
+      preflight_steps:
+        - name: Install Rust Toolchain
+          uses: actions-rust-lang/setup-rust-toolchain@v1
+          with:
+            target: x86_64-unknown-linux-gnu
+            toolchain: unstable
+            components: clippy
   - title: common-ops
     desc: Common monorepo operations
     info: impulse-kit-common-ops@0.1.0
