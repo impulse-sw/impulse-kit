@@ -644,10 +644,16 @@ pipelines:
       on_pull_requests_branches:
         - unstable
       preflight_steps:
-        - name: Install Rust Toolchain
+        - name: Install Rust Toolchain for x86_64
           uses: actions-rust-lang/setup-rust-toolchain@v1
           with:
             target: x86_64-unknown-linux-gnu
+            toolchain: nightly
+            components: clippy
+        - name: Install Rust Toolchain for WASM
+          uses: actions-rust-lang/setup-rust-toolchain@v1
+          with:
+            target: wasm32-unknown-unknown
             toolchain: nightly
             components: clippy
   - title: common-ops
