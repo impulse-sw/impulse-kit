@@ -61,6 +61,10 @@ variables:
     value:
       type: plain
       value: carousel
+  component-chart:
+    value:
+      type: plain
+      value: chart
   component-checkbox:
     value:
       type: plain
@@ -69,6 +73,10 @@ variables:
     value:
       type: plain
       value: collapsible
+  component-combobox:
+    value:
+      type: plain
+      value: combobox
   component-command:
     value:
       type: plain
@@ -77,6 +85,18 @@ variables:
     value:
       type: plain
       value: context-menu
+  component-data-table:
+    value:
+      type: plain
+      value: data-table
+  component-date-picker:
+    value:
+      type: plain
+      value: date-picker
+  component-dialog:
+    value:
+      type: plain
+      value: dialog
   component-drawer:
     value:
       type: plain
@@ -85,6 +105,10 @@ variables:
     value:
       type: plain
       value: dropdown-menu
+  component-form:
+    value:
+      type: plain
+      value: form
   component-icon:
     value:
       type: plain
@@ -105,42 +129,6 @@ variables:
     value:
       type: plain
       value: popover
-  component-select:
-    value:
-      type: plain
-      value: select
-  component-separator:
-    value:
-      type: plain
-      value: separator
-  component-theme:
-    value:
-      type: plain
-      value: theme
-  component-chart:
-    value:
-      type: plain
-      value: chart
-  component-combobox:
-    value:
-      type: plain
-      value: combobox
-  component-data-table:
-    value:
-      type: plain
-      value: data-table
-  component-date-picker:
-    value:
-      type: plain
-      value: date-picker
-  component-dialog:
-    value:
-      type: plain
-      value: dialog
-  component-form:
-    value:
-      type: plain
-      value: form
   component-progress:
     value:
       type: plain
@@ -157,6 +145,14 @@ variables:
     value:
       type: plain
       value: scroll-area
+  component-select:
+    value:
+      type: plain
+      value: select
+  component-separator:
+    value:
+      type: plain
+      value: separator
   component-sheet:
     value:
       type: plain
@@ -197,6 +193,10 @@ variables:
     value:
       type: plain
       value: textarea
+  component-theme:
+    value:
+      type: plain
+      value: theme
   component-toast:
     value:
       type: plain
@@ -253,6 +253,14 @@ variables:
     value:
       type: plain
       value: context_menu
+  file-data-table:
+    value:
+      type: plain
+      value: data_table
+  file-date-picker:
+    value:
+      type: plain
+      value: date_picker
   file-dropdown-menu:
     value:
       type: plain
@@ -265,14 +273,6 @@ variables:
     value:
       type: plain
       value: input_otp
-  file-data-table:
-    value:
-      type: plain
-      value: data_table
-  file-date-picker:
-    value:
-      type: plain
-      value: date_picker
   file-radio-group:
     value:
       type: plain
@@ -404,7 +404,6 @@ actions:
         - "{package}"
         - "{target}"
         - "{features}"
-      show_success_output: true
   - info: cargo-publish@0.2.0
     tags:
       - rust
