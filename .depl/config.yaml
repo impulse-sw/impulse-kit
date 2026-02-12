@@ -554,7 +554,7 @@ actions:
     action:
       type: staged
       stage: build
-      cmd: wasm-opt -Oz --all-features --strip-debug -o {file} {file}
+      cmd: wasm-opt -Oz --all-features --strip-debug --strip-producers -o {file} {file}
       placeholders:
         - "{file}"
   - info: wasm-prepare-showcase-dist-folder@0.1.0
@@ -606,6 +606,13 @@ pipelines:
           "{features}": empty
           "{flags}": empty
           "{package}": package-ui-kit
+          "{target}": target-wasm
+      - title: Lint `showcase`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ui-kit-showcase
           "{target}": target-wasm
       - title: Lint `impulse-error-pages`
         used: cargo-lint@0.2.0
@@ -687,6 +694,13 @@ pipelines:
           "{features}": empty
           "{flags}": empty
           "{package}": package-ui-kit
+          "{target}": target-wasm
+      - title: Lint `showcase`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ui-kit-showcase
           "{target}": target-wasm
       - title: Lint `impulse-error-pages`
         used: cargo-lint@0.2.0
@@ -1181,11 +1195,11 @@ pipelines:
       - title: Run static server at `0.0.0.0:8807`
         used: run-showcase-static-server@0.1.0
     artifacts:
-      - from: iks
+      - from: impulse-ui-kit/examples/showcase/iks
         to: showcase/iks
-      - from: static-server.yaml
+      - from: impulse-ui-kit/examples/showcase/static-server.yaml
         to: showcase/static-server.yaml
-      - from: dist
+      - from: impulse-ui-kit/examples/showcase/dist
         to: showcase/dist
   - title: run-showcase
     info: ui-kit-example-run@0.1.0
