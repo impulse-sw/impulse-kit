@@ -429,7 +429,7 @@ fn LayoutComponentsSection() -> impl IntoView {
 
       // Aspect Ratio
       <ComponentCard title="Aspect Ratio" description="Container that maintains aspect ratio">
-        <AspectRatio ratio=16.0 / 9.0>
+        <AspectRatio ratio=RwSignal::new(16.0 / 9.0)>
           <div class="w-full h-full bg-muted rounded-md flex items-center justify-center">
             <span class="text-muted-foreground">"16:9 Aspect Ratio"</span>
           </div>
