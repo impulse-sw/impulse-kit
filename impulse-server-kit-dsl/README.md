@@ -37,6 +37,8 @@ Options:
   -o, --output <FOLDER>    Output folder
   -v, --version <VERSION>  API version (optional)
   -r, --regenerate         Don't bump the version and rewrite all generated files (destructive)
+  -R, --cli-rs <FOLDER>    Generate Rust API client into FOLDER
+  -J, --cli-js <FOLDER>    Generate JS API client into FOLDER
   -h, --help               Print help
 ```
 
@@ -46,8 +48,8 @@ Examples:
 # will create `api/v1` folder with prototypes
 skdsl -i proto-v1.txt -o api
 
-# manually bump API to `v3`
-skdsl -i proto-v2.md -o api -v v3
+# manually bump API to `v3` and generates clients for Rust and JS
+skdsl -i proto-v2.md -o api -v v3 --cli-rs cli --cli-js cli-js
 
 # regenerate `v3` from scratch
 skdsl -i proto-v3.md -o api -v v3 -r
