@@ -10,9 +10,7 @@ use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 use leptos::web_sys::Element;
 
-use super::button::{Button, ButtonSize, ButtonVariant};
-
-const BASE_CONTENT_CLASSES: &str = "bg-popover text-popover-foreground z-50 w-72 rounded-md border p-4 shadow-md outline-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95";
+const BASE_CONTENT_CLASSES: &str = "bg-popover text-popover-foreground fixed z-50 w-72 overflow-hidden rounded-md border p-4 shadow-md outline-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:opacity-0 data-[state=closed]:pointer-events-none data-[state=closed]:invisible";
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum PopoverAlign {
@@ -39,15 +37,10 @@ pub fn Popover(#[prop(optional)] open: Option<RwSignal<bool>>, children: Childre
 }
 
 #[component]
-pub fn PopoverTrigger(
-  #[prop(optional)] variant: ButtonVariant,
-  #[prop(optional)] size: ButtonSize,
-  #[prop(into, optional)] class: String,
-  children: Children,
-) -> impl IntoView {
+pub fn PopoverTrigger(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
   let context = use_context::<PopoverContext>().expect("PopoverTrigger must be used within Popover");
 
-  let trigger_ref = NodeRef::<leptos::html::Button>::new();
+  let trigger_ref = NodeRef::<leptos::html::Div>::new();
 
   provide_context(PopoverTriggerRef { trigger_ref });
 
@@ -56,16 +49,14 @@ pub fn PopoverTrigger(
   };
 
   view! {
-    <Button
+    <div
       node_ref=trigger_ref
       attr:data-slot="popover-trigger"
-      variant=variant
-      size=size
-      class=class
+      class=cn(&["inline-block", class.as_str()])
       on:click=handle_click
     >
       {children()}
-    </Button>
+    </div>
   }
 }
 
@@ -87,41 +78,38 @@ pub fn PopoverContent(
   let side_offset = side_offset.unwrap_or(4);
 
   let position_style = RwSignal::new(String::new());
-  let rendered = RwSignal::new(false);
 
+  // Position calculation
   Effect::new(move |_| {
     if context.is_open.get() {
-      rendered.set(true);
-    } else {
-      set_timeout(move || rendered.set(false), std::time::Duration::from_millis(150));
+      // Use requestAnimationFrame to ensure content is laid out
+      request_animation_frame(move || {
+        if let Some(trigger_ref) = trigger_context
+          && let Some(trigger) = trigger_ref.trigger_ref.get()
+          && let Some(content) = content_ref.get()
+        {
+          let trigger_rect = trigger.get_bounding_client_rect();
+          let content_rect = content.get_bounding_client_rect();
+
+          let (top, left) = calculate_position(
+            trigger_rect.top(),
+            trigger_rect.left(),
+            trigger_rect.width(),
+            trigger_rect.height(),
+            content_rect.width(),
+            content_rect.height(),
+            side,
+            align,
+            side_offset,
+          );
+
+          position_style.set(format!("position: fixed; top: {}px; left: {}px;", top, left));
+        }
+      });
     }
   });
 
-  Effect::new(move |_| {
-    if context.is_open.get()
-      && let Some(trigger_ref) = trigger_context
-      && let Some(trigger) = trigger_ref.trigger_ref.get()
-      && let Some(content) = content_ref.get()
-    {
-      let trigger_rect = trigger.get_bounding_client_rect();
-      let content_rect = content.get_bounding_client_rect();
-
-      let (top, left) = calculate_position(
-        trigger_rect.top(),
-        trigger_rect.left(),
-        trigger_rect.width(),
-        trigger_rect.height(),
-        content_rect.width(),
-        content_rect.height(),
-        side,
-        align,
-        side_offset,
-      );
-
-      position_style.set(format!("position: fixed; top: {}px; left: {}px;", top, left));
-    }
-  });
-
+  // Click outside detection
   let handle_click_outside = move |ev: leptos::ev::MouseEvent| {
     if !context.is_open.get() {
       return;
@@ -153,26 +141,25 @@ pub fn PopoverContent(
   });
 
   let slide_class = match side {
-    OverlaySide::Top => "data-[state=open]:slide-in-from-bottom-2",
-    OverlaySide::Right => "data-[state=open]:slide-in-from-left-2",
-    OverlaySide::Bottom => "data-[state=open]:slide-in-from-top-2",
-    OverlaySide::Left => "data-[state=open]:slide-in-from-right-2",
+    OverlaySide::Top => "data-[state=open]:slide-in-from-bottom-2 data-[state=closed]:slide-out-to-bottom-2",
+    OverlaySide::Right => "data-[state=open]:slide-in-from-left-2 data-[state=closed]:slide-out-to-left-2",
+    OverlaySide::Bottom => "data-[state=open]:slide-in-from-top-2 data-[state=closed]:slide-out-to-top-2",
+    OverlaySide::Left => "data-[state=open]:slide-in-from-right-2 data-[state=closed]:slide-out-to-right-2",
   };
 
   let children = StoredValue::new(children);
+  let class = StoredValue::new(class);
 
   view! {
-    <Show when=move || rendered.get()>
-      <div
-        node_ref=content_ref
-        data-slot="popover-content"
-        data-state=move || if context.is_open.get() { "open" } else { "closed" }
-        class=cn(&[BASE_CONTENT_CLASSES, slide_class, class.as_str()])
-        style=move || position_style.get()
-      >
-        {children.read_value()()}
-      </div>
-    </Show>
+    <div
+      node_ref=content_ref
+      data-slot="popover-content"
+      data-state=move || if context.is_open.get() { "open" } else { "closed" }
+      class=cn(&[BASE_CONTENT_CLASSES, slide_class, class.read_value().as_str()])
+      style=move || position_style.get()
+    >
+      {children.read_value()()}
+    </div>
   }
 }
 
@@ -192,5 +179,5 @@ struct PopoverContext {
 
 #[derive(Clone, Copy)]
 struct PopoverTriggerRef {
-  trigger_ref: NodeRef<leptos::html::Button>,
+  trigger_ref: NodeRef<leptos::html::Div>,
 }

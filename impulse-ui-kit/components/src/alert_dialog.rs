@@ -3,7 +3,7 @@
 use impulse_ui_kit::utils::cn;
 use leptos::prelude::*;
 
-use super::button::{Button, ButtonSize, ButtonVariant};
+use super::button::{Button, ButtonVariant};
 
 #[derive(Clone, Copy)]
 struct AlertDialogContext {
@@ -11,33 +11,30 @@ struct AlertDialogContext {
 }
 
 #[component]
-pub fn AlertDialog(#[prop(optional)] open: bool, children: Children) -> impl IntoView {
-  let is_open = RwSignal::new(open);
+pub fn AlertDialog(
+  #[prop(optional)] open: Option<RwSignal<bool>>,
+  #[prop(optional)] default_open: Option<bool>,
+  children: Children,
+) -> impl IntoView {
+  let is_open = open.unwrap_or_else(|| RwSignal::new(default_open.unwrap_or(false)));
 
   provide_context(AlertDialogContext { is_open });
 
-  view! { <div data-slot="alert-dialog">{children()}</div> }.into_view()
+  view! { <div data-slot="alert-dialog">{children()}</div> }
 }
 
 #[component]
-pub fn AlertDialogTrigger(
-  #[prop(optional)] variant: ButtonVariant,
-  #[prop(optional)] size: ButtonSize,
-  #[prop(into, optional)] class: String,
-  children: Children,
-) -> impl IntoView {
+pub fn AlertDialogTrigger(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
   let context = use_context::<AlertDialogContext>().expect("AlertDialogTrigger must be used within AlertDialog");
 
   view! {
-    <Button
+    <div
       attr:data-slot="alert-dialog-trigger"
       on:click=move |_| context.is_open.set(true)
-      variant=variant
-      size=size
-      class=class
+      class=cn(&["inline-block", class.as_str()])
     >
       {children()}
-    </Button>
+    </div>
   }
 }
 
@@ -48,10 +45,10 @@ pub fn AlertDialogOverlay(#[prop(optional)] class: String) -> impl IntoView {
   view! {
     <div
       data-slot="alert-dialog-overlay"
-      data-state=if context.is_open.get() { "open" } else { "closed" }
+      data-state=move || if context.is_open.get() { "open" } else { "closed" }
       class=cn(
         &[
-          "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50",
+          "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50 data-[state=closed]:pointer-events-none data-[state=closed]:opacity-0",
           class.as_str(),
         ],
       )
@@ -63,33 +60,23 @@ pub fn AlertDialogOverlay(#[prop(optional)] class: String) -> impl IntoView {
 pub fn AlertDialogContent(#[prop(optional)] class: String, children: ChildrenFn) -> impl IntoView {
   let context = use_context::<AlertDialogContext>().expect("AlertDialogContent must be used within AlertDialog");
 
-  let rendered = RwSignal::new(false);
-  Effect::new(move |_| {
-    if context.is_open.get() {
-      rendered.set(true);
-    } else {
-      set_timeout(move || rendered.set(false), std::time::Duration::from_millis(150));
-    }
-  });
-
   let children = StoredValue::new(children);
+  let class = StoredValue::new(class);
 
   view! {
-    <Show when=move || rendered.get()>
-      <AlertDialogOverlay />
-      <div
-        data-slot="alert-dialog-content"
-        data-state=if context.is_open.get() { "open" } else { "closed" }
-        class=cn(
-          &[
-            "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg",
-            class.as_str(),
-          ],
-        )
-      >
-        {children.read_value()()}
-      </div>
-    </Show>
+    <AlertDialogOverlay />
+    <div
+      data-slot="alert-dialog-content"
+      data-state=move || if context.is_open.get() { "open" } else { "closed" }
+      class=cn(
+        &[
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg sm:max-w-lg data-[state=closed]:pointer-events-none data-[state=closed]:invisible",
+          class.read_value().as_str(),
+        ],
+      )
+    >
+      {children.read_value()()}
+    </div>
   }
 }
 

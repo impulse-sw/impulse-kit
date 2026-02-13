@@ -3,7 +3,7 @@
 use impulse_ui_kit::utils::cn;
 use leptos::prelude::*;
 
-#[derive(Default)]
+#[derive(Copy, Clone, PartialEq, Default)]
 pub enum ButtonVariant {
   #[default]
   Default,
@@ -14,7 +14,7 @@ pub enum ButtonVariant {
   Link,
 }
 
-#[derive(Default)]
+#[derive(Copy, Clone, PartialEq, Default)]
 pub enum ButtonSize {
   #[default]
   Default,
@@ -61,14 +61,14 @@ const BASE_CLASSES: &str = "inline-flex items-center justify-center gap-2 whites
 pub fn Button(
   #[prop(optional)] variant: ButtonVariant,
   #[prop(optional)] size: ButtonSize,
-  #[prop(into, optional)] class: String,
+  #[prop(into, optional)] class: Signal<String>,
   #[prop(optional)] node_ref: NodeRef<leptos::html::Button>,
   children: Children,
 ) -> impl IntoView {
   view! {
     <button
       data-slot="button"
-      class=cn(&[BASE_CLASSES, variant.class(), size.class(), class.as_str()])
+      class=move || cn(&[BASE_CLASSES, variant.class(), size.class(), class.read().as_str()])
       node_ref=node_ref
     >
       {children()}

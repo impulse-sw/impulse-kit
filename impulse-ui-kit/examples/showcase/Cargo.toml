@@ -1,0 +1,19 @@
+[package]
+name = "ui-kit-showcase"
+description = "UI Kit Component Showcase"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+chrono = "0.4.42"
+codee = "0.3.3"
+icondata = { workspace = true, features = ["lucide"] }
+impulse-ui-kit = { workspace = true }
+impulse-ui-kit-components = { workspace = true }
+leptos = { workspace = true, features = ["csr"] }
+leptos-use = { workspace = true, features = ["storage", "use_breakpoints"] }
+log = { workspace = true }
+uuid = { version = "1.18", features = ["v4", "js"] }
+web-sys = { workspace = true, features = ["ClipboardEvent", "DataTransfer", "DomRect", "Element", "HtmlButtonElement", "HtmlDivElement"] }

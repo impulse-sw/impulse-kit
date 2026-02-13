@@ -7,9 +7,11 @@ license = { workspace = true }
 authors = { workspace = true }
 
 [dependencies]
+chrono = "0.4.42"
 codee = "0.3.3"
 icondata = { workspace = true }
 impulse-ui-kit = { workspace = true }
 leptos = { version = "0.8", default-features = false, features = ["csr"] }
 leptos-use = { version = "0.16", default-features = false, features = ["storage"] }
+uuid = { version = "1.18.1", features = ["v4", "js"] }
 web-sys = { version = "0.3.82", features = ["ClipboardEvent", "DataTransfer", "DomRect", "Element", "HtmlButtonElement", "HtmlDivElement"] }

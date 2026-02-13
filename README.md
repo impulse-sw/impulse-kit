@@ -18,6 +18,8 @@ Server Kit provides DSL-to-API prototype translator to simplify development:
 - automated OpenAPI spec generation
 - automated OpenTelemetry instrumenting.
 
+SK DSL allows you to export server API prototypes (you just need to implement endpoints' logic) and Rust & JS clients for this API.
+
 [SK DSL Documentation](./impulse-server-kit-dsl/README.md)
 
 ### Impulse Static Server

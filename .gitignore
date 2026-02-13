@@ -4,4 +4,4 @@
 **/Cargo.lock
 **/dist/
 impulse-error-pages/tw-animate.css
-impulse-error-pages/src/components/button.rs
+impulse-ui-kit/examples/showcase/tw-animate.css

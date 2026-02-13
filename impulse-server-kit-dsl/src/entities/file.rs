@@ -76,6 +76,56 @@ impl File {
 
     Ok(generated)
   }
+
+  pub fn generate_client_rs(&self) -> MResult<Vec<Generated>> {
+    let mut generated = vec![];
+
+    for tag in &self.tags {
+      generated.push(Generated {
+        api_tag: Some(tag.tag.clone()),
+        filepath: PathBuf::from(format!("{}.rs", tag.tag)),
+        content: crate::entities::client_rs::generate_client_rs_tag(tag, self)?,
+      });
+    }
+
+    generated.push(Generated {
+      api_tag: None,
+      filepath: PathBuf::from("mod.rs"),
+      content: self
+        .tags
+        .iter()
+        .map(|t| format!("pub mod {};\n", t.tag))
+        .collect::<Vec<_>>()
+        .join(""),
+    });
+
+    Ok(generated)
+  }
+
+  pub fn generate_client_js(&self) -> MResult<Vec<Generated>> {
+    let mut generated = vec![];
+
+    for tag in &self.tags {
+      generated.push(Generated {
+        api_tag: Some(tag.tag.clone()),
+        filepath: PathBuf::from(format!("{}.js", tag.tag)),
+        content: crate::entities::client_js::generate_client_js_tag(tag, self)?,
+      });
+    }
+
+    generated.push(Generated {
+      api_tag: None,
+      filepath: PathBuf::from("index.js"),
+      content: self
+        .tags
+        .iter()
+        .map(|t| format!("export * from './{}.js';\n", t.tag))
+        .collect::<Vec<_>>()
+        .join(""),
+    });
+
+    Ok(generated)
+  }
 }
 
 #[derive(Deserialize, Serialize)]

@@ -129,16 +129,14 @@ pub fn AccordionTrigger(
 
 #[component]
 pub fn AccordionContent(#[prop(optional, into)] class: String, children: ChildrenFn) -> impl IntoView {
-  let item_context = use_context::<AccordionItemContext>().expect("AccordionContent must be used within AccordionItem");
+  let context = use_context::<AccordionItemContext>().expect("AccordionContent must be used within AccordionItem");
 
-  let content_ref = NodeRef::<leptos::html::Div>::new();
   let inner_ref = NodeRef::<leptos::html::Div>::new();
-  let should_render = RwSignal::new(false);
   let content_height = RwSignal::new(0);
-  let children_stored = StoredValue::new(children);
+  let children = StoredValue::new(children);
 
   Effect::new(move |_| {
-    if item_context.is_open.get() {
+    if context.is_open.get() {
       request_animation_frame(move || {
         if let Some(inner) = inner_ref.get() {
           let height = inner.scroll_height();
@@ -148,34 +146,23 @@ pub fn AccordionContent(#[prop(optional, into)] class: String, children: Childre
     }
   });
 
-  Effect::new(move |_| {
-    if item_context.is_open.get() {
-      should_render.set(true);
-    } else if should_render.get() {
-      set_timeout(move || should_render.set(false), std::time::Duration::from_millis(200));
-    }
-  });
-
   let data_state = move || {
-    if item_context.is_open.get() { "open" } else { "closed" }
+    if context.is_open.get() { "open" } else { "closed" }
   };
 
   let content_style = move || format!("--radix-accordion-content-height: {}px", content_height.get());
 
   view! {
-    <Show when=move || should_render.get()>
-      <div
-        node_ref=content_ref
-        data-slot="accordion-content"
-        data-state=data_state
-        class="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm"
-        style=content_style
-      >
-        <div node_ref=inner_ref class=cn(&["pt-0 pb-4", class.as_str()])>
-          {children_stored.get_value()()}
-        </div>
+    <div
+      data-slot="accordion-content"
+      data-state=data_state
+      class="data-[state=closed]:h-0 data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm"
+      style=content_style
+    >
+      <div node_ref=inner_ref class=cn(&["pt-0 pb-4", class.as_str()])>
+        {children.get_value()()}
       </div>
-    </Show>
+    </div>
   }
 }
 

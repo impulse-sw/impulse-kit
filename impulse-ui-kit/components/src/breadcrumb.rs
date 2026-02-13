@@ -4,15 +4,16 @@ use impulse_ui_kit::utils::cn;
 use leptos::prelude::*;
 
 #[component]
-pub fn Breadcrumb(#[prop(attrs)] attrs: Vec<leptos::attr::any_attribute::AnyAttribute>) -> impl IntoView {
-  view! { <nav aria-label="breadcrumb" data-slot="breadcrumb" {..attrs} /> }
+pub fn Breadcrumb(children: Children) -> impl IntoView {
+  view! {
+    <nav aria-label="breadcrumb" data-slot="breadcrumb">
+      {children()}
+    </nav>
+  }
 }
 
 #[component]
-pub fn BreadcrumbList(
-  #[prop(into, optional)] class: String,
-  #[prop(attrs)] attrs: Vec<leptos::attr::any_attribute::AnyAttribute>,
-) -> impl IntoView {
+pub fn BreadcrumbList(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
   view! {
     <ol
       data-slot="breadcrumb-list"
@@ -22,23 +23,16 @@ pub fn BreadcrumbList(
           class.as_str(),
         ],
       )
-      {..attrs}
-    />
+    >
+      {children()}
+    </ol>
   }
 }
 
 #[component]
-pub fn BreadcrumbItem(
-  #[prop(into, optional)] class: String,
-  #[prop(attrs)] attrs: Vec<leptos::attr::any_attribute::AnyAttribute>,
-  children: Children,
-) -> impl IntoView {
+pub fn BreadcrumbItem(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
   view! {
-    <li
-      data-slot="breadcrumb-item"
-      class=cn(&["inline-flex items-center gap-1.5", class.as_str()])
-      {..attrs}
-    >
+    <li data-slot="breadcrumb-item" class=cn(&["inline-flex items-center gap-1.5", class.as_str()])>
       {children()}
     </li>
   }

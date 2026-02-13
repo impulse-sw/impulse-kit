@@ -10,6 +10,7 @@ authors = { workspace = true }
 icondata = { workspace = true, features = ["lucide"] }
 impulse-utils = { workspace = true, features = ["reqwest"] }
 impulse-ui-kit = { workspace = true }
+impulse-ui-kit-components = { workspace = true }
 leptos = { workspace = true, features = ["csr"] }
 leptos_meta = { workspace = true }
 web-sys = { workspace = true, features = ["Document", "Location"] }

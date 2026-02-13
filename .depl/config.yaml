@@ -1,168 +1,367 @@
 project_name: impulse-kit
-version: 7
+version: 8
 ignore_files:
+  - .*.kate-swp
   - .git
+  - Cargo.lock
+  - target
 cache_files:
   - Cargo.lock
   - target
 variables:
+  binary-dsl:
+    value:
+      type: plain
+      value: target/x86_64-unknown-linux-gnu/release/skdsl
   binary-static-server:
-    is_secret: false
     value:
       type: plain
       value: target/x86_64-unknown-linux-gnu/release/iks
   component-accordion:
-    is_secret: false
     value:
       type: plain
       value: accordion
-  component-alert-dialog:
-    is_secret: false
-    value:
-      type: plain
-      value: alert-dialog
   component-alert:
-    is_secret: false
     value:
       type: plain
       value: alert
+  component-alert-dialog:
+    value:
+      type: plain
+      value: alert-dialog
   component-aspect-ratio:
-    is_secret: false
     value:
       type: plain
       value: aspect-ratio
   component-avatar:
-    is_secret: false
     value:
       type: plain
       value: avatar
   component-badge:
-    is_secret: false
     value:
       type: plain
       value: badge
   component-breadcrumb:
-    is_secret: false
     value:
       type: plain
       value: breadcrumb
   component-button:
-    is_secret: false
     value:
       type: plain
       value: button
+  component-button-group:
+    value:
+      type: plain
+      value: button-group
+  component-calendar:
+    value:
+      type: plain
+      value: calendar
+  component-card:
+    value:
+      type: plain
+      value: card
+  component-carousel:
+    value:
+      type: plain
+      value: carousel
+  component-chart:
+    value:
+      type: plain
+      value: chart
+  component-checkbox:
+    value:
+      type: plain
+      value: checkbox
+  component-collapsible:
+    value:
+      type: plain
+      value: collapsible
+  component-combobox:
+    value:
+      type: plain
+      value: combobox
+  component-command:
+    value:
+      type: plain
+      value: command
+  component-context-menu:
+    value:
+      type: plain
+      value: context-menu
+  component-data-table:
+    value:
+      type: plain
+      value: data-table
+  component-date-picker:
+    value:
+      type: plain
+      value: date-picker
+  component-dialog:
+    value:
+      type: plain
+      value: dialog
+  component-drawer:
+    value:
+      type: plain
+      value: drawer
   component-dropdown-menu:
-    is_secret: false
     value:
       type: plain
       value: dropdown-menu
+  component-form:
+    value:
+      type: plain
+      value: form
   component-icon:
-    is_secret: false
     value:
       type: plain
       value: icon
   component-input:
-    is_secret: false
     value:
       type: plain
       value: input
   component-input-otp:
-    is_secret: false
     value:
       type: plain
       value: input-otp
+  component-label:
+    value:
+      type: plain
+      value: label
   component-popover:
-    is_secret: false
     value:
       type: plain
       value: popover
+  component-progress:
+    value:
+      type: plain
+      value: progress
+  component-radio-group:
+    value:
+      type: plain
+      value: radio-group
+  component-resizable:
+    value:
+      type: plain
+      value: resizable
+  component-scroll-area:
+    value:
+      type: plain
+      value: scroll-area
+  component-select:
+    value:
+      type: plain
+      value: select
+  component-separator:
+    value:
+      type: plain
+      value: separator
+  component-sheet:
+    value:
+      type: plain
+      value: sheet
+  component-sidebar:
+    value:
+      type: plain
+      value: sidebar
+  component-skeleton:
+    value:
+      type: plain
+      value: skeleton
+  component-slider:
+    value:
+      type: plain
+      value: slider
+  component-sonner:
+    value:
+      type: plain
+      value: sonner
+  component-spinner:
+    value:
+      type: plain
+      value: spinner
+  component-switch:
+    value:
+      type: plain
+      value: switch
+  component-table:
+    value:
+      type: plain
+      value: table
+  component-tabs:
+    value:
+      type: plain
+      value: tabs
+  component-textarea:
+    value:
+      type: plain
+      value: textarea
   component-theme:
-    is_secret: false
     value:
       type: plain
       value: theme
+  component-toast:
+    value:
+      type: plain
+      value: toast
+  component-toggle:
+    value:
+      type: plain
+      value: toggle
+  component-toggle-group:
+    value:
+      type: plain
+      value: toggle-group
+  component-tooltip:
+    value:
+      type: plain
+      value: tooltip
   empty:
-    is_secret: false
     value:
       type: plain
       value: ""
+  error-pages-tw-input:
+    value:
+      type: plain
+      value: ./impulse-error-pages/input.css
+  error-pages-tw-output:
+    value:
+      type: plain
+      value: ./impulse-error-pages/dist/error_pages_tailwind.css
+  error-pages-wasm-file:
+    value:
+      type: plain
+      value: ./impulse-error-pages/dist/impulse-error-pages_bg.wasm
+  featureset-all:
+    value:
+      type: plain
+      value: " --all-features"
   featureset-utils-wasm32:
-    is_secret: false
     value:
       type: plain
       value: " --no-default-features --features=reqwest"
   file-alert-dialog:
-    is_secret: false
     value:
       type: plain
       value: alert_dialog
   file-aspect-ratio:
-    is_secret: false
     value:
       type: plain
       value: aspect_ratio
+  file-button-group:
+    value:
+      type: plain
+      value: button_group
+  file-context-menu:
+    value:
+      type: plain
+      value: context_menu
+  file-data-table:
+    value:
+      type: plain
+      value: data_table
+  file-date-picker:
+    value:
+      type: plain
+      value: date_picker
   file-dropdown-menu:
-    is_secret: false
     value:
       type: plain
       value: dropdown_menu
+  file-error-pages-favicon:
+    value:
+      type: plain
+      value: impulse-error-pages/public/favicon.ico
   file-input-otp:
-    is_secret: false
     value:
       type: plain
       value: input_otp
+  file-radio-group:
+    value:
+      type: plain
+      value: radio_group
+  file-scroll-area:
+    value:
+      type: plain
+      value: scroll_area
+  file-toggle-group:
+    value:
+      type: plain
+      value: toggle_group
+  folder-error-pages:
+    value:
+      type: plain
+      value: impulse-error-pages/
+  folder-error-pages-dist:
+    value:
+      type: plain
+      value: impulse-error-pages/dist/
+  folder-showcase:
+    value:
+      type: plain
+      value: impulse-ui-kit/examples/showcase/
   kit-version:
-    is_secret: false
     value:
       type: from_cmd
-      cmd: python .depl/rust-crate-ver.py
+      cmd: python .depl/rust_crate_ver.py
   package-dsl:
-    is_secret: false
     value:
       type: plain
       value: impulse-skdsl
   package-error-pages:
-    is_secret: false
     value:
       type: plain
       value: impulse-error-pages
   package-server-kit:
-    is_secret: false
     value:
       type: plain
       value: impulse-server-kit
   package-static-server:
-    is_secret: false
     value:
       type: plain
       value: impulse-static-server
   package-ui-kit:
-    is_secret: false
     value:
       type: plain
       value: impulse-ui-kit
   package-ui-kit-components:
-    is_secret: false
     value:
       type: plain
       value: impulse-ui-kit-components
+  package-ui-kit-showcase:
+    value:
+      type: plain
+      value: ui-kit-showcase
   package-utils:
-    is_secret: false
     value:
       type: plain
       value: impulse-utils
   reqwest-unstable-flag:
-    is_secret: false
     value:
       type: plain
       value: 'RUSTFLAGS=''--cfg reqwest_unstable'' '
+  showcase-favicon:
+    value:
+      type: plain
+      value: ./impulse-ui-kit/examples/showcase/public/favicon.ico
+  showcase-tw-input:
+    value:
+      type: plain
+      value: ./impulse-ui-kit/examples/showcase/input.css
+  showcase-tw-output:
+    value:
+      type: plain
+      value: ./impulse-ui-kit/examples/showcase/public/tailwind.css
+  showcase-wasm-file:
+    value:
+      type: plain
+      value: ./impulse-ui-kit/examples/showcase/dist/ui-kit-showcase_bg.wasm
   target-wasm:
-    is_secret: false
     value:
       type: plain
       value: wasm32-unknown-unknown
   target-x86:
-    is_secret: false
     value:
       type: plain
       value: x86_64-unknown-linux-gnu
@@ -174,7 +373,7 @@ actions:
       auto_version_rule:
         type: cmd_stdout
         cmd:
-          cmd: python .depl/rust-crate-ver.py
+          cmd: python .depl/rust_crate_ver.py
           ignore_fails: true
           show_success_output: true
           show_cmd: false
@@ -199,6 +398,13 @@ actions:
       cmd: cargo doc --target {target} --workspace --no-deps
       placeholders:
         - "{target}"
+  - info: cargo-install-by-copy@0.1.0
+    action:
+      type: staged
+      stage: build
+      cmd: cp -f %bin% ~/.cargo/bin
+      placeholders:
+        - "%bin%"
   - info: cargo-lint@0.2.0
     action:
       type: staged
@@ -209,16 +415,28 @@ actions:
         - "{package}"
         - "{target}"
         - "{features}"
-      show_success_output: true
+  - info: cargo-publish@0.2.0
+    tags:
+      - rust
+      - cargo
+    requirements:
+      - type: in_path
+        executable: cargo
+        desc: "Install `cargo` via your package manager or with this command: `curl https://sh.rustup.rs -sSf | sh`."
+    action:
+      type: staged
+      stage: deploy
+      cmd: cargo publish --package {package}{features}
+      placeholders:
+        - "{package}"
+        - "{features}"
   - info: cargo-release@0.2.0
     tags:
       - rust
       - cargo
     requirements:
-      - type: exists_any
-        paths:
-          - /bin/cargo
-          - ~/.cargo/bin/cargo
+      - type: in_path
+        executable: cargo
         desc: "Install `cargo` via your package manager or with this command: `curl https://sh.rustup.rs -sSf | sh`."
     action:
       type: staged
@@ -230,20 +448,27 @@ actions:
         - "{target}"
         - "{features}"
   - info: cargo-test-doc@0.1.0
+    requirements:
+      - type: in_path
+        executable: cargo
     action:
       type: staged
       stage: build
       cmd: cargo test --doc
+  - info: copy@0.1.0
+    action:
+      type: staged
+      stage: build
+      cmd: cp {from} {to}
+      placeholders:
+        - "{from}"
+        - "{to}"
   - info: depl-add-component-to-storage@0.1.0
     tags:
       - deployer
     requirements:
-      - type: exists_any
-        paths:
-          - /bin/depl
-          - /usr/bin/depl
-          - ~/.cargo/bin/depl
-          - ~/.local/bin/depl
+      - type: in_path
+        executable: depl
     action:
       type: staged
       stage: build
@@ -252,26 +477,77 @@ actions:
         - "{component-name}"
         - "{component-file}"
         - "{kit-version}"
+  - info: impulse-kit-patch-cargo@0.1.0
+    action:
+      type: patch
+      patch: .depl/patch-cargo-toml.json
   - info: leptos-fmt@0.1.0
     tags:
       - leptos
       - fmt
     requirements:
-      - type: exists
-        path: ~/.cargo/bin/leptosfmt
+      - type: in_path
+        executable: leptosfmt
         desc: "Check this: https://github.com/bram209/leptosfmt"
     exec_in_project_dir: true
     action:
       type: staged
       stage: build
       cmd: leptosfmt -t 2 ./**/*.rs
+  - info: run-showcase-static-server@0.1.0
+    action:
+      type: observe
+      cmd: cd impulse-ui-kit/examples/showcase && ./iks
+      ignore_fails: true
+      show_success_output: true
+      show_cmd: false
+      only_when_fresh: false
+  - info: sync-static-server@0.1.0
+    action:
+      type: use_from_storage
+      content_info: static-server@latest
+  - info: sync-static-server@0.1.1
+    action:
+      type: staged
+      stage: build
+      cmd: mv iks static-server.yaml impulse-ui-kit/examples/showcase
+  - info: tailwindcss-compile@0.2.0
+    tags:
+      - tailwind
+      - css
+    requirements:
+      - type: in_path
+        executable: tailwindcss
+        desc: "Install TailwindCSS standalone client: https://github.com/tailwindlabs/tailwindcss/releases"
+      - type: exists
+        path: ./impulse-error-pages/tw-animate.css
+        desc: "Download `tw-animate` manually from: https://raw.githubusercontent.com/Wombosvideo/tw-animate-css/refs/heads/main/src/tw-animate.css"
+    action:
+      type: staged
+      stage: build
+      cmd: tailwindcss -i {tw-input} -o {tw-output} --minify
+      placeholders:
+        - "{tw-input}"
+        - "{tw-output}"
+  - info: trunk-build-rel@0.1.0
+    tags:
+      - trunk
+      - build
+      - wasm
+    requirements:
+      - type: in_path
+        executable: trunk
+        desc: "Check the website: https://trunkrs.dev/"
+    action:
+      type: staged
+      stage: build
+      cmd: cd {project-folder} && RUSTFLAGS="-Zlocation-detail=none -Zfmt-debug=none -Zunstable-options -Cpanic=immediate-abort" CARGO_UNSTABLE_BUILD_STD="std,panic_abort" CARGO_UNSTABLE_BUILD_STD_FEATURES="optimize_for_size" trunk build --release
+      placeholders:
+        - "{project-folder}"
   - info: upx@0.1.0
     requirements:
-      - type: exists_any
-        paths:
-          - /bin/upx
-          - /usr/bin/upx
-          - ~/.local/bin/upx
+      - type: in_path
+        executable: upx
     action:
       type: staged
       stage: build
@@ -282,20 +558,48 @@ actions:
     action:
       type: use_from_storage
       content_info: get-know-rust-package-version@latest
+  - info: wasm-opt@0.1.0
+    tags:
+      - wasm
+      - wasm-opt
+    requirements:
+      - type: in_path
+        executable: wasm-opt
+        desc: "Install `binaryen` package or download it from this: https://github.com/WebAssembly/binaryen/releases"
+    action:
+      type: staged
+      stage: build
+      cmd: wasm-opt -Oz --all-features --strip-debug --strip-producers -o {file} {file}
+      placeholders:
+        - "{file}"
+  - info: wasm-prepare-showcase-dist-folder@0.1.0
+    action:
+      type: staged
+      stage: build
+      cmd: cp {tw-output} {favicon} impulse-ui-kit/examples/showcase/dist/
+      placeholders:
+        - "{tw-output}"
+        - "{favicon}"
+  - info: wasm-strip@0.1.0
+    requirements:
+      - type: in_path
+        executable: wasm-strip
+        desc: "Install `binaryen` package or download it from this: https://github.com/WebAssembly/binaryen/releases"
+    action:
+      type: staged
+      stage: build
+      cmd: wasm-strip {file}
+      placeholders:
+        - "{file}"
 pipelines:
-  - title: common-ops
-    desc: Common monorepo operations
-    info: impulse-kit-common-ops@0.1.0
+  - title: lints
+    desc: Lints for Impulse Kit
+    info: impulse-kit-lints@0.1.0
     tags:
       - cargo
       - clippy
       - lint
       - docs
-      - fmt
-    default: true
-    artifacts:
-      - from: target/x86_64-unknown-linux-gnu/doc
-        to: docs
     actions:
       - title: Lint `impulse-utils` on x86-64
         used: cargo-lint@0.2.0
@@ -317,6 +621,101 @@ pipelines:
           "{features}": empty
           "{flags}": empty
           "{package}": package-ui-kit
+          "{target}": target-wasm
+      - title: Lint `showcase`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ui-kit-showcase
+          "{target}": target-wasm
+      - title: Lint `impulse-error-pages`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-error-pages
+          "{target}": target-wasm
+      - title: Lint `impulse-server-kit`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": reqwest-unstable-flag
+          "{package}": package-server-kit
+          "{target}": target-x86
+      - title: Lint `impulse-server-kit-dsl`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-dsl
+          "{target}": target-x86
+      - title: Lint `impulse-static-server`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-static-server
+          "{target}": target-x86
+      - title: Test docs
+        used: cargo-test-doc@0.1.0
+    gh_opts:
+      on_push_branches:
+        - stable
+        - unstable
+      on_pull_requests_branches:
+        - unstable
+      preflight_steps:
+        - name: Install Rust Toolchain for x86_64
+          uses: actions-rust-lang/setup-rust-toolchain@v1
+          with:
+            target: x86_64-unknown-linux-gnu
+            toolchain: nightly
+            components: clippy
+        - name: Install Rust Toolchain for WASM
+          uses: actions-rust-lang/setup-rust-toolchain@v1
+          with:
+            target: wasm32-unknown-unknown
+            toolchain: nightly
+            components: clippy
+  - title: common-ops
+    desc: Common monorepo operations
+    info: impulse-kit-common-ops@0.1.0
+    tags:
+      - cargo
+      - clippy
+      - lint
+      - docs
+      - fmt
+    default: true
+    actions:
+      - title: Lint `impulse-utils` on x86-64
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": reqwest-unstable-flag
+          "{package}": package-utils
+          "{target}": target-x86
+      - title: Lint `impulse-utils` on wasm32
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": featureset-utils-wasm32
+          "{flags}": reqwest-unstable-flag
+          "{package}": package-utils
+          "{target}": target-wasm
+      - title: Lint `impulse-ui-kit`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ui-kit
+          "{target}": target-wasm
+      - title: Lint `showcase`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ui-kit-showcase
           "{target}": target-wasm
       - title: Lint `impulse-error-pages`
         used: cargo-lint@0.2.0
@@ -354,6 +753,37 @@ pipelines:
         used: cargo-generate-doc@0.1.0
         with:
           "{target}": target-x86
+    artifacts:
+      - from: target/x86_64-unknown-linux-gnu/doc
+        to: docs
+  - title: publish
+    desc: Publish open-source libraries
+    info: impulse-kit-publish@0.1.0
+    tags:
+      - cargo
+      - publish
+    default: false
+    actions:
+      - title: Publish `impulse-utils`
+        used: cargo-publish@0.2.0
+        with:
+          "{features}": featureset-all
+          "{package}": package-utils
+      - title: Publish `impulse-ui-kit`
+        used: cargo-publish@0.2.0
+        with:
+          "{features}": empty
+          "{package}": package-ui-kit
+      - title: Publish `impulse-server-kit`
+        used: cargo-publish@0.2.0
+        with:
+          "{features}": empty
+          "{package}": package-server-kit
+      - title: Publish `impulse-static-server`
+        used: cargo-publish@0.2.0
+        with:
+          "{features}": empty
+          "{package}": package-static-server
   - title: export-ui-components
     desc: Export Impulse UI Kit components to Deployer's storage.
     info: impulse-kit-export-ui-kit-components@0.1.0
@@ -361,7 +791,6 @@ pipelines:
       - deployer
       - components
       - ui-kit
-    exclusive_exec_tag: components
     actions:
       - title: Add script to know Impulse Kit version
         used: use-rust-package-version@0.1.0
@@ -424,6 +853,60 @@ pipelines:
           "{component-file}": component-button
           "{component-name}": component-button
           "{kit-version}": kit-version
+      - title: Add `button-group` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-button-group
+          "{component-name}": component-button-group
+          "{kit-version}": kit-version
+      - title: Add `calendar` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-calendar
+          "{component-name}": component-calendar
+          "{kit-version}": kit-version
+      - title: Add `card` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-card
+          "{component-name}": component-card
+          "{kit-version}": kit-version
+      - title: Add `carousel` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-carousel
+          "{component-name}": component-carousel
+          "{kit-version}": kit-version
+      - title: Add `checkbox` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-checkbox
+          "{component-name}": component-checkbox
+          "{kit-version}": kit-version
+      - title: Add `collapsible` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-collapsible
+          "{component-name}": component-collapsible
+          "{kit-version}": kit-version
+      - title: Add `command` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-command
+          "{component-name}": component-command
+          "{kit-version}": kit-version
+      - title: Add `context-menu` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-context-menu
+          "{component-name}": component-context-menu
+          "{kit-version}": kit-version
+      - title: Add `drawer` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-drawer
+          "{component-name}": component-drawer
+          "{kit-version}": kit-version
       - title: Add `dropdown-menu` component
         used: depl-add-component-to-storage@0.1.0
         with:
@@ -448,11 +931,29 @@ pipelines:
           "{component-file}": file-input-otp
           "{component-name}": component-input-otp
           "{kit-version}": kit-version
+      - title: Add `label` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-label
+          "{component-name}": component-label
+          "{kit-version}": kit-version
       - title: Add `popover` component
         used: depl-add-component-to-storage@0.1.0
         with:
           "{component-file}": component-popover
           "{component-name}": component-popover
+          "{kit-version}": kit-version
+      - title: Add `select` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-select
+          "{component-name}": component-select
+          "{kit-version}": kit-version
+      - title: Add `separator` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-separator
+          "{component-name}": component-separator
           "{kit-version}": kit-version
       - title: Add `theme` component
         used: depl-add-component-to-storage@0.1.0
@@ -460,16 +961,195 @@ pipelines:
           "{component-file}": component-theme
           "{component-name}": component-theme
           "{kit-version}": kit-version
+      - title: Add `chart` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-chart
+          "{component-name}": component-chart
+          "{kit-version}": kit-version
+      - title: Add `combobox` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-combobox
+          "{component-name}": component-combobox
+          "{kit-version}": kit-version
+      - title: Add `data-table` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-data-table
+          "{component-name}": component-data-table
+          "{kit-version}": kit-version
+      - title: Add `date-picker` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-date-picker
+          "{component-name}": component-date-picker
+          "{kit-version}": kit-version
+      - title: Add `dialog` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-dialog
+          "{component-name}": component-dialog
+          "{kit-version}": kit-version
+      - title: Add `form` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-form
+          "{component-name}": component-form
+          "{kit-version}": kit-version
+      - title: Add `progress` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-progress
+          "{component-name}": component-progress
+          "{kit-version}": kit-version
+      - title: Add `radio-group` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-radio-group
+          "{component-name}": component-radio-group
+          "{kit-version}": kit-version
+      - title: Add `resizable` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-resizable
+          "{component-name}": component-resizable
+          "{kit-version}": kit-version
+      - title: Add `scroll-area` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-scroll-area
+          "{component-name}": component-scroll-area
+          "{kit-version}": kit-version
+      - title: Add `sheet` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-sheet
+          "{component-name}": component-sheet
+          "{kit-version}": kit-version
+      - title: Add `sidebar` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-sidebar
+          "{component-name}": component-sidebar
+          "{kit-version}": kit-version
+      - title: Add `skeleton` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-skeleton
+          "{component-name}": component-skeleton
+          "{kit-version}": kit-version
+      - title: Add `slider` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-slider
+          "{component-name}": component-slider
+          "{kit-version}": kit-version
+      - title: Add `sonner` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-sonner
+          "{component-name}": component-sonner
+          "{kit-version}": kit-version
+      - title: Add `spinner` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-spinner
+          "{component-name}": component-spinner
+          "{kit-version}": kit-version
+      - title: Add `switch` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-switch
+          "{component-name}": component-switch
+          "{kit-version}": kit-version
+      - title: Add `table` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-table
+          "{component-name}": component-table
+          "{kit-version}": kit-version
+      - title: Add `tabs` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-tabs
+          "{component-name}": component-tabs
+          "{kit-version}": kit-version
+      - title: Add `textarea` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-textarea
+          "{component-name}": component-textarea
+          "{kit-version}": kit-version
+      - title: Add `toast` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-toast
+          "{component-name}": component-toast
+          "{kit-version}": kit-version
+      - title: Add `toggle` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-toggle
+          "{component-name}": component-toggle
+          "{kit-version}": kit-version
+      - title: Add `toggle-group` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": file-toggle-group
+          "{component-name}": component-toggle-group
+          "{kit-version}": kit-version
+      - title: Add `tooltip` component
+        used: depl-add-component-to-storage@0.1.0
+        with:
+          "{component-file}": component-tooltip
+          "{component-name}": component-tooltip
+          "{kit-version}": kit-version
+    exclusive_exec_tag: components
+  - title: build-error-pages
+    desc: Got from `build`.
+    info: impulse-error-pages-build@0.1.0
+    default: false
+    actions:
+      - title: Lint
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-error-pages
+          "{target}": target-wasm
+      - title: "Format #1"
+        used: leptos-fmt@0.1.0
+      - title: "Format #2"
+        used: cargo-fmt@0.1.0
+      - title: Build WASM
+        used: trunk-build-rel@0.1.0
+        with:
+          "{project-folder}": folder-error-pages
+      - title: Compile TailwindCSS
+        used: tailwindcss-compile@0.2.0
+        with:
+          "{tw-input}": error-pages-tw-input
+          "{tw-output}": error-pages-tw-output
+      - title: Optimize WASM
+        used: wasm-opt@0.1.0
+        with:
+          "{file}": error-pages-wasm-file
+      - title: Copy favicon
+        used: copy@0.1.0
+        with:
+          "{from}": file-error-pages-favicon
+          "{to}": folder-error-pages-dist
+    artifacts:
+      - from: impulse-error-pages/dist
+        to: error-pages
   - title: build-static-server
     info: impulse-kit-build-static-server@0.1.0
-    artifacts:
-      - from: target/x86_64-unknown-linux-gnu/release/iks
-        to: static-server/iks
-      - from: impulse-static-server/static-server.yaml
-        to: static-server/static-server.yaml
     actions:
       - title: Sync script to know Rust package version
         used: use-rust-package-version@0.1.0
+      - title: Patch `Cargo.toml`
+        used: impulse-kit-patch-cargo@0.1.0
       - title: Build (release mode)
         used: cargo-release@0.2.0
         with:
@@ -483,3 +1163,102 @@ pipelines:
           "%af%": binary-static-server
       - title: Auto-upload Static Server to Deployer's Storage
         used: add-static-server-to-storage@0.1.0
+    artifacts:
+      - from: target/x86_64-unknown-linux-gnu/release/iks
+        to: static-server/iks
+      - from: impulse-static-server/static-server.yaml
+        to: static-server/static-server.yaml
+    exclusive_exec_tag: binaries
+  - title: deploy-showcase
+    info: ui-kit-example-deploy@0.1.0
+    default: false
+    actions:
+      - title: Lint
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ui-kit-showcase
+          "{target}": target-wasm
+      - title: "Format #1"
+        used: leptos-fmt@0.1.0
+      - title: "Format #2"
+        used: cargo-fmt@0.1.0
+      - title: Compile TailwindCSS
+        used: tailwindcss-compile@0.2.0
+        with:
+          "{tw-input}": showcase-tw-input
+          "{tw-output}": showcase-tw-output
+      - title: Build WASM
+        used: trunk-build-rel@0.1.0
+        with:
+          "{project-folder}": folder-showcase
+      - title: Strip WASM
+        used: wasm-strip@0.1.0
+        with:
+          "{file}": showcase-wasm-file
+      - title: Optimize WASM
+        used: wasm-opt@0.1.0
+        with:
+          "{file}": showcase-wasm-file
+      - title: Add files to `dist`
+        used: wasm-prepare-showcase-dist-folder@0.1.0
+        with:
+          "{favicon}": showcase-favicon
+          "{tw-output}": showcase-tw-output
+      - title: Sync static server
+        used: sync-static-server@0.1.0
+      - title: Move static server to showcase directory
+        used: sync-static-server@0.1.1
+      - title: Run static server at `0.0.0.0:8807`
+        used: run-showcase-static-server@0.1.0
+    artifacts:
+      - from: impulse-ui-kit/examples/showcase/iks
+        to: showcase/iks
+      - from: impulse-ui-kit/examples/showcase/static-server.yaml
+        to: showcase/static-server.yaml
+      - from: impulse-ui-kit/examples/showcase/dist
+        to: showcase/dist
+  - title: run-showcase
+    info: ui-kit-example-run@0.1.0
+    default: true
+    actions:
+      - title: Run static server at `0.0.0.0:8807`
+        used: run-showcase-static-server@0.1.0
+  - title: build-skdsl
+    desc: Build and install SKDSL
+    info: impulse-kit-skdsl@0.1.0
+    tags:
+      - cargo
+      - clippy
+      - lint
+    actions:
+      - title: Lint
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-dsl
+          "{target}": target-x86
+      - title: Format
+        used: cargo-fmt@0.1.0
+      - title: Patch `Cargo.toml`
+        used: impulse-kit-patch-cargo@0.1.0
+      - title: Build (release mode)
+        used: cargo-release@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-dsl
+          "{target}": target-x86
+      - title: Compress
+        used: upx@0.1.0
+        with:
+          "%af%": binary-dsl
+      - title: Install
+        used: cargo-install-by-copy@0.1.0
+        with:
+          "%bin%": binary-dsl
+    artifacts:
+      - from: target/x86_64-unknown-linux-gnu/release/skdsl
+        to: skdsl

@@ -1,0 +1,12 @@
+{
+  "patches": [
+    {
+      "files": [{"just": "Cargo.toml"}],
+      "replace": {"from_to": ["cargo-features = [\"panic-immediate-abort\"]", ""]}
+    },
+    {
+      "files": [{"just": "Cargo.toml"}],
+      "replace": {"from_to": ["immediate-abort", "abort"]}
+    }
+  ]
+}

@@ -1,5 +1,9 @@
 #![allow(missing_docs, dead_code)]
 
+//! Usage:
+//!
+//! leptos-use = { version = "0.16", default-features = false }
+
 use codee::string::FromToStringCodec;
 use leptos::prelude::*;
 use leptos_use::{storage::use_local_storage, use_preferred_dark};

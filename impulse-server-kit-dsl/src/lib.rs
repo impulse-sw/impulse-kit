@@ -13,7 +13,13 @@ use std::path::{Path, PathBuf};
 use crate::entities::evolution::evolve;
 use crate::entities::file::File;
 
-pub fn generate(version: Option<String>, api_desc: File, regenerate: bool, output_dir: &Path) -> MResult<()> {
+pub fn generate(
+  version: Option<String>,
+  api_desc: File,
+  regenerate: bool,
+  output_dir: &Path,
+  client_targets: &[ClientTarget],
+) -> MResult<()> {
   let version = version
     .map(|version| {
       println!("Selected API version: {version}.");
@@ -95,6 +101,24 @@ pub fn generate(version: Option<String>, api_desc: File, regenerate: bool, outpu
     sonic_rs::to_string_pretty(&api_desc).map_err(ServerError::from_private)?,
   )
   .map_err(ServerError::from_private)?;
+
+  for target in client_targets {
+    let (client_files, cli_output_dir) = match target {
+      ClientTarget::Rust(out) => (api_desc.generate_client_rs()?, out),
+      ClientTarget::Js(out) => (api_desc.generate_client_js()?, out),
+    };
+
+    let client_dir = cli_output_dir.join(&version);
+    let _ = fs::create_dir_all(&client_dir);
+
+    for file in client_files {
+      let filename = client_dir.join(&file.filepath);
+      println!("Writing client file {:?}...", filename);
+      fs::write(filename, file.content).map_err(ServerError::from_private)?;
+    }
+
+    println!("Generated {cli_output_dir:?} client code.");
+  }
 
   println!("Generated API code written. Version: {version}.");
 

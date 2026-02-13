@@ -89,8 +89,8 @@ opentelemetry-otlp = { optional = true, workspace = true, features = ["tonic", "
 opentelemetry_sdk = { optional = true, workspace = true, features = ["rt-tokio"] }
 reqwest = { optional = true, workspace = true, features = ["http2", "json", "rustls-tls"] }
 rmp-serde = { optional = true, workspace = true }
-rustls = { workspace = true }
-salvo = { workspace = true, features = ["affix-state", "compression", "rustls", "cookie", "server", "http1", "http2", "server-handle"] }
+rustls = { workspace = true, features = ["aws_lc_rs"] }
+salvo = { workspace = true, features = ["affix-state", "aws-lc-rs", "compression", "rustls", "cookie", "server", "http1", "http2", "server-handle"] }
 serde = { workspace = true, features = ["derive"] }
 serde_pretty_yaml = { workspace = true }
 sonic-rs = { optional = true, workspace = true }
@@ -104,4 +104,4 @@ tracing-subscriber = { workspace = true }
 zstd = { optional = true, workspace = true, features = ["default"] }
 
 [package.metadata.cargo-all-features]
-denylist = ["cc-auth", "flash", "cache", "compression", "csrf", "session", "jwt-auth", "basic-auth", "caching-headers", "catch-panic", "concurrency-limiter", "request-id", "size-limiter", "sse", "timeout", "trailing-slash", "tower-compat", "reqwest-http3", "websocket", "proxy"]
+denylist = ["flash", "cache", "compression", "csrf", "session", "jwt-auth", "basic-auth", "caching-headers", "catch-panic", "concurrency-limiter", "request-id", "size-limiter", "sse", "timeout", "trailing-slash", "tower-compat", "reqwest-http3", "websocket", "proxy"]
