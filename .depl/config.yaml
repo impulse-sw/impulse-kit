@@ -304,7 +304,7 @@ variables:
   kit-version:
     value:
       type: from_cmd
-      cmd: python .depl/rust-crate-ver.py
+      cmd: python .depl/rust_crate_ver.py
   package-dsl:
     value:
       type: plain
@@ -373,7 +373,7 @@ actions:
       auto_version_rule:
         type: cmd_stdout
         cmd:
-          cmd: python .depl/rust-crate-ver.py
+          cmd: python .depl/rust_crate_ver.py
           ignore_fails: true
           show_success_output: true
           show_cmd: false
