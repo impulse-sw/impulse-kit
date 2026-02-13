@@ -43,12 +43,18 @@ fn main() -> MResult<()> {
         .action(clap::ArgAction::SetTrue),
     )
     .arg(
-      Arg::new("client")
-        .short('c')
-        .long("client")
-        .value_name("TARGET")
-        .help("Generate client code (rust, js). Can be specified multiple times.")
-        .action(clap::ArgAction::Append),
+      Arg::new("cli.rs")
+        .short('R')
+        .long("cli-rs")
+        .value_name("FOLDER")
+        .help("Generate Rust API client into FOLDER"),
+    )
+    .arg(
+      Arg::new("cli.js")
+        .short('J')
+        .long("cli-js")
+        .value_name("FOLDER")
+        .help("Generate JS API client into FOLDER"),
     )
     .get_matches();
 
@@ -56,18 +62,13 @@ fn main() -> MResult<()> {
   let output_dir = matches.get_one::<String>("output").unwrap();
   let regenerate = matches.get_flag("regenerate");
 
-  let client_targets: Vec<ClientTarget> = matches
-    .get_many::<String>("client")
-    .map(|vals| {
-      vals
-        .map(|v| match v.as_str() {
-          "rust" | "rs" => ClientTarget::Rust,
-          "js" | "javascript" => ClientTarget::Js,
-          other => panic!("Unknown client target: `{other}`. Use `rust` or `js`."),
-        })
-        .collect()
-    })
-    .unwrap_or_default();
+  let mut client_targets: Vec<ClientTarget> = vec![];
+  if let Some(cli_rs) = matches.get_one::<String>("cli.rs") {
+    client_targets.push(ClientTarget::Rust(PathBuf::from(cli_rs)));
+  }
+  if let Some(cli_js) = matches.get_one::<String>("cli.js") {
+    client_targets.push(ClientTarget::Js(PathBuf::from(cli_js)));
+  }
 
   let api_desc = impulse_skdsl::file::parse_file(input_file)?;
   let output_dir = PathBuf::from(&output_dir);

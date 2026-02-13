@@ -103,12 +103,12 @@ pub fn generate(
   .map_err(ServerError::from_private)?;
 
   for target in client_targets {
-    let (client_files, subdir) = match target {
-      ClientTarget::Rust => (api_desc.generate_client_rs()?, "client_rs"),
-      ClientTarget::Js => (api_desc.generate_client_js()?, "client_js"),
+    let (client_files, cli_output_dir) = match target {
+      ClientTarget::Rust(out) => (api_desc.generate_client_rs()?, out),
+      ClientTarget::Js(out) => (api_desc.generate_client_js()?, out),
     };
 
-    let client_dir = output_dir.join(&version).join(subdir);
+    let client_dir = cli_output_dir.join(&version);
     let _ = fs::create_dir_all(&client_dir);
 
     for file in client_files {
@@ -117,7 +117,7 @@ pub fn generate(
       fs::write(filename, file.content).map_err(ServerError::from_private)?;
     }
 
-    println!("Generated {subdir} client code.");
+    println!("Generated {cli_output_dir:?} client code.");
   }
 
   println!("Generated API code written. Version: {version}.");

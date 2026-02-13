@@ -9,8 +9,10 @@ pub mod requirements;
 pub mod types;
 pub mod versions;
 
+use std::path::PathBuf;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClientTarget {
-  Rust,
-  Js,
+  Rust(PathBuf),
+  Js(PathBuf),
 }
