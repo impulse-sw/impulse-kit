@@ -9,6 +9,10 @@ cache_files:
   - Cargo.lock
   - target
 variables:
+  binary-dsl:
+    value:
+      type: plain
+      value: target/x86_64-unknown-linux-gnu/release/skdsl
   binary-static-server:
     value:
       type: plain
@@ -394,6 +398,13 @@ actions:
       cmd: cargo doc --target {target} --workspace --no-deps
       placeholders:
         - "{target}"
+  - info: cargo-install-by-copy@0.1.0
+    action:
+      type: staged
+      stage: build
+      cmd: cp -f %bin% ~/.cargo/bin
+      placeholders:
+        - "%bin%"
   - info: cargo-lint@0.2.0
     action:
       type: staged
@@ -466,6 +477,10 @@ actions:
         - "{component-name}"
         - "{component-file}"
         - "{kit-version}"
+  - info: impulse-kit-patch-cargo@0.1.0
+    action:
+      type: patch
+      patch: .depl/patch-cargo-toml.json
   - info: leptos-fmt@0.1.0
     tags:
       - leptos
@@ -1133,6 +1148,8 @@ pipelines:
     actions:
       - title: Sync script to know Rust package version
         used: use-rust-package-version@0.1.0
+      - title: Patch `Cargo.toml`
+        used: impulse-kit-patch-cargo@0.1.0
       - title: Build (release mode)
         used: cargo-release@0.2.0
         with:
@@ -1151,6 +1168,7 @@ pipelines:
         to: static-server/iks
       - from: impulse-static-server/static-server.yaml
         to: static-server/static-server.yaml
+    exclusive_exec_tag: binaries
   - title: deploy-showcase
     info: ui-kit-example-deploy@0.1.0
     default: false
@@ -1207,3 +1225,40 @@ pipelines:
     actions:
       - title: Run static server at `0.0.0.0:8807`
         used: run-showcase-static-server@0.1.0
+  - title: build-skdsl
+    desc: Build and install SKDSL
+    info: impulse-kit-skdsl@0.1.0
+    tags:
+      - cargo
+      - clippy
+      - lint
+    actions:
+      - title: Lint
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-dsl
+          "{target}": target-x86
+      - title: Format
+        used: cargo-fmt@0.1.0
+      - title: Patch `Cargo.toml`
+        used: impulse-kit-patch-cargo@0.1.0
+      - title: Build (release mode)
+        used: cargo-release@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-dsl
+          "{target}": target-x86
+      - title: Compress
+        used: upx@0.1.0
+        with:
+          "%af%": binary-dsl
+      - title: Install
+        used: cargo-install-by-copy@0.1.0
+        with:
+          "%bin%": binary-dsl
+    artifacts:
+      - from: target/x86_64-unknown-linux-gnu/release/skdsl
+        to: skdsl
