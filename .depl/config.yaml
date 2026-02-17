@@ -375,7 +375,6 @@ actions:
         cmd:
           cmd: python .depl/rust_crate_ver.py
           ignore_fails: true
-          show_success_output: true
           show_cmd: false
           only_when_fresh: false
       content:
