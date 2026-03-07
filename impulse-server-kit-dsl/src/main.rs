@@ -1,4 +1,3 @@
-#![feature(iterator_try_collect)]
 #![deny(warnings, clippy::todo, clippy::unimplemented)]
 
 use clap::{Arg, Command};

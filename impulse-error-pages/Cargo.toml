@@ -2,6 +2,7 @@
 name = "impulse-error-pages"
 description = "Error pages for standard Server Kit errors"
 version = { workspace = true }
+rust-version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 authors = { workspace = true }

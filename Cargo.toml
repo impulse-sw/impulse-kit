@@ -14,18 +14,18 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "1.0.0-alpha.11"
+version = "1.0.0-alpha.12"
 edition = "2024"
-rust-version = "1.94"
+rust-version = "1.96"
 license = "MIT"
 authors = ["Klimenty Titov <aclo.create@gmail.com>"]
 
 [workspace.dependencies]
-impulse-server-kit = { version = "1.0.0-alpha.11", path = "impulse-server-kit", default-features = false }
-impulse-static-server = { version = "1.0.0-alpha.11", path = "impulse-static-server" }
-impulse-utils = { version = "1.0.0-alpha.11", path = "impulse-utils", default-features = false }
-impulse-ui-kit = { version = "1.0.0-alpha.11", path = "impulse-ui-kit" }
-impulse-ui-kit-components = { version = "1.0.0-alpha.11", path = "impulse-ui-kit/components" }
+impulse-server-kit = { path = "impulse-server-kit", default-features = false }
+impulse-static-server = { path = "impulse-static-server" }
+impulse-utils = { path = "impulse-utils", default-features = false }
+impulse-ui-kit = { path = "impulse-ui-kit" }
+impulse-ui-kit-components = { path = "impulse-ui-kit/components" }
 
 anyhow = "1"
 brotli = { version = "7", default-features = false }

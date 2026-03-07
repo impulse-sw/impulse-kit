@@ -2,6 +2,7 @@
 name = "impulse-server-kit"
 description = "Highly configurable backend framework based on `salvo`"
 version = { workspace = true }
+rust-version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 authors = { workspace = true }

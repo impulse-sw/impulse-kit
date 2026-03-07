@@ -5,7 +5,7 @@
 
 #![warn(missing_docs)]
 #![deny(warnings, clippy::todo, clippy::unimplemented)]
-#![feature(if_let_guard, string_from_utf8_lossy_owned)]
+#![feature(string_from_utf8_lossy_owned)]
 
 mod caching;
 mod static_routes;
