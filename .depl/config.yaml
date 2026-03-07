@@ -658,6 +658,7 @@ pipelines:
           "{target}": target-x86
       - title: Test docs
         used: cargo-test-doc@0.1.0
+    driver: shell
     gh_opts:
       on_push_branches:
         - stable
