@@ -16,6 +16,7 @@ resolver = "2"
 [workspace.package]
 version = "1.0.0-alpha.11"
 edition = "2024"
+rust-version = "1.94"
 license = "MIT"
 authors = ["Klimenty Titov <aclo.create@gmail.com>"]
 
