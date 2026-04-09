@@ -386,10 +386,11 @@ actions:
             to: static-server.yaml
   - info: cargo-fmt@0.1.0
     exec_in_project_dir: true
+    skip_sync: false
     action:
       type: staged
       stage: build
-      cmd: cargo fmt -- --config tab_spaces=2,max_width=120 */**/*.rs
+      cmd: cargo fmt -- --config tab_spaces=2,max_width=120 $(find . -name "*.rs" -not -path "*/target/*")
   - info: cargo-generate-doc@0.1.0
     action:
       type: staged
