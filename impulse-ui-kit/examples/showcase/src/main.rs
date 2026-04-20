@@ -846,9 +846,15 @@ fn InteractiveComponentsSection() -> impl IntoView {
           <ComboboxTrigger placeholder="Select option..." />
           <ComboboxContent>
             <ComboboxInput placeholder="Search..." />
-            <ComboboxItem value="option1" label="Option 1">"Option 1"</ComboboxItem>
-            <ComboboxItem value="option2" label="Option 2">"Option 2"</ComboboxItem>
-            <ComboboxItem value="option3" label="Option 3">"Option 3"</ComboboxItem>
+            <ComboboxItem value="option1" label="Option 1">
+              "Option 1"
+            </ComboboxItem>
+            <ComboboxItem value="option2" label="Option 2">
+              "Option 2"
+            </ComboboxItem>
+            <ComboboxItem value="option3" label="Option 3">
+              "Option 3"
+            </ComboboxItem>
             <ComboboxEmpty>"No option found."</ComboboxEmpty>
           </ComboboxContent>
         </Combobox>

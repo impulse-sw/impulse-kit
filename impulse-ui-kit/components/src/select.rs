@@ -486,10 +486,7 @@ pub fn SelectScrollUpButton(#[prop(optional, into)] class: String) -> impl IntoV
       <div
         data-slot="select-scroll-up-button"
         class=cn(
-          &[
-            "flex cursor-default items-center justify-center py-1",
-            class.read_value().as_str(),
-          ],
+          &["flex cursor-default items-center justify-center py-1", class.read_value().as_str()],
         )
         on:click=handle_click
       >
@@ -535,10 +532,7 @@ pub fn SelectScrollDownButton(#[prop(optional, into)] class: String) -> impl Int
       <div
         data-slot="select-scroll-down-button"
         class=cn(
-          &[
-            "flex cursor-default items-center justify-center py-1",
-            class.read_value().as_str(),
-          ],
+          &["flex cursor-default items-center justify-center py-1", class.read_value().as_str()],
         )
         on:click=handle_click
       >

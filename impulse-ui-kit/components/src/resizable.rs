@@ -96,17 +96,13 @@ pub fn ResizableHandle(#[prop(into, optional)] class: String) -> impl IntoView {
   let drag_start_right = RwSignal::new(0.0_f64);
 
   let handle_pointer_down = move |ev: PointerEvent| {
-    let panels_ok = context
-      .panels
-      .with_value(|p| p.len() > left_index + 1)
-      && context.panels.with_value(|p| !p.is_empty());
+    let panels_ok =
+      context.panels.with_value(|p| p.len() > left_index + 1) && context.panels.with_value(|p| !p.is_empty());
     if !panels_ok {
       return;
     }
 
-    let (left, right) = context
-      .panels
-      .with_value(|p| (p[left_index], p[left_index + 1]));
+    let (left, right) = context.panels.with_value(|p| (p[left_index], p[left_index + 1]));
 
     let pos = match context.direction {
       ResizableDirection::Horizontal => ev.client_x() as f64,
@@ -153,9 +149,7 @@ pub fn ResizableHandle(#[prop(into, optional)] class: String) -> impl IntoView {
     if !panels_ok {
       return;
     }
-    let (left, right) = context
-      .panels
-      .with_value(|p| (p[left_index], p[left_index + 1]));
+    let (left, right) = context.panels.with_value(|p| (p[left_index], p[left_index + 1]));
 
     let sum = drag_start_left.get() + drag_start_right.get();
     let min = 10.0_f64;
@@ -220,7 +214,9 @@ pub fn ResizableHandle(#[prop(into, optional)] class: String) -> impl IntoView {
       on:pointerup=handle_pointer_up
       on:pointercancel=handle_pointer_cancel
     >
-      <div class=cn(&["z-10 flex h-4 w-3 items-center justify-center rounded-sm border bg-border", rotate_class])>
+      <div class=cn(
+        &["z-10 flex h-4 w-3 items-center justify-center rounded-sm border bg-border", rotate_class],
+      )>
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="24"
