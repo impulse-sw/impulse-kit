@@ -2,7 +2,6 @@
 
 use impulse_ui_kit::utils::cn;
 use leptos::prelude::*;
-use leptos::wasm_bindgen::JsCast;
 use web_sys::{HtmlElement, PointerEvent};
 
 #[derive(Copy, Clone, PartialEq)]
@@ -90,6 +89,7 @@ pub fn ResizableHandle(#[prop(into, optional)] class: String) -> impl IntoView {
 
   let left_index = context.panels.with_value(|p| p.len().saturating_sub(1));
 
+  let handle_ref = NodeRef::<leptos::html::Div>::new();
   let is_dragging = RwSignal::new(false);
   let drag_start_pos = RwSignal::new(0.0_f64);
   let drag_start_left = RwSignal::new(0.0_f64);
@@ -120,9 +120,8 @@ pub fn ResizableHandle(#[prop(into, optional)] class: String) -> impl IntoView {
 
     ev.prevent_default();
 
-    if let Some(target) = ev.target()
-      && let Ok(el) = target.dyn_into::<HtmlElement>()
-    {
+    if let Some(handle_el) = handle_ref.get() {
+      let el: &HtmlElement = handle_el.as_ref();
       let _ = el.set_pointer_capture(ev.pointer_id());
     }
   };
@@ -173,11 +172,18 @@ pub fn ResizableHandle(#[prop(into, optional)] class: String) -> impl IntoView {
   let handle_pointer_up = move |ev: PointerEvent| {
     if is_dragging.get() {
       is_dragging.set(false);
-      if let Some(target) = ev.target()
-        && let Ok(el) = target.dyn_into::<HtmlElement>()
-      {
+      if let Some(handle_el) = handle_ref.get() {
+        let el: &HtmlElement = handle_el.as_ref();
         let _ = el.release_pointer_capture(ev.pointer_id());
       }
+    }
+  };
+
+  let handle_pointer_cancel = move |ev: PointerEvent| {
+    is_dragging.set(false);
+    if let Some(handle_el) = handle_ref.get() {
+      let el: &HtmlElement = handle_el.as_ref();
+      let _ = el.release_pointer_capture(ev.pointer_id());
     }
   };
 
@@ -198,6 +204,7 @@ pub fn ResizableHandle(#[prop(into, optional)] class: String) -> impl IntoView {
 
   view! {
     <div
+      node_ref=handle_ref
       data-slot="resizable-handle"
       data-panel-group-direction=context.direction.as_str()
       class=cn(
@@ -211,7 +218,7 @@ pub fn ResizableHandle(#[prop(into, optional)] class: String) -> impl IntoView {
       on:pointerdown=handle_pointer_down
       on:pointermove=handle_pointer_move
       on:pointerup=handle_pointer_up
-      on:pointercancel=move |_| is_dragging.set(false)
+      on:pointercancel=handle_pointer_cancel
     >
       <div class=cn(&["z-10 flex h-4 w-3 items-center justify-center rounded-sm border bg-border", rotate_class])>
         <svg
