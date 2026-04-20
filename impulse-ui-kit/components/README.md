@@ -91,7 +91,7 @@ A versatile button component with multiple variants and sizes.
 use impulse_ui_kit::components::button::*;
 
 view! {
-    <Button variant=ButtonVariant::Default size=ButtonSize::Default>
+    <Button variant=ButtonVariant::Default size=ButtonSize::Middle>
         "Click me"
     </Button>
 
@@ -917,15 +917,6 @@ Date selection component.
 - Calendar popup
 - Date input
 - Range selection
-
-### Chart
-
-Chart visualization component.
-
-**Props:**
-- Various chart types
-- Data binding
-- Interactive features
 
 ### Avatar
 

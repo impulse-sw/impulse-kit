@@ -430,7 +430,7 @@ pub fn SelectItem(
       <span
         data-slot="select-item-indicator"
         class="absolute right-2 flex size-3.5 items-center justify-center"
-        data-selected=move || is_selected.get()
+        data-selected=move || if is_selected.get() { "true" } else { "false" }
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -443,7 +443,7 @@ pub fn SelectItem(
           stroke-linecap="round"
           stroke-linejoin="round"
           class="size-4 data-[selected=false]:opacity-0"
-          data-selected=move || is_selected.get()
+          data-selected=move || if is_selected.get() { "true" } else { "false" }
         >
           <path d="M20 6 9 17l-5-5" />
         </svg>
@@ -479,33 +479,36 @@ pub fn SelectScrollUpButton(#[prop(optional, into)] class: String) -> impl IntoV
     }
   };
 
+  let class = StoredValue::new(class);
+
   view! {
-    <div
-      data-slot="select-scroll-up-button"
-      data-can-scroll=can_scroll
-      class=cn(
-        &[
-          "flex cursor-default items-center justify-center py-1 data-[can-scroll=false]:hidden",
-          class.as_str(),
-        ],
-      )
-      on:click=handle_click
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        class="size-4"
+    <Show when=can_scroll>
+      <div
+        data-slot="select-scroll-up-button"
+        class=cn(
+          &[
+            "flex cursor-default items-center justify-center py-1",
+            class.read_value().as_str(),
+          ],
+        )
+        on:click=handle_click
       >
-        <path d="m18 15-6-6-6 6" />
-      </svg>
-    </div>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="size-4"
+        >
+          <path d="m18 15-6-6-6 6" />
+        </svg>
+      </div>
+    </Show>
   }
 }
 
@@ -525,33 +528,36 @@ pub fn SelectScrollDownButton(#[prop(optional, into)] class: String) -> impl Int
     }
   };
 
+  let class = StoredValue::new(class);
+
   view! {
-    <div
-      data-slot="select-scroll-down-button"
-      data-can-scroll=can_scroll
-      class=cn(
-        &[
-          "flex cursor-default items-center justify-center py-1 data-[can-scroll=false]:hidden",
-          class.as_str(),
-        ],
-      )
-      on:click=handle_click
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        class="size-4"
+    <Show when=can_scroll>
+      <div
+        data-slot="select-scroll-down-button"
+        class=cn(
+          &[
+            "flex cursor-default items-center justify-center py-1",
+            class.read_value().as_str(),
+          ],
+        )
+        on:click=handle_click
       >
-        <path d="m6 9 6 6 6-6" />
-      </svg>
-    </div>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="size-4"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </div>
+    </Show>
   }
 }
 

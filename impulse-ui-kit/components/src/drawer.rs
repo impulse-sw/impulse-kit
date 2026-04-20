@@ -303,8 +303,11 @@ pub fn DrawerContent(#[prop(optional, into)] class: String, children: ChildrenFn
           if let Some(callback) = context.on_open_change {
             callback.run(false);
           }
-          context.is_closing_via_drag.set(false);
-          transform_style.set(String::new());
+          // Intentionally keep `is_closing_via_drag=true` and the inline
+          // transform in place so the CSS slide-out animation does not
+          // re-play on top of the finished manual slide (which caused a
+          // visible "jump" before the drawer finally unmounted). Both are
+          // reset by the open-Effect above the next time the drawer opens.
         },
         std::time::Duration::from_millis((TRANSITION_DURATION * 1000.0) as u64),
       );

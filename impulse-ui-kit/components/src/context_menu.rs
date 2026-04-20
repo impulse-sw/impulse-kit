@@ -215,8 +215,6 @@ pub fn ContextMenuSubContent(#[prop(optional, into)] class: String, children: Ch
 pub fn ContextMenuContent(#[prop(optional, into)] class: String, children: ChildrenFn) -> impl IntoView {
   let context = use_context::<ContextMenuContext>().expect("ContextMenuContent must be used within ContextMenu");
 
-  let trigger_context = use_context::<ContextMenuTriggerRef>();
-
   let content_ref = NodeRef::<leptos::html::Div>::new();
 
   let position_style = RwSignal::new(String::new());
@@ -255,15 +253,8 @@ pub fn ContextMenuContent(#[prop(optional, into)] class: String, children: Child
       && let Some(content) = content_ref.get()
     {
       let content_el: &Element = content.as_ref();
-
-      if !content_el.contains(Some(&target))
-        && let Some(trigger_ref) = trigger_context
-        && let Some(trigger) = trigger_ref.trigger_ref.get()
-      {
-        let trigger_el: &Element = trigger.as_ref();
-        if !trigger_el.contains(Some(&target)) {
-          context.is_open.set(false);
-        }
+      if !content_el.contains(Some(&target)) {
+        context.is_open.set(false);
       }
     }
   };
