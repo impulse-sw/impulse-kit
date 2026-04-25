@@ -17,5 +17,5 @@ or:
 
 ```bash
 # in repo root
-deployer run build-error-pages
+depl run build-error-pages
 ```

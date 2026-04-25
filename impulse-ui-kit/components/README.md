@@ -1,6 +1,6 @@
 # Impulse UI Components
 
-A comprehensive collection of 60 UI components for Leptos, inspired by shadcn/ui design principles. These components are built with accessibility, customization, and developer experience in mind.
+A comprehensive collection of 60 UI components for Leptos, inspired by shadcn/ui design principles.
 
 ## Table of Contents
 
@@ -36,8 +36,8 @@ depl use -o src/components ui-kit-{component-name}@
 
 ```toml
 [dependencies]
-impulse-ui-kit = { path = "../impulse-ui-kit" }
-leptos = "0.7"
+impulse-ui-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.0.0" }
+leptos = "0.8"
 ```
 
 **Note:** Only use `impulse-ui-kit` as a dependency for utilities like `cn()` and theming functions, not for the components themselves.
@@ -47,8 +47,8 @@ leptos = "0.7"
 Import components directly from the modules:
 
 ```rust
-use impulse_ui_kit::components::button::*;
-use impulse_ui_kit::components::input::*;
+use crate::components::button::*;
+use crate::components::input::*;
 use leptos::prelude::*;
 
 #[component]
@@ -88,7 +88,7 @@ A versatile button component with multiple variants and sizes.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::button::*;
+use crate::components::button::*;
 
 view! {
     <Button variant=ButtonVariant::Default size=ButtonSize::Middle>
@@ -123,7 +123,7 @@ Form label component with proper accessibility.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::label::*;
+use crate::components::label::*;
 
 view! {
     <Label r#for="email">"Email Address"</Label>
@@ -140,7 +140,7 @@ Loading indicator with size variants.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::spinner::*;
+use crate::components::spinner::*;
 
 view! {
     <Spinner size=SpinnerSize::Default />
@@ -158,7 +158,7 @@ Loading placeholder component for content.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::skeleton::*;
+use crate::components::skeleton::*;
 
 view! {
     <Skeleton class="h-4 w-full" />
@@ -178,7 +178,7 @@ Status or label badge with variant styles.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::badge::*;
+use crate::components::badge::*;
 
 view! {
     <Badge variant=BadgeVariant::Default>"New"</Badge>
@@ -209,7 +209,7 @@ Text input field with full styling and state management.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::input::*;
+use crate::components::input::*;
 
 let email = RwSignal::new(String::new());
 
@@ -233,7 +233,7 @@ Multi-line text input.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::textarea::*;
+use crate::components::textarea::*;
 
 let description = RwSignal::new(String::new());
 
@@ -255,7 +255,7 @@ Checkbox control with checked state.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::checkbox::*;
+use crate::components::checkbox::*;
 
 let is_checked = RwSignal::new(false);
 
@@ -282,7 +282,7 @@ Toggle switch component.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::switch::*;
+use crate::components::switch::*;
 
 let enabled = RwSignal::new(false);
 
@@ -306,7 +306,7 @@ Radio button group for single selection.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::radio_group::*;
+use crate::components::radio_group::*;
 
 view! {
     <RadioGroup>
@@ -349,7 +349,7 @@ Dropdown select component with rich features.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::select::*;
+use crate::components::select::*;
 
 let selected = RwSignal::new(String::new());
 
@@ -439,7 +439,7 @@ Container component with header, content, and footer sections.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::card::*;
+use crate::components::card::*;
 
 view! {
     <Card>
@@ -471,7 +471,7 @@ Divider line component.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::separator::*;
+use crate::components::separator::*;
 
 view! {
     <div class="space-y-4">
@@ -509,7 +509,7 @@ Tabbed interface component.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::tabs::*;
+use crate::components::tabs::*;
 
 view! {
     <Tabs default_value="account">
@@ -553,7 +553,7 @@ Collapsible sections component.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::accordion::*;
+use crate::components::accordion::*;
 
 view! {
     <Accordion accordion_type=AccordionType::Single>
@@ -700,7 +700,7 @@ Modal dialog component.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::dialog::*;
+use crate::components::dialog::*;
 
 let is_open = RwSignal::new(false);
 
@@ -759,7 +759,7 @@ Hover tooltip component.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::tooltip::*;
+use crate::components::tooltip::*;
 
 view! {
     <TooltipProvider>
@@ -821,7 +821,7 @@ Alert message component.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::alert::*;
+use crate::components::alert::*;
 
 view! {
     <Alert variant=AlertVariant::Default>
@@ -868,7 +868,7 @@ Progress bar component.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::progress::*;
+use crate::components::progress::*;
 
 let progress = Signal::derive(move || 75.0);
 
@@ -929,7 +929,7 @@ User avatar component.
 
 **Example:**
 ```rust
-use impulse_ui_kit::components::avatar::*;
+use crate::components::avatar::*;
 
 view! {
     <Avatar>
@@ -1065,7 +1065,7 @@ All components follow WAI-ARIA best practices:
 ### Login Form
 
 ```rust
-use impulse_ui_kit::components::*;
+use crate::components::*;
 
 #[component]
 fn LoginForm() -> impl IntoView {
@@ -1105,7 +1105,7 @@ fn LoginForm() -> impl IntoView {
 ### Settings Page
 
 ```rust
-use impulse_ui_kit::components::*;
+use crate::components::*;
 
 #[component]
 fn SettingsPage() -> impl IntoView {
@@ -1156,16 +1156,3 @@ fn SettingsPage() -> impl IntoView {
     }
 }
 ```
-
-## Contributing
-
-When contributing new components:
-1. Follow existing patterns and conventions
-2. Include proper prop documentation
-3. Add accessibility features
-4. Write comprehensive examples
-5. Test with different variants
-
-## License
-
-[Add your license information here]

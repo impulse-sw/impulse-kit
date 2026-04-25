@@ -1,6 +1,6 @@
 # Impulse Server Kit
 
-State-of-art simple and powerful web server based on [Salvo](https://github.com/salvo-rs/salvo). Provides extended tracing, configuration-over-YAML, HTTP3, TLS v1.3, MessagePack + SIMD JSON ser/de support, ACME, OpenAPI and OpenTelemetry features *by default*.
+State-of-art simple and powerful web server based on [Salvo](https://github.com/salvo-rs/salvo). Provides extended tracing, configuration-over-YAML, HTTP/3, TLS v1.3, MessagePack + SIMD JSON ser/de support, ACME, OpenAPI and OpenTelemetry features *by default*.
 
 Table of contents:
 
@@ -27,7 +27,7 @@ To use Server Kit, include this line into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-impulse-server-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "0.11" }
+impulse-server-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.0.0" }
 ```
 
 And create empty `{app-name}.yaml` to fill later (see [Configuration Overview](#7) below).
@@ -74,7 +74,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-impulse-server-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "0.11" }
+impulse-server-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.0.0" }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["macros"] }
 tracing = "1"
