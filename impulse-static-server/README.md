@@ -9,10 +9,10 @@ Simple static server. Features:
 
 ## Build
 
-This project is supporting [Deployer](https://github.com/impulse-sw/deployer). You can build server with:
+This project is supporting Deployer. You can build server with:
 
 ```bash
-deployer build
+depl run build-static-server
 ```
 
 Or, alternatively, just build with `cargo`:
@@ -36,7 +36,7 @@ Just include it into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-impulse-static-server = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "0.11" }
+impulse-static-server = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.0.0" }
 ```
 
 and use one of these functions:

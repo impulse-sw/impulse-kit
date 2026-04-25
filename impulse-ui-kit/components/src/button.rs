@@ -17,8 +17,8 @@ pub enum ButtonVariant {
 #[derive(Copy, Clone, PartialEq, Default)]
 pub enum ButtonSize {
   #[default]
-  Default,
   Sm,
+  Middle,
   Lg,
   Icon,
   IconSm,
@@ -45,8 +45,8 @@ impl ButtonVariant {
 impl ButtonSize {
   fn class(&self) -> &'static str {
     match self {
-      Self::Default => "h-9 px-4 py-2 has-[>svg]:px-3",
       Self::Sm => "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
+      Self::Middle => "h-9 px-4 py-2 has-[>svg]:px-3",
       Self::Lg => "h-10 rounded-md px-6 has-[>svg]:px-4",
       Self::Icon => "size-9",
       Self::IconSm => "size-8",

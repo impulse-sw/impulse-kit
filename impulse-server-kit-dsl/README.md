@@ -27,6 +27,12 @@ cd impulse-kit
 cargo install --path . --bin skdsl
 ```
 
+You can also use Deployer:
+
+```bash
+depl run build-skdsl
+```
+
 ## Usage
 
 ```

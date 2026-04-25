@@ -122,8 +122,8 @@ use components::button::{Button, ButtonVariant, ButtonSize};
 
 #### Sizes
 
-- `ButtonSize::Default` - Standard size (h-9)
-- `ButtonSize::Sm` - Small size (h-8)
+- `ButtonSize::Sm` - Small size (h-8, default)
+- `ButtonSize::Middle` - Standard size (h-9)
 - `ButtonSize::Lg` - Large size (h-10)
 - `ButtonSize::Icon` - Square icon button (size-9)
 - `ButtonSize::IconSm` - Small icon button (size-8)
@@ -142,7 +142,7 @@ use components::button::{Button, ButtonVariant, ButtonSize};
 
 // Button sizes
 <Button size=ButtonSize::Sm>"Small"</Button>
-<Button size=ButtonSize::Default>"Default"</Button>
+<Button size=ButtonSize::Middle>"Middle"</Button>
 <Button size=ButtonSize::Lg>"Large"</Button>
 <Button size=ButtonSize::Icon>"+"</Button>
 

@@ -92,7 +92,7 @@ fn main() {
 
 [UI Kit Documentation](./impulse-ui-kit/README.md)
 
-[UI Kit Example](https://github.com/impulse-sw/impulse-ui-kit-example)
+[UI Kit Showcase](./impulse-ui-kit/examples/showcase/README.md)
 
 ## Rust Toolchain
 

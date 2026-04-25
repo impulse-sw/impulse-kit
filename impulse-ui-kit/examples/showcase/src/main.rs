@@ -65,7 +65,6 @@ use components::toast::*;
 // Data Display Components
 use components::avatar::*;
 use components::calendar::*;
-use components::chart::*;
 use components::data_table::*;
 use components::date_picker::*;
 use components::table::*;
@@ -210,7 +209,7 @@ fn BasicComponentsSection() -> impl IntoView {
         <Separator orientation=SeparatorOrientation::Horizontal />
         <div class="flex flex-wrap gap-4">
           <Button size=ButtonSize::Sm>"Small"</Button>
-          <Button size=ButtonSize::Default>"Default"</Button>
+          <Button size=ButtonSize::Middle>"Middle"</Button>
           <Button size=ButtonSize::Lg>"Large"</Button>
           <Button size=ButtonSize::Icon>"→"</Button>
         </div>
@@ -808,13 +807,6 @@ fn DataDisplayComponentsSection() -> impl IntoView {
       <ComponentCard title="Calendar" description="Calendar date picker">
         <Calendar selected=selected_date class="rounded-md border" />
       </ComponentCard>
-
-      // Chart
-      <ComponentCard title="Chart" description="Chart visualization">
-        <div class="h-[200px] flex items-center justify-center border rounded-md bg-muted/50">
-          <span class="text-muted-foreground">"Chart Component (requires data)"</span>
-        </div>
-      </ComponentCard>
     </div>
   }
 }
@@ -851,14 +843,18 @@ fn InteractiveComponentsSection() -> impl IntoView {
       // Combobox
       <ComponentCard title="Combobox" description="Searchable select component">
         <Combobox>
-          <ComboboxTrigger>
-            <span>"Select option..."</span>
-          </ComboboxTrigger>
+          <ComboboxTrigger placeholder="Select option..." />
           <ComboboxContent>
             <ComboboxInput placeholder="Search..." />
-            <ComboboxItem value="option1">"Option 1"</ComboboxItem>
-            <ComboboxItem value="option2">"Option 2"</ComboboxItem>
-            <ComboboxItem value="option3">"Option 3"</ComboboxItem>
+            <ComboboxItem value="option1" label="Option 1">
+              "Option 1"
+            </ComboboxItem>
+            <ComboboxItem value="option2" label="Option 2">
+              "Option 2"
+            </ComboboxItem>
+            <ComboboxItem value="option3" label="Option 3">
+              "Option 3"
+            </ComboboxItem>
             <ComboboxEmpty>"No option found."</ComboboxEmpty>
           </ComboboxContent>
         </Combobox>

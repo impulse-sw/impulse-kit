@@ -1,6 +1,6 @@
 # Impulse UI Kit
 
-Frontend framework with [`shadcn`-styled](https://ui.shadcn.com) [Thaw](https://thawui.vercel.app) components, based on [Leptos](https://leptos.dev/) v0.7.
+Frontend framework with [`shadcn`-styled](https://ui.shadcn.com) components, based on [Leptos](https://leptos.dev/) v0.8.
 
 ## Usage
 
@@ -8,8 +8,12 @@ Just include it into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-impulse-ui-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "0.11" }
+impulse-ui-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.0.0" }
 ```
+
+## Components and its usage
+
+See the [components README.md](./components/README.md).
 
 ## Simple application entrypoint
 
