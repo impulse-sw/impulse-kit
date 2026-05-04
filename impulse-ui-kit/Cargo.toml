@@ -7,11 +7,41 @@ edition = { workspace = true }
 license = { workspace = true }
 authors = { workspace = true }
 
+[features]
+default = []
+websocket = [
+  "dep:js-sys",
+  "dep:wasm-bindgen",
+  "web-sys/BinaryType",
+  "web-sys/CloseEvent",
+  "web-sys/MessageEvent",
+  "web-sys/WebSocket",
+]
+webtransport = [
+  "dep:js-sys",
+  "dep:wasm-bindgen",
+  "dep:wasm-bindgen-futures",
+  "web-sys/ReadableStream",
+  "web-sys/ReadableStreamDefaultReader",
+  "web-sys/WebTransport",
+  "web-sys/WebTransportBidirectionalStream",
+  "web-sys/WebTransportCloseInfo",
+  "web-sys/WebTransportDatagramDuplexStream",
+  "web-sys/WebTransportOptions",
+  "web-sys/WebTransportReceiveStream",
+  "web-sys/WebTransportSendStream",
+  "web-sys/WritableStream",
+  "web-sys/WritableStreamDefaultWriter",
+]
+
 [dependencies]
 console_error_panic_hook = { workspace = true }
 console_log = { workspace = true }
 impulse-utils = { workspace = true, features = ["cresult"] }
+js-sys = { workspace = true, optional = true }
 leptos = { workspace = true, features = ["csr"] }
 leptos-use = { workspace = true, features = ["use_color_mode"] }
 log = { workspace = true }
+wasm-bindgen = { workspace = true, optional = true }
+wasm-bindgen-futures = { workspace = true, optional = true }
 web-sys = { workspace = true, features = ["KeyboardEvent", "Navigator", "Storage", "Window"] }
