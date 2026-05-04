@@ -81,6 +81,7 @@ UI Kit is just superstructure above Leptos framework. It provides:
 - logging support with `log`
 - automated light/dark themes (with Tailwind support)
 - utils to perform request to the backend (`impulse_ui_kit::router::endpoint` and `impulse_ui_kit::router::redirect` functions)
+- WebSocket & WebTransport bindings
 
 Startup example:
 

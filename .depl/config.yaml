@@ -3,10 +3,8 @@ version: 8
 ignore_files:
   - .*.kate-swp
   - .git
-  - Cargo.lock
   - target
 cache_files:
-  - Cargo.lock
   - target
 variables:
   binary-dsl:
