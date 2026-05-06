@@ -41,18 +41,13 @@ pub struct SeoDefaults {
 }
 
 /// What to do when the SSR handler cannot produce a useful response.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub enum FallbackStrategy {
   /// Render a minimal, JS-free 404/500 page from `impulse-error-pages`.
+  #[default]
   ErrorPage,
   /// User-supplied fallback HTML.
   Custom(Arc<dyn Fn() -> String + Send + Sync>),
-}
-
-impl Default for FallbackStrategy {
-  fn default() -> Self {
-    FallbackStrategy::ErrorPage
-  }
 }
 
 impl std::fmt::Debug for FallbackStrategy {
