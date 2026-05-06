@@ -1,5 +1,5 @@
 startup_type: http_localhost
-server_port: 8801
+server_port: 8802
 frontend_dist_path: ./dist
 leptos_output_name: ssr_showcase
 leptos_site_pkg_dir: pkg
@@ -7,7 +7,7 @@ leptos_seo:
   title_template: "{} | Impulse"
   default_title: UI Kit Showcase
   description: Server-rendered demo of Impulse UI Kit
-  canonical_base: http://127.0.0.1:8801
+  canonical_base: http://127.0.0.1:8802
   locale: en
   robots: index,follow
   twitter_handle: "@impulse"

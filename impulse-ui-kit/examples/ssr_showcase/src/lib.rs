@@ -10,7 +10,7 @@ pub fn App() -> impl IntoView {
   view! {
     <Title text="UI Kit Showcase | Impulse"/>
     <Meta name="description" content="Server-rendered demo of Impulse UI Kit using Impulse Server Kit"/>
-    <Link rel="canonical" href="http://127.0.0.1:8801/"/>
+    <Link rel="canonical" href="http://127.0.0.1:8802/"/>
     <main class="min-h-screen flex flex-col items-center justify-center p-8 gap-4">
       <h1 class="text-4xl font-semibold">"Impulse UI Kit"</h1>
       <p class="text-lg opacity-80">"Server-side rendered demo. SEO tags are injected at the server."</p>

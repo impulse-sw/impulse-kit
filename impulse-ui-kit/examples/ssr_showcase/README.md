@@ -15,7 +15,7 @@ mkdir -p dist/pkg                # placeholder; SSR works without a real bundle
 cargo +nightly run --release
 ```
 
-Then `curl -i http://127.0.0.1:8801/` and inspect the HTML — the `<head>`
+Then `curl -i http://127.0.0.1:8802/` and inspect the HTML — the `<head>`
 contains `<title>`, `<meta name="description">`, `<link rel="canonical">`,
 OpenGraph and Twitter Cards, and the `<html lang>` attribute.
 
