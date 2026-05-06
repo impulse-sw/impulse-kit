@@ -7,7 +7,7 @@ license = { workspace = true }
 authors = { workspace = true }
 
 [[bin]]
-name = "server"
+name = "ssr-showcase"
 path = "src/main.rs"
 
 [dependencies]

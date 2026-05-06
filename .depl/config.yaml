@@ -15,6 +15,10 @@ variables:
     value:
       type: plain
       value: target/x86_64-unknown-linux-gnu/release/iks
+  binary-ssr-showcase:
+    value:
+      type: plain
+      value: target/x86_64-unknown-linux-gnu/release/ssr-showcase
   component-accordion:
     value:
       type: plain
@@ -299,6 +303,10 @@ variables:
     value:
       type: plain
       value: impulse-ui-kit/examples/showcase/
+  folder-ssr-showcase:
+    value:
+      type: plain
+      value: impulse-ui-kit/examples/ssr_showcase/
   kit-version:
     value:
       type: from_cmd
@@ -331,6 +339,10 @@ variables:
     value:
       type: plain
       value: ui-kit-showcase
+  package-ssr-showcase:
+    value:
+      type: plain
+      value: ssr-showcase
   package-utils:
     value:
       type: plain
@@ -1236,6 +1248,45 @@ pipelines:
     actions:
       - title: Run static server at `0.0.0.0:8807`
         used: run-showcase-static-server@0.1.0
+  - title: deploy-ssr-showcase
+    desc: Build the server-rendered showcase binary and ship it with its YAML config.
+    info: ui-kit-ssr-example-deploy@0.1.0
+    default: false
+    tags:
+      - cargo
+      - clippy
+      - lint
+      - leptos
+      - ssr
+    actions:
+      - title: Lint
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ssr-showcase
+          "{target}": target-x86
+      - title: Format
+        used: cargo-fmt@0.1.0
+      - title: Patch `Cargo.toml`
+        used: impulse-kit-patch-cargo@0.1.0
+      - title: Build (release mode)
+        used: cargo-release@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ssr-showcase
+          "{target}": target-x86
+      - title: Compress
+        used: upx@0.1.0
+        with:
+          "%af%": binary-ssr-showcase
+    artifacts:
+      - from: target/x86_64-unknown-linux-gnu/release/ssr-showcase
+        to: ssr-showcase/ssr-showcase
+      - from: impulse-ui-kit/examples/ssr_showcase/server-example.yaml
+        to: ssr-showcase/server-example.yaml
+    exclusive_exec_tag: binaries
   - title: build-skdsl
     desc: Build and install SKDSL
     info: impulse-kit-skdsl@0.1.0
