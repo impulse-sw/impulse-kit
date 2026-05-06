@@ -371,6 +371,18 @@ variables:
     value:
       type: plain
       value: ./impulse-ui-kit/examples/showcase/dist/ui-kit-showcase_bg.wasm
+  ssr-showcase-dist-pkg-folder:
+    value:
+      type: plain
+      value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg
+  ssr-showcase-tw-input:
+    value:
+      type: plain
+      value: ./impulse-ui-kit/examples/ssr_showcase/input.css
+  ssr-showcase-tw-output:
+    value:
+      type: plain
+      value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg/tailwind.css
   target-wasm:
     value:
       type: plain
@@ -508,10 +520,24 @@ actions:
       type: staged
       stage: build
       cmd: leptosfmt -t 2 ./**/*.rs
+  - info: mkdir@0.1.0
+    action:
+      type: custom
+      cmd: mkdir -p {folder}
+      placeholders:
+        - "{folder}"
   - info: run-showcase-static-server@0.1.0
     action:
       type: observe
       cmd: cd impulse-ui-kit/examples/showcase && ./iks
+      ignore_fails: true
+      show_success_output: true
+      show_cmd: false
+      only_when_fresh: false
+  - info: run-ssr-showcase-server@0.1.0
+    action:
+      type: observe
+      cmd: cd impulse-ui-kit/examples/ssr_showcase && ../../../target/x86_64-unknown-linux-gnu/release/ssr-showcase
       ignore_fails: true
       show_success_output: true
       show_cmd: false
@@ -1248,6 +1274,56 @@ pipelines:
     actions:
       - title: Run static server at `0.0.0.0:8807`
         used: run-showcase-static-server@0.1.0
+  - title: build-ssr-showcase
+    desc: Build the server-rendered showcase binary and ship it with its YAML config.
+    info: ui-kit-ssr-example-build@0.1.0
+    default: false
+    tags:
+      - cargo
+      - clippy
+      - lint
+      - leptos
+      - ssr
+    actions:
+      - title: Lint
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ssr-showcase
+          "{target}": target-x86
+      - title: Format
+        used: cargo-fmt@0.1.0
+      - title: Patch `Cargo.toml`
+        used: impulse-kit-patch-cargo@0.1.0
+      - title: Build (release mode)
+        used: cargo-release@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ssr-showcase
+          "{target}": target-x86
+      - title: Compress
+        used: upx@0.1.0
+        with:
+          "%af%": binary-ssr-showcase
+      - title: Make `dist/pkg` folder
+        used: mkdir@0.1.0
+        with:
+          "{folder}": ssr-showcase-dist-pkg-folder
+      - title: Compile TailwindCSS
+        used: tailwindcss-compile@0.2.0
+        with:
+          "{tw-input}": ssr-showcase-tw-input
+          "{tw-output}": ssr-showcase-tw-output
+    artifacts:
+      - from: target/x86_64-unknown-linux-gnu/release/ssr-showcase
+        to: ssr-showcase/ssr-showcase
+      - from: impulse-ui-kit/examples/ssr_showcase/server-example.yaml
+        to: ssr-showcase/server-example.yaml
+      - from: impulse-ui-kit/examples/ssr_showcase/dist
+        to: ssr-showcase/dist
+    exclusive_exec_tag: binaries
   - title: deploy-ssr-showcase
     desc: Build the server-rendered showcase binary and ship it with its YAML config.
     info: ui-kit-ssr-example-deploy@0.1.0
@@ -1281,11 +1357,24 @@ pipelines:
         used: upx@0.1.0
         with:
           "%af%": binary-ssr-showcase
+      - title: Make `dist/pkg` folder
+        used: mkdir@0.1.0
+        with:
+          "{folder}": ssr-showcase-dist-pkg-folder
+      - title: Compile TailwindCSS
+        used: tailwindcss-compile@0.2.0
+        with:
+          "{tw-input}": ssr-showcase-tw-input
+          "{tw-output}": ssr-showcase-tw-output
+      - title: Run SSR Showcase
+        used: run-ssr-showcase-server@0.1.0
     artifacts:
       - from: target/x86_64-unknown-linux-gnu/release/ssr-showcase
         to: ssr-showcase/ssr-showcase
       - from: impulse-ui-kit/examples/ssr_showcase/server-example.yaml
         to: ssr-showcase/server-example.yaml
+      - from: impulse-ui-kit/examples/ssr_showcase/dist
+        to: ssr-showcase/dist
     exclusive_exec_tag: binaries
   - title: build-skdsl
     desc: Build and install SKDSL
