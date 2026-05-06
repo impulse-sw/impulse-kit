@@ -1,13 +1,20 @@
 //! UI Kit prelude.
 
-pub use console_error_panic_hook;
 pub use impulse_utils;
 pub use leptos::prelude::*;
-
-pub use console_log;
 pub use log;
 
+#[cfg(any(feature = "csr", feature = "hydrate"))]
+pub use console_error_panic_hook;
+#[cfg(any(feature = "csr", feature = "hydrate"))]
+pub use console_log;
+
 pub use crate::setup_app;
+
+#[cfg(feature = "ssr")]
+pub use crate::ssr::{InitialTheme, LeptosResponseOptions, RequestUrlCtx};
+#[cfg(feature = "ssr")]
+pub use leptos_meta;
 
 #[cfg(feature = "websocket")]
 pub use crate::ws::{

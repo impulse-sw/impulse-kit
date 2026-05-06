@@ -1,12 +1,15 @@
 #![allow(missing_docs, dead_code)]
 
-//! Usage:
+//! Theme management.
 //!
-//! leptos-use = { version = "0.16", default-features = false }
+//! On `csr`/`hydrate` the theme lives in `localStorage` and is synced to the
+//! `<html class="dark">` attribute via an `Effect`. On `ssr` the theme is
+//! resolved from the `impulse_theme` cookie by the server-side SSR handler
+//! (`impulse-server-kit::leptos_ssr`) which writes the corresponding class
+//! into the rendered HTML prefix; this component therefore renders only its
+//! children without touching any DOM.
 
-use codee::string::FromToStringCodec;
 use leptos::prelude::*;
-use leptos_use::{storage::use_local_storage, use_preferred_dark};
 
 use super::button::{Button, ButtonSize, ButtonVariant};
 
@@ -14,9 +17,14 @@ pub const LIGHT_THEME: &str = "light";
 pub const DARK_THEME: &str = "dark";
 
 pub const THEME_LOCAL_STORAGE_KEY: &str = "theme";
+pub const THEME_COOKIE_KEY: &str = "impulse_theme";
 
+#[cfg(any(feature = "csr", feature = "hydrate"))]
 #[component]
 pub fn ThemeProvider(children: Children) -> impl IntoView {
+  use codee::string::FromToStringCodec;
+  use leptos_use::{storage::use_local_storage, use_preferred_dark};
+
   let preferred_dark = use_preferred_dark();
   let (stored_theme, ..) = use_local_storage::<String, FromToStringCodec>(THEME_LOCAL_STORAGE_KEY);
 
@@ -43,6 +51,13 @@ pub fn ThemeProvider(children: Children) -> impl IntoView {
   view! { {children()} }
 }
 
+#[cfg(feature = "ssr")]
+#[component]
+pub fn ThemeProvider(children: Children) -> impl IntoView {
+  view! { {children()} }
+}
+
+#[cfg(any(feature = "csr", feature = "hydrate"))]
 #[component]
 pub fn ThemeToggle(
   #[prop(optional)] variant: ButtonVariant,
@@ -50,8 +65,12 @@ pub fn ThemeToggle(
   #[prop(into, optional)] class: String,
   children: Children,
 ) -> impl IntoView {
+  use codee::string::FromToStringCodec;
+  use leptos_use::{storage::use_local_storage, use_preferred_dark};
+
   let preferred_dark = use_preferred_dark();
-  let (stored_theme, set_stored_theme, ..) = use_local_storage::<String, FromToStringCodec>(THEME_LOCAL_STORAGE_KEY);
+  let (stored_theme, set_stored_theme, ..) =
+    use_local_storage::<String, FromToStringCodec>(THEME_LOCAL_STORAGE_KEY);
 
   let toggle_theme = move |_| match stored_theme.get().as_str() {
     LIGHT_THEME => set_stored_theme.set(DARK_THEME.to_string()),
@@ -67,6 +86,21 @@ pub fn ThemeToggle(
 
   view! {
     <Button variant=variant size=size class=class on:click=toggle_theme>
+      {children()}
+    </Button>
+  }
+}
+
+#[cfg(feature = "ssr")]
+#[component]
+pub fn ThemeToggle(
+  #[prop(optional)] variant: ButtonVariant,
+  #[prop(optional)] size: ButtonSize,
+  #[prop(into, optional)] class: String,
+  children: Children,
+) -> impl IntoView {
+  view! {
+    <Button variant=variant size=size class=class>
       {children()}
     </Button>
   }

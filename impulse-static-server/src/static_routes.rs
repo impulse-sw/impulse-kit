@@ -210,3 +210,12 @@ pub fn frontend_router() -> MResult<Router> {
 
   Ok(Router::with_path("{**rest_path}").get(dist))
 }
+
+/// Asset-only router that serves files from `dist` without redirecting unknown
+/// paths to `index.html`. Intended for SSR setups where unhandled paths must
+/// fall through to the SSR handler instead of yielding the SPA shell.
+///
+/// Built on top of [`NoRedirectStaticRouter`] with in-memory caching enabled.
+pub fn assets_only_router_from(dist: &Path) -> MResult<Router> {
+  Ok(Router::with_path("{**rest_path}").get(StaticRouter::new_with_cacher(dist)?.with_no_redirect()))
+}

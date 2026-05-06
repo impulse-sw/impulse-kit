@@ -6,12 +6,29 @@ edition = { workspace = true }
 license = { workspace = true }
 authors = { workspace = true }
 
+[features]
+default = []
+csr = [
+  "impulse-ui-kit/csr",
+  "leptos/csr",
+  "leptos-use/storage",
+]
+hydrate = [
+  "impulse-ui-kit/hydrate",
+  "leptos/hydrate",
+  "leptos-use/storage",
+]
+ssr = [
+  "impulse-ui-kit/ssr",
+  "leptos/ssr",
+]
+
 [dependencies]
 chrono = "0.4.42"
 codee = "0.3.3"
 icondata = { workspace = true }
 impulse-ui-kit = { workspace = true }
-leptos = { version = "0.8", default-features = false, features = ["csr"] }
-leptos-use = { version = "0.16", default-features = false, features = ["storage"] }
+leptos = { version = "0.8", default-features = false }
+leptos-use = { version = "0.16", default-features = false }
 uuid = { version = "1.18.1", features = ["v4", "js"] }
-web-sys = { version = "0.3.82", features = ["ClipboardEvent", "DataTransfer", "DomRect", "Element", "HtmlButtonElement", "HtmlDivElement"] }
+web-sys = { version = "0.3.82", features = ["ClipboardEvent", "DataTransfer", "DomRect", "Element", "HtmlButtonElement", "HtmlDivElement", "NodeList"] }

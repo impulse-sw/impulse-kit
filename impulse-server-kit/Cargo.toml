@@ -47,6 +47,17 @@ test = [
 timeout = ["salvo/timeout"]
 trailing-slash = ["salvo/trailing-slash"]
 tower-compat = ["salvo/tower-compat"]
+leptos-ssr = [
+  "dep:leptos",
+  "dep:leptos_meta",
+  "dep:tachys",
+  "dep:futures",
+  "dep:cookie",
+  "dep:any_spawner",
+  "dep:impulse-ui-kit",
+  "impulse-ui-kit/ssr",
+  "salvo/serve-static",
+]
 full = [
   "http3",
   "acme",
@@ -103,6 +114,13 @@ tracing-opentelemetry = { optional = true, workspace = true }
 tracing-rfc-5424 = { workspace = true }
 tracing-subscriber = { workspace = true }
 zstd = { optional = true, workspace = true, features = ["default"] }
+leptos = { workspace = true, optional = true, features = ["ssr"] }
+leptos_meta = { workspace = true, optional = true }
+tachys = { version = "0.2", optional = true, default-features = false }
+futures = { version = "0.3", optional = true, default-features = false, features = ["std"] }
+cookie = { version = "0.18", optional = true }
+any_spawner = { version = "0.3", optional = true, features = ["tokio"] }
+impulse-ui-kit = { workspace = true, optional = true }
 
 [package.metadata.cargo-all-features]
-denylist = ["flash", "cache", "compression", "csrf", "session", "jwt-auth", "basic-auth", "caching-headers", "catch-panic", "concurrency-limiter", "request-id", "size-limiter", "sse", "timeout", "trailing-slash", "tower-compat", "reqwest-http3", "websocket", "proxy"]
+denylist = ["flash", "cache", "compression", "csrf", "session", "jwt-auth", "basic-auth", "caching-headers", "catch-panic", "concurrency-limiter", "request-id", "size-limiter", "sse", "timeout", "trailing-slash", "tower-compat", "reqwest-http3", "websocket", "proxy", "leptos-ssr"]

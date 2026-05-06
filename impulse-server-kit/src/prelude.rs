@@ -19,3 +19,6 @@ pub use crate::otel;
 
 #[cfg(feature = "test")]
 pub use crate::test_exts::*;
+
+#[cfg(feature = "leptos-ssr")]
+pub use crate::leptos_ssr::{LeptosOptions, SeoDefaults, assets_only_router, leptos_router};

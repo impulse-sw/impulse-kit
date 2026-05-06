@@ -1,0 +1,122 @@
+//! HTML prefix/suffix builder.
+//!
+//! The prefix encodes the `<!doctype html>...<head>` opener with a
+//! `<!--HEAD-->` marker that `leptos_meta::ServerMetaContextOutput::inject_meta_context`
+//! splices `<Title>`/`<Meta>`/`<Link>` components into. The suffix closes
+//! `<div id="main">`, `<body>` and `<html>`.
+
+use super::options::LeptosOptions;
+
+/// Inputs for [`build_html_prefix`].
+pub(super) struct PrefixContext<'a> {
+  pub opts: &'a LeptosOptions,
+  pub initial_theme: Option<&'a str>,
+  pub request_path: &'a str,
+}
+
+pub(super) fn build_html_prefix(ctx: &PrefixContext<'_>) -> String {
+  let seo = &ctx.opts.seo_defaults;
+  let theme_class = ctx.initial_theme.unwrap_or("light");
+  let lang = seo.locale.as_deref().unwrap_or("en");
+
+  let mut head_extras = String::new();
+  if let Some(desc) = &seo.description {
+    head_extras.push_str(&format!(
+      "<meta name=\"description\" content=\"{}\">",
+      html_escape(desc)
+    ));
+  }
+  if let Some(robots) = &seo.robots {
+    head_extras.push_str(&format!(
+      "<meta name=\"robots\" content=\"{}\">",
+      html_escape(robots)
+    ));
+  }
+  if let Some(base) = &seo.canonical_base {
+    let trimmed = base.trim_end_matches('/');
+    head_extras.push_str(&format!(
+      "<link rel=\"canonical\" href=\"{}{}\">",
+      html_escape(trimmed),
+      html_escape(ctx.request_path)
+    ));
+  }
+  if let Some(handle) = &seo.twitter_handle {
+    head_extras.push_str(&format!(
+      "<meta name=\"twitter:site\" content=\"{}\">",
+      html_escape(handle)
+    ));
+  }
+  head_extras.push_str("<meta name=\"twitter:card\" content=\"summary_large_image\">");
+  if let Some(img) = &seo.og_image {
+    head_extras.push_str(&format!(
+      "<meta property=\"og:image\" content=\"{}\">",
+      html_escape(img)
+    ));
+    head_extras.push_str(&format!(
+      "<meta name=\"twitter:image\" content=\"{}\">",
+      html_escape(img)
+    ));
+  }
+  if let Some(default_title) = &seo.default_title {
+    head_extras.push_str(&format!(
+      "<meta property=\"og:title\" content=\"{}\">",
+      html_escape(default_title)
+    ));
+  }
+  if let Some(desc) = &seo.description {
+    head_extras.push_str(&format!(
+      "<meta property=\"og:description\" content=\"{}\">",
+      html_escape(desc)
+    ));
+  }
+  head_extras.push_str("<meta property=\"og:type\" content=\"website\">");
+
+  let asset_links = build_asset_links(ctx.opts);
+
+  format!(
+    "<!DOCTYPE html><html lang=\"{lang}\" class=\"{theme_class}\"><head>\
+       <meta charset=\"UTF-8\">\
+       <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
+       {head_extras}{asset_links}<!--HEAD--></head><body><div id=\"main\">"
+  )
+}
+
+pub(super) fn build_html_suffix(opts: &LeptosOptions) -> String {
+  let mut buf = String::from("</div>");
+  if opts.include_hydration_script && !opts.output_name.is_empty() {
+    buf.push_str(&format!(
+      "<script type=\"module\">import init,{{hydrate}} from \"/{pkg}/{out}.js\";\
+       init({{module_or_path:\"/{pkg}/{out}_bg.wasm\"}}).then(()=>hydrate());</script>",
+      pkg = opts.site_pkg_dir,
+      out = opts.output_name,
+    ));
+  }
+  buf.push_str("</body></html>");
+  buf
+}
+
+fn build_asset_links(opts: &LeptosOptions) -> String {
+  if opts.output_name.is_empty() {
+    return String::new();
+  }
+  let pkg = &opts.site_pkg_dir;
+  let out = &opts.output_name;
+  let css = format!("<link rel=\"stylesheet\" href=\"/{pkg}/{out}.css\">");
+  if opts.include_hydration_script {
+    format!(
+      "{css}\
+       <link rel=\"modulepreload\" href=\"/{pkg}/{out}.js\">\
+       <link rel=\"preload\" as=\"fetch\" type=\"application/wasm\" crossorigin href=\"/{pkg}/{out}_bg.wasm\">",
+    )
+  } else {
+    css
+  }
+}
+
+fn html_escape(s: &str) -> String {
+  s.replace('&', "&amp;")
+    .replace('<', "&lt;")
+    .replace('>', "&gt;")
+    .replace('"', "&quot;")
+    .replace('\'', "&#39;")
+}
