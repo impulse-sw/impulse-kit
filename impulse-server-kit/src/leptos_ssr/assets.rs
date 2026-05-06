@@ -22,11 +22,11 @@ pub fn assets_only_router(site_root: &Path, site_pkg_dir: &str) -> Router {
   let pkg_path = site_root.join(site_pkg_dir);
   let assets_path = site_root.join("assets");
 
-  let pkg_route = format!("/{}/<**path>", site_pkg_dir.trim_matches('/'));
+  let pkg_route = format!("/{}/{{**path}}", site_pkg_dir.trim_matches('/'));
 
   Router::new()
     .push(Router::with_path(&pkg_route).get(StaticDir::new([pkg_path]).auto_list(false)))
-    .push(Router::with_path("/assets/<**path>").get(StaticDir::new([assets_path]).auto_list(false)))
+    .push(Router::with_path("/assets/{**path}").get(StaticDir::new([assets_path]).auto_list(false)))
     .push(Router::with_path("/favicon.ico").get(StaticDir::new([site_root.to_path_buf()]).auto_list(false)))
     .push(Router::with_path("/robots.txt").get(StaticDir::new([site_root.to_path_buf()]).auto_list(false)))
     .push(Router::with_path("/sitemap.xml").get(StaticDir::new([site_root.to_path_buf()]).auto_list(false)))

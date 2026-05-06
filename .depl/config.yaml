@@ -382,7 +382,7 @@ variables:
   ssr-showcase-tw-output:
     value:
       type: plain
-      value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg/tailwind.css
+      value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg/ssr_showcase.css
   target-wasm:
     value:
       type: plain
