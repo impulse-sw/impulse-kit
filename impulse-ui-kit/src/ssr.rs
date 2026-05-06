@@ -77,7 +77,10 @@ impl LeptosResponseOptions {
 
   /// Drain the configured custom headers.
   pub fn take_headers(&self) -> Vec<(String, String)> {
-    self.0.lock().map(|mut i| std::mem::take(&mut i.headers)).unwrap_or_default()
+    self
+      .0
+      .lock()
+      .map(|mut i| std::mem::take(&mut i.headers))
+      .unwrap_or_default()
   }
 }
-

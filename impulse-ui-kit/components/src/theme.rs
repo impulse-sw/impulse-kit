@@ -69,8 +69,7 @@ pub fn ThemeToggle(
   use leptos_use::{storage::use_local_storage, use_preferred_dark};
 
   let preferred_dark = use_preferred_dark();
-  let (stored_theme, set_stored_theme, ..) =
-    use_local_storage::<String, FromToStringCodec>(THEME_LOCAL_STORAGE_KEY);
+  let (stored_theme, set_stored_theme, ..) = use_local_storage::<String, FromToStringCodec>(THEME_LOCAL_STORAGE_KEY);
 
   let toggle_theme = move |_| match stored_theme.get().as_str() {
     LIGHT_THEME => set_stored_theme.set(DARK_THEME.to_string()),

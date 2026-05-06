@@ -119,8 +119,9 @@ pub fn get_path() -> CResult<String> {
 #[cfg(feature = "ssr")]
 pub fn redirect(url: impl AsRef<str>) -> CResult<()> {
   use leptos::context::use_context;
-  let opts = use_context::<crate::ssr::LeptosResponseOptions>()
-    .ok_or(ClientError::from_str("LeptosResponseOptions not provided in SSR context"))?;
+  let opts = use_context::<crate::ssr::LeptosResponseOptions>().ok_or(ClientError::from_str(
+    "LeptosResponseOptions not provided in SSR context",
+  ))?;
   opts.set_redirect(url.as_ref().to_string());
   Ok(())
 }

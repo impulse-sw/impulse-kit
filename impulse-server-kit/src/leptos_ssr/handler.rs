@@ -85,9 +85,10 @@ where
 
     if let Some(target) = resp_opts.redirect() {
       res.status_code(StatusCode::SEE_OTHER);
-      res
-        .headers_mut()
-        .insert(salvo::http::header::LOCATION, target.parse().unwrap_or_else(|_| "/".parse().unwrap()));
+      res.headers_mut().insert(
+        salvo::http::header::LOCATION,
+        target.parse().unwrap_or_else(|_| "/".parse().unwrap()),
+      );
       return;
     }
 
@@ -110,9 +111,10 @@ where
 
     let status = resp_opts.status().unwrap_or(200);
     res.status_code(StatusCode::from_u16(status).unwrap_or(StatusCode::OK));
-    res
-      .headers_mut()
-      .insert(salvo::http::header::CONTENT_TYPE, "text/html; charset=utf-8".parse().unwrap());
+    res.headers_mut().insert(
+      salvo::http::header::CONTENT_TYPE,
+      "text/html; charset=utf-8".parse().unwrap(),
+    );
     res
       .headers_mut()
       .insert(salvo::http::header::VARY, "Cookie, Accept-Encoding".parse().unwrap());
@@ -143,7 +145,9 @@ where
   let _ = any_spawner::Executor::init_tokio();
   let assets = super::assets::assets_only_router(&opts.site_root, &opts.site_pkg_dir);
   let handler = LeptosSsrHandler::new(opts, app_fn);
-  Router::new().push(assets).push(Router::with_path("{**any_path}").get(handler))
+  Router::new()
+    .push(assets)
+    .push(Router::with_path("{**any_path}").get(handler))
 }
 
 fn build_request_url(req: &Request) -> RequestUrlCtx {

@@ -27,10 +27,7 @@ pub(super) fn build_html_prefix(ctx: &PrefixContext<'_>) -> String {
     ));
   }
   if let Some(robots) = &seo.robots {
-    head_extras.push_str(&format!(
-      "<meta name=\"robots\" content=\"{}\">",
-      html_escape(robots)
-    ));
+    head_extras.push_str(&format!("<meta name=\"robots\" content=\"{}\">", html_escape(robots)));
   }
   if let Some(base) = &seo.canonical_base {
     let trimmed = base.trim_end_matches('/');
