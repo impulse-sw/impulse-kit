@@ -12,5 +12,6 @@ mod static_routes;
 
 pub use caching::CacheMap;
 pub use static_routes::{
-  NoRedirectStaticRouter, ProvidedRoutesStaticRouter, StaticRouter, frontend_router, frontend_router_from_given_dist,
+  NoRedirectStaticRouter, ProvidedRoutesStaticRouter, StaticRouter, assets_only_router_from, frontend_router,
+  frontend_router_from_given_dist,
 };

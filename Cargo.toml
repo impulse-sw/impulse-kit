@@ -9,6 +9,7 @@ members = [
   "impulse-ui-kit",
   "impulse-ui-kit/components",
   "impulse-ui-kit/examples/showcase",
+  "impulse-ui-kit/examples/ssr_showcase",
   "impulse-error-pages",
 ]
 resolver = "2"

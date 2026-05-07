@@ -99,6 +99,9 @@ pub mod prelude;
 pub mod setup;
 pub mod startup;
 
+#[cfg(feature = "leptos-ssr")]
+pub mod leptos_ssr;
+
 pub use salvo;
 
 pub use tracing;

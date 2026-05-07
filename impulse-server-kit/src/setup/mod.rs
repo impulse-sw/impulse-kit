@@ -92,6 +92,27 @@ pub struct GenericValues {
   /// API endpoint (with slash), e.g. `/api` or `/swagger`.
   pub oapi_api_addr: Option<String>,
 
+  #[cfg(feature = "leptos-ssr")]
+  /// Path to the directory containing the front-end build artifacts (`pkg/`,
+  /// CSS, fonts, ...). Resolved by the SSR handler to serve `/pkg/*`,
+  /// `/favicon.ico`, `/assets/*`, etc.
+  pub frontend_dist_path: Option<PathBuf>,
+  #[cfg(feature = "leptos-ssr")]
+  /// Output bundle name (matches `cargo-leptos`'s `output-name`). Used to
+  /// build URLs for the wasm/JS/CSS bundle, e.g. `/pkg/<name>.js`.
+  pub leptos_output_name: Option<String>,
+  #[cfg(feature = "leptos-ssr")]
+  /// Sub-directory under `frontend_dist_path` where the wasm/JS/CSS bundle
+  /// resides. Defaults to `pkg`.
+  pub leptos_site_pkg_dir: Option<String>,
+  #[cfg(feature = "leptos-ssr")]
+  /// Reserved for the upcoming server-functions support. Defaults to
+  /// `/api/leptos`.
+  pub leptos_server_fn_prefix: Option<String>,
+  #[cfg(feature = "leptos-ssr")]
+  /// SEO defaults injected as a Leptos context during SSR.
+  pub leptos_seo: Option<crate::leptos_ssr::SeoDefaults>,
+
   #[serde(flatten)]
   /// Tracing options
   pub tracing_options: TracingOptions,

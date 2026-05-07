@@ -10,8 +10,8 @@ authors = { workspace = true }
 chrono = "0.4.42"
 codee = "0.3.3"
 icondata = { workspace = true, features = ["lucide"] }
-impulse-ui-kit = { workspace = true }
-impulse-ui-kit-components = { workspace = true }
+impulse-ui-kit = { workspace = true, features = ["csr"] }
+impulse-ui-kit-components = { workspace = true, features = ["csr"] }
 leptos = { workspace = true, features = ["csr"] }
 leptos-use = { workspace = true, features = ["storage", "use_breakpoints"] }
 log = { workspace = true }
