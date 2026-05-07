@@ -110,9 +110,7 @@ fn App() -> impl IntoView {
             // Title and Description
             <div class="space-y-2">
               <h1 class="text-4xl font-bold tracking-tight">"Component Showcase"</h1>
-              <p class="text-muted-foreground text-lg">
-                "Explore all 50+ components available in Impulse UI Kit"
-              </p>
+              <p class="text-muted-foreground text-lg">"Explore Impulse UI Kit components"</p>
             </div>
 
             // Navigation Tabs

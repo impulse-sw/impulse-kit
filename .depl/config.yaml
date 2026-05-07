@@ -3,10 +3,8 @@ version: 8
 ignore_files:
   - .*.kate-swp
   - .git
-  - Cargo.lock
   - target
 cache_files:
-  - Cargo.lock
   - target
 variables:
   binary-dsl:
@@ -65,10 +63,6 @@ variables:
     value:
       type: plain
       value: carousel
-  component-chart:
-    value:
-      type: plain
-      value: chart
   component-checkbox:
     value:
       type: plain
@@ -237,6 +231,10 @@ variables:
     value:
       type: plain
       value: " --all-features"
+  featureset-ui-kit-net:
+    value:
+      type: plain
+      value: " --features=websocket,webtransport"
   featureset-utils-wasm32:
     value:
       type: plain
@@ -341,6 +339,10 @@ variables:
     value:
       type: plain
       value: 'RUSTFLAGS=''--cfg reqwest_unstable'' '
+  web-sys-unstable-flag:
+    value:
+      type: plain
+      value: 'RUSTFLAGS=''--cfg web_sys_unstable_apis'' '
   showcase-favicon:
     value:
       type: plain
@@ -622,6 +624,13 @@ pipelines:
           "{flags}": empty
           "{package}": package-ui-kit
           "{target}": target-wasm
+      - title: Lint `impulse-ui-kit` with `websocket`/`webtransport`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": featureset-ui-kit-net
+          "{flags}": web-sys-unstable-flag
+          "{package}": package-ui-kit
+          "{target}": target-wasm
       - title: Lint `showcase`
         used: cargo-lint@0.2.0
         with:
@@ -709,6 +718,13 @@ pipelines:
         with:
           "{features}": empty
           "{flags}": empty
+          "{package}": package-ui-kit
+          "{target}": target-wasm
+      - title: Lint `impulse-ui-kit` with `websocket`/`webtransport`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": featureset-ui-kit-net
+          "{flags}": web-sys-unstable-flag
           "{package}": package-ui-kit
           "{target}": target-wasm
       - title: Lint `showcase`
@@ -961,12 +977,6 @@ pipelines:
         with:
           "{component-file}": component-theme
           "{component-name}": component-theme
-          "{kit-version}": kit-version
-      - title: Add `chart` component
-        used: depl-add-component-to-storage@0.1.0
-        with:
-          "{component-file}": component-chart
-          "{component-name}": component-chart
           "{kit-version}": kit-version
       - title: Add `combobox` component
         used: depl-add-component-to-storage@0.1.0

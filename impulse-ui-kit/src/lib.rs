@@ -10,6 +10,11 @@
 pub mod router;
 pub mod utils;
 
+#[cfg(feature = "websocket")]
+pub mod ws;
+#[cfg(feature = "webtransport")]
+pub mod wt;
+
 pub mod prelude;
 
 use leptos::prelude::*;
