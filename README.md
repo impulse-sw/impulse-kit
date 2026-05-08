@@ -95,6 +95,8 @@ fn main() {
 
 [UI Kit Showcase](./impulse-ui-kit/examples/showcase/README.md)
 
+[Server-Side Rendered Showcase](./impulse-ui-kit/examples/ssr_showcase/README.md)
+
 ## Rust Toolchain
 
 **This repository actively uses `nightly` toolchain.** While these frameworks and libraries are battle-tested anyway, consider not to choose `impulse-kit` to use if you are not aware of `nightly` toolchain.
