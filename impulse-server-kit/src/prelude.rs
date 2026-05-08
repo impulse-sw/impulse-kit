@@ -21,4 +21,7 @@ pub use crate::otel;
 pub use crate::test_exts::*;
 
 #[cfg(feature = "leptos-ssr")]
-pub use crate::leptos_ssr::{LeptosOptions, SeoDefaults, assets_only_router, leptos_router};
+pub use crate::leptos_ssr::{LeptosOptions, SeoDefaults, SsrStreamMode, assets_only_router, leptos_router};
+
+#[cfg(feature = "leptos-server-fn")]
+pub use crate::leptos_ssr::{ServerFnSalvoHandler, server_fn_router};

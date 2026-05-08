@@ -15,7 +15,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "1.0.1"
+version = "1.1.0"
 edition = "2024"
 rust-version = "1.96"
 license = "MIT"
@@ -25,8 +25,8 @@ authors = ["Klimenty Titov <aclo.create@gmail.com>"]
 impulse-server-kit = { path = "impulse-server-kit", default-features = false }
 impulse-static-server = { path = "impulse-static-server" }
 impulse-utils = { path = "impulse-utils", default-features = false }
-impulse-ui-kit = { path = "impulse-ui-kit" }
-impulse-ui-kit-components = { path = "impulse-ui-kit/components" }
+impulse-ui-kit = { path = "impulse-ui-kit", default-features = false }
+impulse-ui-kit-components = { path = "impulse-ui-kit/components", default-features = false }
 
 anyhow = "1"
 brotli = { version = "7", default-features = false }

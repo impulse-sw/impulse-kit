@@ -36,7 +36,7 @@ depl use -o src/components ui-kit-{component-name}@
 
 ```toml
 [dependencies]
-impulse-ui-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.0.0" }
+impulse-ui-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.1.0" }
 leptos = "0.8"
 ```
 
