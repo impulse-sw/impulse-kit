@@ -3,7 +3,13 @@
 //! The prefix encodes the `<!doctype html>...<head>` opener with a
 //! `<!--HEAD-->` marker that `leptos_meta::ServerMetaContextOutput::inject_meta_context`
 //! splices `<Title>`/`<Meta>`/`<Link>` components into. The suffix closes
-//! `<div id="main">`, `<body>` and `<html>`.
+//! `<body>` and `<html>`.
+//!
+//! The rendered application markup is emitted as a direct child of `<body>`
+//! so that `leptos::mount::hydrate_body` (which walks `document.body`) finds
+//! the same DOM structure that was streamed from the server. Wrapping the
+//! body in any extra element (`<div id="main">`, etc.) would cause a
+//! `failed_to_cast_element` panic during hydration.
 
 use super::options::LeptosOptions;
 
@@ -74,12 +80,12 @@ pub(super) fn build_html_prefix(ctx: &PrefixContext<'_>) -> String {
     "<!DOCTYPE html><html lang=\"{lang}\" class=\"{theme_class}\"><head>\
        <meta charset=\"UTF-8\">\
        <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
-       {head_extras}{asset_links}<!--HEAD--></head><body><div id=\"main\">"
+       {head_extras}{asset_links}<!--HEAD--></head><body>"
   )
 }
 
 pub(super) fn build_html_suffix(opts: &LeptosOptions) -> String {
-  let mut buf = String::from("</div>");
+  let mut buf = String::new();
   if opts.include_hydration_script && !opts.output_name.is_empty() {
     buf.push_str(&format!(
       "<script type=\"module\">import init,{{hydrate}} from \"/{pkg}/{out}.js\";\
