@@ -1,19 +1,18 @@
 //! Central SSR handler for Salvo.
 //!
-//! Renders the user's Leptos `App` component to a single HTML string, splices
-//! `leptos_meta`'s collected `<head>` content into the prefix, applies any
-//! response options the rendered tree set (status / redirect / headers), and
-//! writes the response.
-//!
-//! This is the simple, non-streaming variant. Streaming and `<Suspense>`
-//! support are reserved for the next iteration.
+//! Renders the user's Leptos `App` component using `leptos_integration_utils`'s
+//! `build_response`. Supports `<Suspense>` streaming via the in-order or
+//! out-of-order pipelines and emits the hydration `<script>` and resource
+//! data when `LeptosOptions::include_hydration_script` is `true`.
 
 use std::sync::Arc;
 
+use bytes::Bytes;
 use futures::StreamExt;
+use futures::stream::{self, Stream};
 use leptos::IntoView;
 use leptos::prelude::*;
-use leptos::reactive::owner::Owner;
+use leptos_integration_utils::{BoxedFnOnce, PinnedFuture, PinnedStream, build_response};
 use leptos_meta::ServerMetaContext;
 use salvo::http::StatusCode;
 use salvo::prelude::*;
@@ -25,7 +24,23 @@ use super::options::LeptosOptions;
 use super::prefix::{PrefixContext, build_html_prefix, build_html_suffix};
 use super::theme::parse_theme_cookie;
 
-/// Salvo handler that renders a Leptos application to HTML on every request.
+/// Streaming mode used by [`LeptosSsrHandler`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SsrStreamMode {
+  /// Stream chunks in the order they appear in the document. `<Suspense>`
+  /// boundaries block until their resources resolve, then continue. This is
+  /// the default — simpler, predictable, no JavaScript-driven re-ordering on
+  /// the client.
+  #[default]
+  InOrder,
+  /// Out-of-order streaming. Suspense placeholders are flushed immediately
+  /// and replaced via injected `<template>`/`<script>` chunks as resources
+  /// resolve. Faster first-meaningful-paint but requires the hydration
+  /// runtime to swap fragments.
+  OutOfOrder,
+}
+
+/// Salvo handler that renders a Leptos application to streaming HTML.
 ///
 /// Construct via [`leptos_router`] rather than instantiating directly.
 pub struct LeptosSsrHandler<F, IV>
@@ -35,6 +50,7 @@ where
 {
   opts: Arc<LeptosOptions>,
   app_fn: F,
+  mode: SsrStreamMode,
 }
 
 impl<F, IV> LeptosSsrHandler<F, IV>
@@ -44,9 +60,11 @@ where
 {
   /// Create a new handler with the given options and root component factory.
   pub fn new(opts: LeptosOptions, app_fn: F) -> Self {
+    let mode = opts.stream_mode;
     Self {
       opts: Arc::new(opts),
       app_fn,
+      mode,
     }
   }
 }
@@ -62,26 +80,35 @@ where
     let theme_value = parse_theme_cookie(req.headers());
     let request_path = url.path.clone();
     let resp_opts = LeptosResponseOptions::default();
-    let initial_theme = InitialTheme(theme_value.clone());
 
-    let opts = self.opts.clone();
     let app_fn = self.app_fn.clone();
-
-    let owner = Owner::new();
-    let resp_opts_for_render = resp_opts.clone();
+    let opts = self.opts.clone();
+    let mode = self.mode;
 
     let (meta_ctx, meta_out) = ServerMetaContext::new();
-    let meta_ctx_for_owner = meta_ctx.clone();
 
-    let body_html: String = owner.with(move || {
-      provide_context(url);
-      provide_context(initial_theme);
+    let resp_opts_for_render = resp_opts.clone();
+    let meta_ctx_for_render = meta_ctx.clone();
+    let url_for_render = url.clone();
+    let theme_for_render = theme_value.clone();
+    let opts_for_render = opts.clone();
+
+    let additional_context = move || {
+      provide_context(url_for_render);
+      provide_context(InitialTheme(theme_for_render));
       provide_context(resp_opts_for_render);
-      provide_context(opts.seo_defaults.clone());
-      provide_context(meta_ctx_for_owner);
-      let view = app_fn();
-      view.into_view().to_html()
-    });
+      provide_context(opts_for_render.seo_defaults.clone());
+      provide_context(meta_ctx_for_render);
+    };
+
+    let stream_builder: fn(IV, BoxedFnOnce<PinnedStream<String>>, bool) -> PinnedFuture<PinnedStream<String>> = match mode
+    {
+      SsrStreamMode::InOrder => stream_in_order::<IV>,
+      SsrStreamMode::OutOfOrder => stream_out_of_order::<IV>,
+    };
+
+    let (owner, app_stream) = build_response(app_fn, additional_context, stream_builder, false);
+    let app_stream = app_stream.await;
 
     if let Some(target) = resp_opts.redirect() {
       res.status_code(StatusCode::SEE_OTHER);
@@ -92,22 +119,24 @@ where
       return;
     }
 
-    let theme_class = theme_value.as_deref();
     let prefix = build_html_prefix(&PrefixContext {
       opts: &self.opts,
-      initial_theme: theme_class,
+      initial_theme: theme_value.as_deref(),
       request_path: &request_path,
     });
     let suffix = build_html_suffix(&self.opts);
 
-    let single_chunk = format!("{prefix}{body_html}{suffix}");
-    let stream = futures::stream::iter(std::iter::once(single_chunk));
-    let injected = meta_out.inject_meta_context(stream).await;
-    let mut final_html = String::new();
-    let mut injected = Box::pin(injected);
-    while let Some(chunk) = injected.next().await {
-      final_html.push_str(&chunk);
-    }
+    let body_chunks = app_stream.ready_chunks(32).map(|n| n.join(""));
+    let prefixed = stream::once(async move { prefix }).chain(body_chunks);
+    let with_suffix = prefixed.chain(stream::once(async move { suffix }));
+
+    let injected = meta_out.inject_meta_context(Box::pin(with_suffix)).await;
+
+    let cleanup = stream::once(async move {
+      owner.unset_with_forced_cleanup();
+      String::new()
+    });
+    let final_stream = injected.chain(cleanup).map(|chunk| Ok::<_, std::io::Error>(Bytes::from(chunk)));
 
     let status = resp_opts.status().unwrap_or(200);
     res.status_code(StatusCode::from_u16(status).unwrap_or(StatusCode::OK));
@@ -126,8 +155,38 @@ where
         res.headers_mut().insert(name, value);
       }
     }
-    let _ = res.write_body(final_html);
+    res.body(salvo::http::ResBody::stream(final_stream));
   }
+}
+
+fn stream_in_order<IV>(
+  app: IV,
+  chunks: BoxedFnOnce<PinnedStream<String>>,
+  _supports_ooo: bool,
+) -> PinnedFuture<PinnedStream<String>>
+where
+  IV: IntoView + 'static,
+{
+  Box::pin(async move {
+    let app_stream = app.into_view().to_html_stream_in_order();
+    let combined: PinnedStream<String> = Box::pin(app_stream.chain(chunks()));
+    combined
+  })
+}
+
+fn stream_out_of_order<IV>(
+  app: IV,
+  chunks: BoxedFnOnce<PinnedStream<String>>,
+  _supports_ooo: bool,
+) -> PinnedFuture<PinnedStream<String>>
+where
+  IV: IntoView + 'static,
+{
+  Box::pin(async move {
+    let app_stream = app.into_view().to_html_stream_out_of_order();
+    let combined: PinnedStream<String> = Box::pin(app_stream.chain(chunks()));
+    combined
+  })
 }
 
 /// Build a Salvo router that serves the Leptos application via SSR.
@@ -187,3 +246,5 @@ fn build_request_url(req: &Request) -> RequestUrlCtx {
     query: uri.query().map(|q| q.to_string()),
   }
 }
+
+fn _assert_stream_send<S: Stream + Send>(_: &S) {}

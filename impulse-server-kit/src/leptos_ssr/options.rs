@@ -74,16 +74,19 @@ pub struct LeptosOptions {
   /// Sub-directory under `site_root` that contains the wasm bundle.
   /// Defaults to `pkg`.
   pub site_pkg_dir: String,
-  /// URL prefix for `#[server]` functions. Reserved; not yet wired up.
+  /// URL prefix under which `#[server]` functions are mounted. Used by
+  /// [`crate::leptos_ssr::server_fn_router`] when building the Salvo router.
   pub server_fn_prefix: String,
   /// SEO defaults injected into the rendered HTML prefix.
   pub seo_defaults: SeoDefaults,
   /// Fallback when rendering yields no content.
   pub fallback: FallbackStrategy,
   /// When `true`, the rendered HTML embeds the hydration bootstrap
-  /// `<script>`. Reserved; current iteration always renders without
-  /// hydration.
+  /// `<script>` and links the wasm bundle. Set to `true` when shipping a
+  /// matching `hydrate`-mode wasm bundle.
   pub include_hydration_script: bool,
+  /// Streaming mode used by the SSR handler.
+  pub stream_mode: super::handler::SsrStreamMode,
 }
 
 impl Default for LeptosOptions {
@@ -92,10 +95,11 @@ impl Default for LeptosOptions {
       output_name: String::new(),
       site_root: PathBuf::from("target/site"),
       site_pkg_dir: "pkg".to_string(),
-      server_fn_prefix: "/api/leptos".to_string(),
+      server_fn_prefix: "/api".to_string(),
       seo_defaults: SeoDefaults::default(),
       fallback: FallbackStrategy::ErrorPage,
       include_hydration_script: false,
+      stream_mode: super::handler::SsrStreamMode::InOrder,
     }
   }
 }

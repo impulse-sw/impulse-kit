@@ -65,11 +65,26 @@ pub fn setup_app(#[allow(unused_variables)] log_level: log::Level, children: Chi
 
 /// Application entrypoint (hydration mode).
 ///
-/// Reserved for hydration support — currently a no-op so that `setup_app` can be
-/// used as a uniform symbol across feature modes. Full hydration is delivered in
-/// the next iteration; see the SSR roadmap in the repository.
+/// Hydrates server-rendered HTML in place via [`leptos::mount::hydrate_body`].
+/// The wasm bundle that calls `setup_app` must export a `hydrate` function via
+/// `#[wasm_bindgen]` so the SSR-emitted bootstrap `<script>` can drive
+/// hydration:
+///
+/// ```rust,ignore
+/// #[wasm_bindgen::prelude::wasm_bindgen]
+/// pub fn hydrate() {
+///   impulse_ui_kit::setup_app(log::Level::Info, Box::new(move || view! { <App/> }.into_any()))
+/// }
+/// ```
 #[cfg(feature = "hydrate")]
-pub fn setup_app(_log_level: log::Level, _children: Children) {}
+pub fn setup_app(#[allow(unused_variables)] log_level: log::Level, children: Children) {
+  console_error_panic_hook::set_once();
+  #[cfg(debug_assertions)]
+  console_log::init_with_level(log::Level::Debug).unwrap();
+  #[cfg(not(debug_assertions))]
+  console_log::init_with_level(log_level).unwrap();
+  leptos::mount::hydrate_body(move || view! { {children()} })
+}
 
 /// Application entrypoint (SSR mode).
 ///

@@ -1,21 +1,50 @@
 [package]
 name = "ssr-showcase"
-description = "Server-rendered demo of Impulse UI Kit + Server Kit"
+description = "Server-rendered + hydrated demo of Impulse UI Kit + Server Kit"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 authors = { workspace = true }
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [[bin]]
 name = "ssr-showcase"
 path = "src/main.rs"
+required-features = ["ssr"]
+
+[features]
+default = []
+ssr = [
+  "impulse-ui-kit/ssr",
+  "impulse-ui-kit-components/ssr",
+  "leptos/ssr",
+  "leptos_meta/ssr",
+  "server_fn_macro_default/ssr",
+  "server_fn_macro_default/axum",
+  "dep:impulse-server-kit",
+  "dep:tokio",
+]
+hydrate = [
+  "impulse-ui-kit/hydrate",
+  "impulse-ui-kit-components/hydrate",
+  "leptos/hydrate",
+  "dep:console_error_panic_hook",
+  "dep:wasm-bindgen",
+]
 
 [dependencies]
-impulse-server-kit = { workspace = true, default-features = false, features = ["leptos-ssr", "cors", "oapi"] }
-impulse-ui-kit = { workspace = true, features = ["ssr"] }
-impulse-ui-kit-components = { workspace = true, features = ["ssr"] }
-leptos = { workspace = true, features = ["ssr"] }
+impulse-ui-kit = { workspace = true }
+impulse-ui-kit-components = { workspace = true }
+leptos = { workspace = true }
 leptos_meta = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+server_fn = { version = "0.8.12", default-features = false, features = ["msgpack"] }
+server_fn_macro_default = { version = "0.8.5", default-features = false }
 tracing = { workspace = true }
+
+impulse-server-kit = { workspace = true, optional = true, default-features = false, features = ["leptos-server-fn", "cors", "oapi"] }
+tokio = { workspace = true, optional = true, features = ["macros", "rt-multi-thread"] }
+console_error_panic_hook = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }

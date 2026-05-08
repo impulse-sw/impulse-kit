@@ -1,14 +1,21 @@
 //! First-party Leptos SSR adapter for Salvo.
 //!
-//! This module provides a minimal, native server-side rendering integration
-//! for Leptos 0.8 on top of Salvo. It is intentionally framework-agnostic —
-//! we do not depend on `leptos_axum`/`leptos_actix`. The current iteration
-//! delivers SEO-grade HTML rendering (with `leptos_meta` integration) but
-//! does NOT yet wire up hydration or `#[server]` functions; both are
-//! reserved for the next iteration and the public API is shaped so that
-//! adding them is non-breaking.
+//! This module provides a native server-side rendering integration for Leptos
+//! 0.8 on top of Salvo. It does not depend on `leptos_axum`/`leptos_actix`.
 //!
-//! Typical usage:
+//! Capabilities:
+//!
+//! - SEO-grade HTML rendering with `leptos_meta` (`<title>`, `<meta>`,
+//!   `<link>`, OpenGraph, Twitter Cards, canonical, robots, locale).
+//! - `<Suspense>` streaming via in-order or out-of-order modes
+//!   ([`handler::SsrStreamMode`]).
+//! - Hydration bootstrap: when [`LeptosOptions::include_hydration_script`] is
+//!   `true`, the rendered HTML embeds the `<script>` that loads the wasm
+//!   bundle and calls `hydrate()` on the client.
+//! - `#[server]` functions through [`server_fn_router`], which bridges Salvo
+//!   to `server_fn`'s axum-compatible adapter.
+//!
+//! Typical wiring:
 //!
 //! ```rust,ignore
 //! use impulse_server_kit::prelude::*;
@@ -20,6 +27,7 @@
 //!   let opts  = LeptosOptions::from_generic_values(setup.generic_values());
 //!
 //!   let router = get_root_router_autoinject(&state, setup.clone())
+//!     .push(server_fn_router(opts.server_fn_prefix.clone()))
 //!     .push(leptos_router(opts, || leptos::view! { <App/> }));
 //!
 //!   let (server, _) = start(state, &setup, router).await.unwrap();
@@ -31,12 +39,17 @@ mod assets;
 mod handler;
 mod options;
 mod prefix;
+#[cfg(feature = "leptos-server-fn")]
+mod server_fn;
 mod theme;
 
 pub use assets::assets_only_router;
-pub use handler::{LeptosSsrHandler, leptos_router};
+pub use handler::{LeptosSsrHandler, SsrStreamMode, leptos_router};
 pub use options::{FallbackStrategy, LeptosOptions, SeoDefaults};
 pub use theme::{InitialTheme, parse_theme_cookie};
+
+#[cfg(feature = "leptos-server-fn")]
+pub use server_fn::{ServerFnSalvoHandler, server_fn_router};
 
 pub use leptos;
 pub use leptos_meta;

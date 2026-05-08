@@ -243,6 +243,30 @@ variables:
     value:
       type: plain
       value: " --no-default-features --features=reqwest"
+  featureset-ssr-showcase-server:
+    value:
+      type: plain
+      value: " --no-default-features --features=ssr"
+  featureset-ssr-showcase-hydrate:
+    value:
+      type: plain
+      value: " --no-default-features --features=hydrate"
+  ssr-showcase-wasm-file:
+    value:
+      type: plain
+      value: ./target/wasm32-unknown-unknown/release/ssr_showcase.wasm
+  ssr-showcase-wasm-bg-file:
+    value:
+      type: plain
+      value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg/ssr_showcase_bg.wasm
+  ssr-showcase-wasm-out-name:
+    value:
+      type: plain
+      value: ssr_showcase
+  ssr-showcase-dist-folder:
+    value:
+      type: plain
+      value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg
   file-alert-dialog:
     value:
       type: plain
@@ -584,6 +608,38 @@ actions:
       cmd: cd {project-folder} && RUSTFLAGS="-Zlocation-detail=none -Zfmt-debug=none -Zunstable-options -Cpanic=immediate-abort" CARGO_UNSTABLE_BUILD_STD="std,panic_abort" CARGO_UNSTABLE_BUILD_STD_FEATURES="optimize_for_size" trunk build --release
       placeholders:
         - "{project-folder}"
+  - info: cargo-wasm-rel@0.1.0
+    tags:
+      - rust
+      - cargo
+      - wasm
+    requirements:
+      - type: in_path
+        executable: cargo
+    action:
+      type: staged
+      stage: build
+      cmd: "{flags}cargo build --release --lib --package {package} --target wasm32-unknown-unknown{features}"
+      placeholders:
+        - "{flags}"
+        - "{package}"
+        - "{features}"
+  - info: wasm-bindgen-cli@0.1.0
+    tags:
+      - wasm
+      - wasm-bindgen
+    requirements:
+      - type: in_path
+        executable: wasm-bindgen
+        desc: "Install: cargo install wasm-bindgen-cli"
+    action:
+      type: staged
+      stage: build
+      cmd: wasm-bindgen --target web --out-dir {out-dir} --out-name {out-name} {wasm-file}
+      placeholders:
+        - "{out-dir}"
+        - "{out-name}"
+        - "{wasm-file}"
   - info: upx@0.1.0
     requirements:
       - type: in_path
@@ -1324,7 +1380,7 @@ pipelines:
         to: ssr-showcase/dist
     exclusive_exec_tag: binaries
   - title: deploy-ssr-showcase
-    desc: Build the server-rendered showcase binary and ship it with its YAML config.
+    desc: Build the SSR + hydration showcase (server binary, wasm bundle, CSS) and run it.
     info: ui-kit-ssr-example-deploy@0.1.0
     default: false
     tags:
@@ -1333,29 +1389,26 @@ pipelines:
       - lint
       - leptos
       - ssr
+      - wasm
     actions:
-      - title: Lint
+      - title: Lint server
         used: cargo-lint@0.2.0
         with:
-          "{features}": empty
+          "{features}": featureset-ssr-showcase-server
           "{flags}": empty
           "{package}": package-ssr-showcase
           "{target}": target-x86
+      - title: Lint wasm
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": featureset-ssr-showcase-hydrate
+          "{flags}": empty
+          "{package}": package-ssr-showcase
+          "{target}": target-wasm
       - title: Format
         used: cargo-fmt@0.1.0
       - title: Patch `Cargo.toml`
         used: impulse-kit-patch-cargo@0.1.0
-      - title: Build (release mode)
-        used: cargo-release@0.2.0
-        with:
-          "{features}": empty
-          "{flags}": empty
-          "{package}": package-ssr-showcase
-          "{target}": target-x86
-      - title: Compress
-        used: upx@0.1.0
-        with:
-          "%af%": binary-ssr-showcase
       - title: Make `dist/pkg` folder
         used: mkdir@0.1.0
         with:
@@ -1365,6 +1418,33 @@ pipelines:
         with:
           "{tw-input}": ssr-showcase-tw-input
           "{tw-output}": ssr-showcase-tw-output
+      - title: Build wasm bundle
+        used: cargo-wasm-rel@0.1.0
+        with:
+          "{features}": featureset-ssr-showcase-hydrate
+          "{flags}": empty
+          "{package}": package-ssr-showcase
+      - title: wasm-bindgen
+        used: wasm-bindgen-cli@0.1.0
+        with:
+          "{out-dir}": ssr-showcase-dist-folder
+          "{out-name}": ssr-showcase-wasm-out-name
+          "{wasm-file}": ssr-showcase-wasm-file
+      - title: Optimize WASM
+        used: wasm-opt@0.1.0
+        with:
+          "{file}": ssr-showcase-wasm-bg-file
+      - title: Build server (release mode)
+        used: cargo-release@0.2.0
+        with:
+          "{features}": featureset-ssr-showcase-server
+          "{flags}": empty
+          "{package}": package-ssr-showcase
+          "{target}": target-x86
+      - title: Compress server binary
+        used: upx@0.1.0
+        with:
+          "%af%": binary-ssr-showcase
       - title: Run SSR Showcase
         used: run-ssr-showcase-server@0.1.0
     artifacts:
