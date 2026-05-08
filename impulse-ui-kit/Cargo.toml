@@ -8,7 +8,7 @@ license = { workspace = true }
 authors = { workspace = true }
 
 [features]
-default = []
+default = ["csr"]
 csr = [
   "leptos/csr",
   "dep:console_error_panic_hook",

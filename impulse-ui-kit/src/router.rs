@@ -2,8 +2,7 @@
 //!
 //! On the client (`csr`/`hydrate`) these helpers query the browser's
 //! `window.location`. On the server (`ssr`) they read from the per-request
-//! [`crate::ssr::RequestUrlCtx`] context populated by the SSR handler in
-//! `impulse-server-kit::leptos_ssr`.
+//! `impulse_ui_kit::ssr::RequestUrlCtx` context populated by the SSR handler.
 
 use impulse_utils::prelude::*;
 

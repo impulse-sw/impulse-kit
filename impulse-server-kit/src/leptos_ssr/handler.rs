@@ -101,11 +101,11 @@ where
       provide_context(meta_ctx_for_render);
     };
 
-    let stream_builder: fn(IV, BoxedFnOnce<PinnedStream<String>>, bool) -> PinnedFuture<PinnedStream<String>> = match mode
-    {
-      SsrStreamMode::InOrder => stream_in_order::<IV>,
-      SsrStreamMode::OutOfOrder => stream_out_of_order::<IV>,
-    };
+    let stream_builder: fn(IV, BoxedFnOnce<PinnedStream<String>>, bool) -> PinnedFuture<PinnedStream<String>> =
+      match mode {
+        SsrStreamMode::InOrder => stream_in_order::<IV>,
+        SsrStreamMode::OutOfOrder => stream_out_of_order::<IV>,
+      };
 
     let (owner, app_stream) = build_response(app_fn, additional_context, stream_builder, false);
     let app_stream = app_stream.await;
@@ -136,7 +136,9 @@ where
       owner.unset_with_forced_cleanup();
       String::new()
     });
-    let final_stream = injected.chain(cleanup).map(|chunk| Ok::<_, std::io::Error>(Bytes::from(chunk)));
+    let final_stream = injected
+      .chain(cleanup)
+      .map(|chunk| Ok::<_, std::io::Error>(Bytes::from(chunk)));
 
     let status = resp_opts.status().unwrap_or(200);
     res.status_code(StatusCode::from_u16(status).unwrap_or(StatusCode::OK));

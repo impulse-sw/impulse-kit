@@ -18,7 +18,6 @@ required-features = ["ssr"]
 default = []
 ssr = [
   "impulse-ui-kit/ssr",
-  "impulse-ui-kit-components/ssr",
   "leptos/ssr",
   "leptos_meta/ssr",
   "server_fn_macro_default/ssr",
@@ -28,15 +27,13 @@ ssr = [
 ]
 hydrate = [
   "impulse-ui-kit/hydrate",
-  "impulse-ui-kit-components/hydrate",
   "leptos/hydrate",
   "dep:console_error_panic_hook",
   "dep:wasm-bindgen",
 ]
 
 [dependencies]
-impulse-ui-kit = { workspace = true }
-impulse-ui-kit-components = { workspace = true }
+impulse-ui-kit = { workspace = true, default-features = false }
 leptos = { workspace = true }
 leptos_meta = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

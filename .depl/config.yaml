@@ -732,6 +732,20 @@ pipelines:
           "{flags}": empty
           "{package}": package-ui-kit-showcase
           "{target}": target-wasm
+      - title: Lint `ssr-showcase` server
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": featureset-ssr-showcase-server
+          "{flags}": empty
+          "{package}": package-ssr-showcase
+          "{target}": target-x86
+      - title: Lint `ssr-showcase` wasm
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": featureset-ssr-showcase-hydrate
+          "{flags}": empty
+          "{package}": package-ssr-showcase
+          "{target}": target-wasm
       - title: Lint `impulse-error-pages`
         used: cargo-lint@0.2.0
         with:
@@ -826,6 +840,20 @@ pipelines:
           "{features}": empty
           "{flags}": empty
           "{package}": package-ui-kit-showcase
+          "{target}": target-wasm
+      - title: Lint `ssr-showcase` server
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": featureset-ssr-showcase-server
+          "{flags}": empty
+          "{package}": package-ssr-showcase
+          "{target}": target-x86
+      - title: Lint `ssr-showcase` wasm
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": featureset-ssr-showcase-hydrate
+          "{flags}": empty
+          "{package}": package-ssr-showcase
           "{target}": target-wasm
       - title: Lint `impulse-error-pages`
         used: cargo-lint@0.2.0
