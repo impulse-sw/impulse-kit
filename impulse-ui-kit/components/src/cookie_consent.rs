@@ -102,7 +102,7 @@ pub fn CookieConsent(
                     <span>
                       {desc}
                       " "
-                      <a href=href class="underline hover:text-foreground transition-colors">
+                      <a href=href class="underline hover:text-foreground transition-colors" target="_blank">
                         {label}
                       </a>
                     </span>
