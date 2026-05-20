@@ -732,13 +732,6 @@ pipelines:
           "{flags}": empty
           "{package}": package-ui-kit-showcase
           "{target}": target-wasm
-      - title: Lint `ssr-showcase` server
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": featureset-ssr-showcase-server
-          "{flags}": empty
-          "{package}": package-ssr-showcase
-          "{target}": target-x86
       - title: Lint `ssr-showcase` wasm
         used: cargo-lint@0.2.0
         with:
@@ -773,6 +766,13 @@ pipelines:
           "{features}": empty
           "{flags}": empty
           "{package}": package-static-server
+          "{target}": target-x86
+      - title: Lint `ssr-showcase` server
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": featureset-ssr-showcase-server
+          "{flags}": empty
+          "{package}": package-ssr-showcase
           "{target}": target-x86
       - title: Test docs
         used: cargo-test-doc@0.1.0
@@ -841,13 +841,6 @@ pipelines:
           "{flags}": empty
           "{package}": package-ui-kit-showcase
           "{target}": target-wasm
-      - title: Lint `ssr-showcase` server
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": featureset-ssr-showcase-server
-          "{flags}": empty
-          "{package}": package-ssr-showcase
-          "{target}": target-x86
       - title: Lint `ssr-showcase` wasm
         used: cargo-lint@0.2.0
         with:
@@ -882,6 +875,13 @@ pipelines:
           "{features}": empty
           "{flags}": empty
           "{package}": package-static-server
+          "{target}": target-x86
+      - title: Lint `ssr-showcase` server
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": featureset-ssr-showcase-server
+          "{flags}": empty
+          "{package}": package-ssr-showcase
           "{target}": target-x86
       - title: Format
         used: cargo-fmt@0.1.0
