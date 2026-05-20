@@ -11,6 +11,7 @@ Table of contents:
 - [Common Salvo documentation](#5)
 - [Code API Overview](#6)
 - [Configuration Overview](#7)
+- [Leptos SSR & SEO](#8)
 
 <a name="1"></a>
 ## How's it work
@@ -484,5 +485,117 @@ These metrics are implied automatically by using `get_root_router_autoinject` fu
 Router::new()
   .hoop(impulse_server_kit::startup::sk_default_metrics)
 ```
+
+<a name="8"></a>
+## Leptos SSR & SEO
+
+> [!NOTE]
+> Any Leptos SSR config option requires the `leptos-ssr` feature to be enabled:
+>
+> ```toml
+> [dependencies]
+> impulse-server-kit = { .., features = ["leptos-ssr"] }
+> ```
+
+The Leptos SSR adapter renders a Leptos `App` to streaming HTML and serves the
+front-end bundle alongside it. The HTML prefix is built before the application
+view, so SEO/social tags are present in the very first bytes the crawler reads
+— no JavaScript required. Tags that an app declares with `leptos_meta`
+(`<Title>`, `<Meta>`, `<Link>`) are spliced into the same `<head>` after the
+defaults, so per-page overrides still work.
+
+### Bundle wiring
+
+```yaml
+frontend_dist_path: ./dist      # falls back to env IMPULSE_FRONTEND_DIST,
+                                # then ./dist, then /usr/local/frontend-dist
+leptos_output_name: my_app      # matches cargo-leptos `output-name`
+leptos_server_fn_prefix: /api/leptos   # optional; defaults to /api/leptos
+```
+
+| Field | Effect |
+| --- | --- |
+| `frontend_dist_path` | Directory that holds the wasm/JS/CSS bundle and any static assets. Every file under it is served at the URL mirroring its on-disk path; unknown paths fall through to the SSR renderer. |
+| `leptos_output_name` | Used to build URLs for `/pkg/<name>.js`, `/pkg/<name>.css`, `/pkg/<name>_bg.wasm`. Defaults to `app_name` when unset. |
+| `leptos_server_fn_prefix` | Route prefix where `#[server]` functions are mounted (e.g. `/api/leptos`). Must match the value the client expects. |
+
+### SEO defaults
+
+All SEO fields live under the `leptos_seo` key. Each field is optional — the
+prefix only emits a tag when the corresponding value is set, so an empty
+`leptos_seo:` block is a no-op.
+
+```yaml
+leptos_seo:
+  title_template: "{} · My App"
+  default_title: "My App — short tagline"
+  description: "One-paragraph elevator pitch for crawlers and social cards."
+  og_image: "https://my-app.example.com/og-preview.png"
+  og_logo: "https://my-app.example.com/logo-512.png"
+  canonical_base: "https://my-app.example.com"
+  twitter_handle: "@my_app"
+  robots: "index,follow"
+  locale: "en"
+  site_name: "My App"
+```
+
+What ends up in the rendered `<head>` (in the order the prefix emits it):
+
+| Field | Tag(s) emitted | Notes |
+| --- | --- | --- |
+| `description` | `<meta name="description">`, `<meta property="og:description">` | Same string is reused for the OG description so social previews match the page summary. |
+| `robots` | `<meta name="robots">` | Set to `noindex,nofollow` on staging. |
+| `canonical_base` | `<link rel="canonical">`, `<meta property="og:url">` | The current request path is appended to the base, so every URL gets its own canonical. Trailing slashes on the base are trimmed. |
+| `twitter_handle` | `<meta name="twitter:site">` | The leading `@` is conventional but not required by Twitter. |
+| `og_image` | `<meta property="og:image">`, `<meta name="twitter:image">` | Use an absolute URL — relative paths break for crawlers that don't resolve against the canonical base. |
+| `og_logo` | `<meta property="og:logo">` | Not part of the original OG spec, but consumed by some SEO validators and rich-result scrapers. Typically the square brand mark, distinct from `og_image`. |
+| `default_title` | `<meta property="og:title">` | Page-level `<Title>` from `leptos_meta` still overrides the actual `<title>` element. |
+| `site_name` (falls back to `default_title`) | `<meta property="og:site_name">` | The brand name; usually shorter than the title (e.g. `"My App"` vs `"My App — short tagline"`). |
+| `locale` | `<html lang="…">`, `<meta property="og:locale">` | OG locales are normalised to the `lang_REGION` form: `ru` → `ru_RU`, `en` → `en_US`, `pt-BR` → `pt_BR`. Unknown short codes pass through unchanged. |
+| `title_template` | _Reserved for future_ | The struct already accepts it so YAML written today is forward-compatible. |
+
+`<meta charset="UTF-8">`, `<meta name="viewport">`, `<meta property="og:type" content="website">` and `<meta name="twitter:card" content="summary_large_image">` are always emitted regardless of `leptos_seo` settings.
+
+### Canonical URL & duplicate `<head>` tags
+
+The HTML prefix already emits `<meta name="description">` and
+`<link rel="canonical">` when `leptos_seo.description` /
+`leptos_seo.canonical_base` are set. **Do not also declare them inside the
+Leptos `App`** — that creates two tags and SEO scanners flag it. The pattern
+is:
+
+- Cross-cutting defaults (description, canonical, OG, Twitter, robots,
+  locale) go in `server.yaml`.
+- Per-page overrides go in the Leptos view as `<Title>`, `<Meta>` and
+  `<Link>` from `leptos_meta`. These render *after* the defaults, so they
+  appear later in the `<head>` and win the document `<title>`.
+
+### Index-page redirect
+
+The SSR handler returns `301 Moved Permanently` from `/index.html`,
+`/index.htm` and `/index.php` to `/`. This avoids duplicate-content reports
+from SEO crawlers when the landing page would otherwise be reachable under
+two URLs. If a real `dist/index.html` is on disk (rare in SSR setups), the
+static-asset router serves it before the redirect runs.
+
+### Streaming mode
+
+```rust
+let mut opts = LeptosOptions::from_generic_values(setup.generic_values());
+opts.stream_mode = SsrStreamMode::InOrder;   // or OutOfOrder
+```
+
+- `InOrder` (default): predictable, no client-side fragment swapping;
+  `<Suspense>` boundaries block streaming until they resolve.
+- `OutOfOrder`: faster first-meaningful-paint; suspense placeholders flush
+  immediately and are replaced via injected `<template>`/`<script>` chunks
+  once resources resolve.
+
+### Theme cookie
+
+The SSR handler reads a `theme` cookie and applies the value to
+`<html class="…">` so server-rendered markup matches the user's last
+preference (light/dark). The cookie is also injected as an
+`InitialTheme(String)` Leptos context for app-level use.
 
 [ACME]: https://en.wikipedia.org/wiki/Automatic_Certificate_Management_Environment

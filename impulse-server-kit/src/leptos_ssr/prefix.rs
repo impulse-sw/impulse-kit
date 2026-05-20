@@ -60,6 +60,12 @@ pub(super) fn build_html_prefix(ctx: &PrefixContext<'_>) -> String {
       html_escape(img)
     ));
   }
+  if let Some(logo) = &seo.og_logo {
+    head_extras.push_str(&format!(
+      "<meta property=\"og:logo\" content=\"{}\">",
+      html_escape(logo)
+    ));
+  }
   if let Some(default_title) = &seo.default_title {
     head_extras.push_str(&format!(
       "<meta property=\"og:title\" content=\"{}\">",
@@ -79,6 +85,18 @@ pub(super) fn build_html_prefix(ctx: &PrefixContext<'_>) -> String {
       "<meta property=\"og:url\" content=\"{}{}\">",
       html_escape(trimmed),
       html_escape(ctx.request_path)
+    ));
+  }
+  if let Some(site_name) = seo.site_name.as_ref().or(seo.default_title.as_ref()) {
+    head_extras.push_str(&format!(
+      "<meta property=\"og:site_name\" content=\"{}\">",
+      html_escape(site_name)
+    ));
+  }
+  if let Some(locale) = &seo.locale {
+    head_extras.push_str(&format!(
+      "<meta property=\"og:locale\" content=\"{}\">",
+      html_escape(&og_locale(locale))
     ));
   }
 
@@ -130,4 +148,61 @@ fn html_escape(s: &str) -> String {
     .replace('>', "&gt;")
     .replace('"', "&quot;")
     .replace('\'', "&#39;")
+}
+
+/// Normalise an HTML `lang` value to OpenGraph's `lang_REGION` form.
+///
+/// OG validators expect locales like `en_US`, `ru_RU`, `pt_BR`. We accept
+/// either form on input: a bare language code (`ru`) is expanded using a
+/// small lookup; an already-region-tagged value (`pt-BR`, `pt_BR`) is
+/// normalised to the underscore form. Unknown codes pass through unchanged.
+fn og_locale(lang: &str) -> String {
+  let trimmed = lang.trim();
+  if let Some((primary, region)) = trimmed.split_once('-').or_else(|| trimmed.split_once('_')) {
+    return format!("{}_{}", primary.to_ascii_lowercase(), region.to_ascii_uppercase());
+  }
+  let lower = trimmed.to_ascii_lowercase();
+  let region = match lower.as_str() {
+    "en" => "US",
+    "ru" => "RU",
+    "de" => "DE",
+    "fr" => "FR",
+    "es" => "ES",
+    "it" => "IT",
+    "pt" => "PT",
+    "ja" => "JP",
+    "ko" => "KR",
+    "zh" => "CN",
+    "uk" => "UA",
+    "pl" => "PL",
+    "nl" => "NL",
+    "sv" => "SE",
+    "tr" => "TR",
+    _ => return lower,
+  };
+  format!("{lower}_{region}")
+}
+
+#[cfg(test)]
+mod tests {
+  use super::og_locale;
+
+  #[test]
+  fn og_locale_expands_known_primary() {
+    assert_eq!(og_locale("ru"), "ru_RU");
+    assert_eq!(og_locale("en"), "en_US");
+    assert_eq!(og_locale("pt"), "pt_PT");
+  }
+
+  #[test]
+  fn og_locale_preserves_explicit_region() {
+    assert_eq!(og_locale("pt-BR"), "pt_BR");
+    assert_eq!(og_locale("en_GB"), "en_GB");
+    assert_eq!(og_locale("ZH-tw"), "zh_TW");
+  }
+
+  #[test]
+  fn og_locale_passes_unknown_through() {
+    assert_eq!(og_locale("xx"), "xx");
+  }
 }
