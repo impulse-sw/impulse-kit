@@ -2423,7 +2423,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-error-pages"
-version = "1.1.4"
+version = "1.1.5"
 dependencies = [
  "icondata",
  "impulse-ui-kit",
@@ -2436,7 +2436,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-server-kit"
-version = "1.1.4"
+version = "1.1.5"
 dependencies = [
  "any_spawner",
  "axum",
@@ -2482,7 +2482,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-skdsl"
-version = "1.1.4"
+version = "1.1.5"
 dependencies = [
  "clap",
  "impulse-server-kit",
@@ -2498,7 +2498,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-static-server"
-version = "1.1.4"
+version = "1.1.5"
 dependencies = [
  "impulse-server-kit",
  "serde",
@@ -2507,7 +2507,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-ui-kit"
-version = "1.1.4"
+version = "1.1.5"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -2524,7 +2524,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-ui-kit-components"
-version = "1.1.4"
+version = "1.1.5"
 dependencies = [
  "chrono",
  "codee",
@@ -2538,7 +2538,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-utils"
-version = "1.1.4"
+version = "1.1.5"
 dependencies = [
  "anyhow",
  "http",
@@ -5565,7 +5565,7 @@ dependencies = [
 
 [[package]]
 name = "ssr-showcase"
-version = "1.1.4"
+version = "1.1.5"
 dependencies = [
  "console_error_panic_hook",
  "impulse-server-kit",
@@ -6241,7 +6241,7 @@ checksum = "40ce102ab67701b8526c123c1bab5cbe42d7040ccfd0f64af1a385808d2f43de"
 
 [[package]]
 name = "ui-kit-showcase"
-version = "1.1.4"
+version = "1.1.5"
 dependencies = [
  "chrono",
  "codee",
