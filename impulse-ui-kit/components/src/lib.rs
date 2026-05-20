@@ -15,6 +15,7 @@ pub mod carousel;
 pub mod checkbox;
 pub mod collapsible;
 pub mod combobox;
+pub mod cookie_consent;
 pub mod command;
 pub mod context_menu;
 pub mod data_table;
