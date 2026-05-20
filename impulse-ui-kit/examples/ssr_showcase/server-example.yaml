@@ -10,5 +10,10 @@ leptos_seo:
   locale: en
   robots: index,follow
   twitter_handle: "@impulse"
+  site_name: Impulse
+  # og_image / og_logo are usually absolute URLs to brand assets; the
+  # showcase keeps them unset so it does not advertise stale screenshots.
+  # og_image: https://impulse.example.com/og-preview.png
+  # og_logo:  https://impulse.example.com/logo-512.png
 enable_io_logs: true
 io_log_level: debug

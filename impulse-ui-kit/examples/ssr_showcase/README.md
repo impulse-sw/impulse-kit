@@ -82,4 +82,28 @@ interactive.
 - `leptos_output_name` — bundle name; controls `/pkg/<name>.{js,wasm,css}`.
 - `leptos_server_fn_prefix` — URL prefix where `#[server]` functions are
   mounted (defaults to `/api/leptos`).
-- `leptos_seo` — SEO defaults injected into the rendered HTML.
+- `leptos_seo` — SEO defaults injected into the rendered HTML. The full
+  field list and which `<head>` tag each one emits is documented in
+  [`impulse-server-kit`'s README](../../../impulse-server-kit/README.md#8).
+  The short version:
+  - `default_title` + `title_template` — `<title>` fallback and the format
+    used to combine page-specific titles with the brand.
+  - `description` — emits both `<meta name="description">` and
+    `<meta property="og:description">`.
+  - `canonical_base` — appended with the request path to form
+    `<link rel="canonical">` and `<meta property="og:url">`.
+  - `og_image` / `og_logo` — social preview and brand mark (both absolute
+    URLs).
+  - `site_name` — `<meta property="og:site_name">`; falls back to
+    `default_title` when unset.
+  - `locale` — drives `<html lang>` and `<meta property="og:locale">`
+    (the latter normalised to `lang_REGION`, e.g. `en` → `en_US`).
+  - `robots` — `<meta name="robots">` (e.g. `noindex,nofollow` for staging).
+  - `twitter_handle` — `<meta name="twitter:site">`.
+
+> [!IMPORTANT]
+> Don't also declare `description` / `canonical` / OG / Twitter tags inside
+> the Leptos `App` view — the SSR prefix already emits them from
+> `leptos_seo`, and a second copy from `leptos_meta` would create two
+> identical tags in `<head>`. Use `leptos_meta`'s `<Title>`, `<Meta>` and
+> `<Link>` only for per-page overrides.
