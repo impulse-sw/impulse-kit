@@ -2,6 +2,7 @@
 
 pub use impulse_utils::{self, prelude::*};
 
+pub use crate::security_headers::{SecurityHeaders, SecurityHeadersOptions};
 pub use crate::setup::{GenericSetup, GenericValues, load_generic_config, load_generic_state};
 pub use crate::startup::{get_root_router, get_root_router_autoinject, start};
 pub use salvo;

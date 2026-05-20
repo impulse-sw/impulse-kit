@@ -113,6 +113,12 @@ pub struct GenericValues {
   /// SEO defaults injected as a Leptos context during SSR.
   pub leptos_seo: Option<crate::leptos_ssr::SeoDefaults>,
 
+  /// Security response headers applied to every response when the
+  /// router is built via `get_root_router_autoinject`. See
+  /// [`crate::security_headers::SecurityHeadersOptions`].
+  #[serde(default)]
+  pub security_headers: crate::security_headers::SecurityHeadersOptions,
+
   #[serde(flatten)]
   /// Tracing options
   pub tracing_options: TracingOptions,

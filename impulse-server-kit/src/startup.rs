@@ -128,6 +128,11 @@ pub fn get_root_router_autoinject<T: GenericSetup + Send + Sync + Clone + 'stati
   #[allow(unused_mut)]
   let mut router = Router::new().hoop(affix_state::inject(app_state.clone()).inject(app_config.clone()));
 
+  let sec = &app_config.generic_values().security_headers;
+  if sec.enabled {
+    router = router.hoop(crate::security_headers::SecurityHeaders::new(sec));
+  }
+
   #[cfg(all(feature = "http3", feature = "acme"))]
   if app_state.startup_variant == StartupVariant::QuinnAcme {
     router = router.hoop(h3_header);
