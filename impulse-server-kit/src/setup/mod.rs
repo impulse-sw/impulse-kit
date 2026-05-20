@@ -93,18 +93,18 @@ pub struct GenericValues {
   pub oapi_api_addr: Option<String>,
 
   #[cfg(feature = "leptos-ssr")]
-  /// Path to the directory containing the front-end build artifacts (`pkg/`,
-  /// CSS, fonts, ...). Resolved by the SSR handler to serve `/pkg/*`,
-  /// `/favicon.ico`, `/assets/*`, etc.
+  /// Path to the front-end dist directory (the folder produced by
+  /// `cargo-leptos` / `trunk`). The SSR handler serves every file under this
+  /// directory at the URL that mirrors its on-disk path; unknown paths fall
+  /// through to the SSR renderer.
+  ///
+  /// Resolution order (first hit wins): `IMPULSE_FRONTEND_DIST` env var,
+  /// this field, `./dist`, `/usr/local/frontend-dist`.
   pub frontend_dist_path: Option<PathBuf>,
   #[cfg(feature = "leptos-ssr")]
   /// Output bundle name (matches `cargo-leptos`'s `output-name`). Used to
   /// build URLs for the wasm/JS/CSS bundle, e.g. `/pkg/<name>.js`.
   pub leptos_output_name: Option<String>,
-  #[cfg(feature = "leptos-ssr")]
-  /// Sub-directory under `frontend_dist_path` where the wasm/JS/CSS bundle
-  /// resides. Defaults to `pkg`.
-  pub leptos_site_pkg_dir: Option<String>,
   #[cfg(feature = "leptos-ssr")]
   /// Reserved for the upcoming server-functions support. Defaults to
   /// `/api/leptos`.

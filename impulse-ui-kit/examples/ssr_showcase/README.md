@@ -74,9 +74,12 @@ interactive.
 `server-example.yaml` controls runtime configuration via Server Kit's
 `GenericValues`:
 
-- `frontend_dist_path` — directory containing the front-end build artefacts.
+- `frontend_dist_path` — directory containing the front-end build artefacts
+  (the `dist/` folder). Falls back to `IMPULSE_FRONTEND_DIST` env var,
+  then `./dist`, then `/usr/local/frontend-dist` when not set. All files
+  under this directory are served with logging and in-memory caching;
+  unknown paths fall through to the SSR renderer.
 - `leptos_output_name` — bundle name; controls `/pkg/<name>.{js,wasm,css}`.
-- `leptos_site_pkg_dir` — sub-directory under `frontend_dist_path` (default `pkg`).
 - `leptos_server_fn_prefix` — URL prefix where `#[server]` functions are
   mounted (defaults to `/api/leptos`).
 - `leptos_seo` — SEO defaults injected into the rendered HTML.

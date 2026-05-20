@@ -1,11 +1,26 @@
-use impulse_server_kit::impulse_utils::prelude::*;
-use impulse_server_kit::prelude::*;
-use impulse_server_kit::salvo::FlowCtrl;
+//! Salvo handlers and router builders for serving static files.
+//!
+//! Three handler flavours are exposed:
+//!
+//! - [`StaticRouter`] — wildcard handler that falls back to `index.html` for
+//!   unknown paths (SPA-style routing).
+//! - [`NoRedirectStaticRouter`] — same as `StaticRouter` but lets unmatched
+//!   paths fall through to the next handler. Suited for SSR setups where the
+//!   asset router sits in front of an SSR catch-all.
+//! - [`ProvidedRoutesStaticRouter`] — serves only files whose names appear in
+//!   an explicit allow-list; everything else falls through.
+//!
+//! All handlers emit `tracing` spans/events so cache hits, disk reads and
+//! 404s are observable — this is the main reason to use them over Salvo's
+//! built-in `StaticDir`.
+
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::caching::{CacheMap, cache_runner, send_file, send_html};
+use crate::prelude::*;
+use crate::salvo::FlowCtrl;
+use crate::static_server::caching::{CacheMap, cache_runner, send_file, send_html};
 
 const LOCAL_FRONTEND_DISTRIBUTABLE: &str = "dist";
 const CONTAINER_FRONTEND_DISTRIBUTABLE: &str = "/usr/local/frontend-dist";
@@ -25,6 +40,7 @@ async fn common_handle(
     match filename.split('.').collect::<Vec<_>>().last() {
       Some(&"html") => {
         if let Err(e) = send_html(cacher, req, depot, res, &filename, &filepath).await {
+          tracing::warn!(file = %filename, "html not found");
           e.with_public("There is no such file!")
             .with_404()
             .write(req, depot, res)
@@ -33,6 +49,7 @@ async fn common_handle(
       }
       _ => {
         if let Err(e) = send_file(cacher, req, depot, res, &filename, &filepath).await {
+          tracing::warn!(file = %filename, "file not found");
           e.with_public("There is no such file!")
             .with_404()
             .write(req, depot, res)
@@ -42,12 +59,14 @@ async fn common_handle(
     }
   } else if filepath.exists() {
     if let Err(e) = send_file(cacher, req, depot, res, &filename, &filepath).await {
+      tracing::warn!(file = %filename, "file not found");
       e.with_public("There is no such file!")
         .with_404()
         .write(req, depot, res)
         .await;
     }
   } else if let Err(e) = send_html(cacher, req, depot, res, "index.html", &dist_path.join("index.html")).await {
+    tracing::warn!(file = %filename, "index.html fallback not found");
     e.with_public("There is no such file!")
       .with_404()
       .write(req, depot, res)
@@ -55,21 +74,20 @@ async fn common_handle(
   }
 }
 
-/// Static router.
+/// Wildcard static-file handler that falls back to `index.html`.
 pub struct StaticRouter {
   path: PathBuf,
   cacher: Option<Arc<Mutex<CacheMap>>>,
 }
 
-/// Static router with no redirections allowed.
-///
-/// It serves all files from given path, but if server requested non-existing file, it will not redirect it to `index.html`.
+/// Wildcard handler that returns 404 (via fall-through) for missing files
+/// instead of redirecting to `index.html`.
 pub struct NoRedirectStaticRouter {
   path: PathBuf,
   cacher: Option<Arc<Mutex<CacheMap>>>,
 }
 
-/// Static router with only provided routes.
+/// Wildcard handler that only serves files whose names are in `possible_routes`.
 pub struct ProvidedRoutesStaticRouter {
   path: PathBuf,
   possible_routes: Vec<String>,
@@ -77,7 +95,7 @@ pub struct ProvidedRoutesStaticRouter {
 }
 
 impl StaticRouter {
-  /// Create static router from given path.
+  /// Build a router rooted at `path` without in-memory caching.
   pub fn new(path: impl AsRef<Path>) -> MResult<Self> {
     if !path.as_ref().exists() {
       ServerError::from_private_str(format!("There is no such folder as {:?}!", path.as_ref()))
@@ -91,7 +109,8 @@ impl StaticRouter {
     })
   }
 
-  /// Create static router from given path with in-memory cacher.
+  /// Build a router rooted at `path` with in-memory caching plus a filesystem
+  /// watcher that invalidates entries on change.
   pub fn new_with_cacher(path: impl AsRef<Path>) -> MResult<Self> {
     if !path.as_ref().exists() {
       ServerError::from_private_str(format!("There is no such folder as {:?}!", path.as_ref()))
@@ -117,7 +136,7 @@ impl StaticRouter {
     })
   }
 
-  /// Disable redirect to `index.html` when no requested file found.
+  /// Convert into a [`NoRedirectStaticRouter`] that falls through for missing files.
   pub fn with_no_redirect(self) -> NoRedirectStaticRouter {
     NoRedirectStaticRouter {
       path: self.path,
@@ -125,7 +144,7 @@ impl StaticRouter {
     }
   }
 
-  /// Disable redirect and provide routes' list.
+  /// Convert into a [`ProvidedRoutesStaticRouter`] serving only files in `routes`.
   pub fn with_routes_list(self, routes: Vec<String>) -> ProvidedRoutesStaticRouter {
     ProvidedRoutesStaticRouter {
       path: self.path,
@@ -150,6 +169,7 @@ impl salvo::Handler for StaticRouter {
 
 #[salvo::async_trait]
 impl salvo::Handler for NoRedirectStaticRouter {
+  #[tracing::instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]
   async fn handle(&self, req: &mut Request, depot: &mut Depot, res: &mut Response, flow: &mut salvo::FlowCtrl) {
     let mut filename = req.param::<String>("rest_path").unwrap_or(String::from("index.html"));
     if filename.is_empty() {
@@ -158,6 +178,7 @@ impl salvo::Handler for NoRedirectStaticRouter {
     let filepath = self.path.join(&filename);
 
     if !filepath.exists() {
+      tracing::debug!(file = %filename, "static asset missing, falling through");
       while flow.has_next() {
         flow.call_next(req, depot, res).await;
       }
@@ -169,6 +190,7 @@ impl salvo::Handler for NoRedirectStaticRouter {
 
 #[salvo::async_trait]
 impl salvo::Handler for ProvidedRoutesStaticRouter {
+  #[tracing::instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]
   async fn handle(&self, req: &mut Request, depot: &mut Depot, res: &mut Response, flow: &mut salvo::FlowCtrl) {
     let mut filename = req.param::<String>("rest_path").unwrap_or(String::from("index.html"));
     if filename.is_empty() {
@@ -177,6 +199,7 @@ impl salvo::Handler for ProvidedRoutesStaticRouter {
     let filepath = self.path.join(&filename);
 
     if !filepath.exists() || !self.possible_routes.iter().any(|pr| pr.as_str().eq(filename.as_str())) {
+      tracing::debug!(file = %filename, "static asset not in allow-list, falling through");
       while flow.has_next() {
         flow.call_next(req, depot, res).await;
       }
@@ -186,24 +209,16 @@ impl salvo::Handler for ProvidedRoutesStaticRouter {
   }
 }
 
-/// Static router with given `dist` path.
+/// Router serving files from `dist`, with `index.html` fallback for unknown paths.
 ///
-/// Returns error if dist folder doesn't exist.
-///
-/// Note that your `dist` folder must contains `index.html` file.
+/// `dist` must contain an `index.html`.
 pub fn frontend_router_from_given_dist(dist: &Path) -> MResult<Router> {
   Ok(Router::with_path("{**rest_path}").get(StaticRouter::new_with_cacher(dist)?))
 }
 
-/// Static router.
+/// Router that serves files from `./dist` (development) or `/usr/local/frontend-dist` (container).
 ///
-/// All that you need to include your app internals inside your application.
-///
-/// Note that `cc-static-server` serves only files from `dist` or `/usr/local/frontend-dist` folders.
-/// Make sure that `dist` folder is located in one folder with your application, not in current working
-/// directory provided by `$ pwd`.
-///
-/// Returns error if neither `dist` nor `/usr/local/frontend-dist` folder exists.
+/// Returns an error if neither directory exists.
 pub fn frontend_router() -> MResult<Router> {
   let dist = StaticRouter::new_with_cacher(LOCAL_FRONTEND_DISTRIBUTABLE)
     .or(StaticRouter::new_with_cacher(CONTAINER_FRONTEND_DISTRIBUTABLE))?;
@@ -211,11 +226,9 @@ pub fn frontend_router() -> MResult<Router> {
   Ok(Router::with_path("{**rest_path}").get(dist))
 }
 
-/// Asset-only router that serves files from `dist` without redirecting unknown
-/// paths to `index.html`. Intended for SSR setups where unhandled paths must
-/// fall through to the SSR handler instead of yielding the SPA shell.
-///
-/// Built on top of [`NoRedirectStaticRouter`] with in-memory caching enabled.
+/// Wildcard asset router that serves files from `dist` without falling back to
+/// `index.html`. Intended for SSR setups where unhandled paths must reach the
+/// SSR handler rather than yield the SPA shell.
 pub fn assets_only_router_from(dist: &Path) -> MResult<Router> {
   Ok(Router::with_path("{**rest_path}").get(StaticRouter::new_with_cacher(dist)?.with_no_redirect()))
 }

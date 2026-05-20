@@ -20,6 +20,8 @@ use tachys::view::RenderHtml;
 
 use impulse_ui_kit::ssr::{InitialTheme, LeptosResponseOptions, RequestUrlCtx};
 
+use crate::static_server::NoRedirectStaticRouter;
+
 use super::options::LeptosOptions;
 use super::prefix::{PrefixContext, build_html_prefix, build_html_suffix};
 use super::theme::parse_theme_cookie;
@@ -42,6 +44,11 @@ pub enum SsrStreamMode {
 
 /// Salvo handler that renders a Leptos application to streaming HTML.
 ///
+/// When [`LeptosSsrHandler::with_assets`] is used, the handler first delegates
+/// to a [`NoRedirectStaticRouter`] rooted at `opts.site_root`. Requests that
+/// resolve to a real file are served as static assets (with caching and
+/// `tracing` logs); everything else falls through to the SSR renderer.
+///
 /// Construct via [`leptos_router`] rather than instantiating directly.
 pub struct LeptosSsrHandler<F, IV>
 where
@@ -51,6 +58,7 @@ where
   opts: Arc<LeptosOptions>,
   app_fn: F,
   mode: SsrStreamMode,
+  assets: Option<Arc<NoRedirectStaticRouter>>,
 }
 
 impl<F, IV> LeptosSsrHandler<F, IV>
@@ -65,7 +73,14 @@ where
       opts: Arc::new(opts),
       app_fn,
       mode,
+      assets: None,
     }
+  }
+
+  /// Attach a static-asset handler that runs ahead of SSR rendering.
+  pub fn with_assets(mut self, assets: NoRedirectStaticRouter) -> Self {
+    self.assets = Some(Arc::new(assets));
+    self
   }
 }
 
@@ -75,7 +90,13 @@ where
   F: Fn() -> IV + Clone + Send + Sync + 'static,
   IV: IntoView + 'static,
 {
-  async fn handle(&self, req: &mut Request, _depot: &mut Depot, res: &mut Response, _ctrl: &mut FlowCtrl) {
+  async fn handle(&self, req: &mut Request, depot: &mut Depot, res: &mut Response, ctrl: &mut FlowCtrl) {
+    if let Some(assets) = &self.assets {
+      assets.handle(req, depot, res, ctrl).await;
+      if res.status_code.is_some() || !res.body.is_none() {
+        return;
+      }
+    }
     let url = build_request_url(req);
     let theme_value = parse_theme_cookie(req.headers());
     let request_path = url.path.clone();
@@ -193,8 +214,9 @@ where
 
 /// Build a Salvo router that serves the Leptos application via SSR.
 ///
-/// The returned router also serves static assets from `opts.site_root`. The
-/// SSR handler matches all unhandled GET paths.
+/// Files under `opts.site_root` (the `dist/` directory) are served at the URL
+/// that mirrors their on-disk path; any path that does not match a real file
+/// falls through to the SSR renderer.
 ///
 /// Initialises the global Leptos task executor (tokio variant) on first call;
 /// subsequent calls are no-ops. Must be invoked from within a tokio runtime.
@@ -204,11 +226,12 @@ where
   IV: IntoView + 'static,
 {
   let _ = any_spawner::Executor::init_tokio();
-  let assets = super::assets::assets_only_router(&opts.site_root, &opts.site_pkg_dir);
-  let handler = LeptosSsrHandler::new(opts, app_fn);
-  Router::new()
-    .push(assets)
-    .push(Router::with_path("{**any_path}").get(handler))
+    let assets = super::assets::build_assets_handler(&opts.site_root);
+  let mut handler = LeptosSsrHandler::new(opts, app_fn);
+  if let Some(assets) = assets {
+    handler = handler.with_assets(assets);
+  }
+  Router::with_path("{**rest_path}").get(handler)
 }
 
 fn build_request_url(req: &Request) -> RequestUrlCtx {

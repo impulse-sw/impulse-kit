@@ -5,6 +5,19 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
+/// Conventional sub-directory under `site_root` that holds the wasm/JS/CSS
+/// bundle. Matches `cargo-leptos`'s default output layout.
+pub const PKG_SUBDIR: &str = "pkg";
+
+/// Default local dist directory; matches `impulse-static-server`'s convention.
+pub const LOCAL_FRONTEND_DISTRIBUTABLE: &str = "dist";
+
+/// Default container-deployment dist directory; matches `impulse-static-server`'s convention.
+pub const CONTAINER_FRONTEND_DISTRIBUTABLE: &str = "/usr/local/frontend-dist";
+
+/// Environment variable that overrides the dist path at runtime.
+pub const FRONTEND_DIST_ENV: &str = "IMPULSE_FRONTEND_DIST";
+
 /// SEO defaults consumed by the SSR HTML prefix builder.
 ///
 /// These defaults are written into the rendered `<head>` only when the
@@ -66,14 +79,18 @@ impl std::fmt::Debug for FallbackStrategy {
 #[derive(Clone, Debug)]
 pub struct LeptosOptions {
   /// Bundle name. Used to compute URLs for the wasm/JS/CSS bundle, e.g.
-  /// `/<site_pkg_dir>/<output_name>.js`.
+  /// `/pkg/<output_name>.js`.
   pub output_name: String,
-  /// Root directory of the front-end build. The asset router serves files
-  /// from this directory (e.g. `target/site`).
+  /// Path to the front-end distributable directory (the `dist/` folder built
+  /// by `cargo-leptos` / `trunk`). All static files — wasm bundle, CSS,
+  /// images, favicon, robots.txt — are served from this directory.
+  ///
+  /// Resolution order:
+  /// 1. `IMPULSE_FRONTEND_DIST` environment variable, if set.
+  /// 2. `frontend_dist_path` from config.
+  /// 3. `./dist` if it exists.
+  /// 4. `/usr/local/frontend-dist` (container default).
   pub site_root: PathBuf,
-  /// Sub-directory under `site_root` that contains the wasm bundle.
-  /// Defaults to `pkg`.
-  pub site_pkg_dir: String,
   /// URL prefix under which `#[server]` functions are mounted. Used by
   /// [`crate::leptos_ssr::server_fn_router`] when building the Salvo router.
   pub server_fn_prefix: String,
@@ -93,8 +110,7 @@ impl Default for LeptosOptions {
   fn default() -> Self {
     Self {
       output_name: String::new(),
-      site_root: PathBuf::from("target/site"),
-      site_pkg_dir: "pkg".to_string(),
+      site_root: PathBuf::from(LOCAL_FRONTEND_DISTRIBUTABLE),
       server_fn_prefix: "/api".to_string(),
       seo_defaults: SeoDefaults::default(),
       fallback: FallbackStrategy::ErrorPage,
@@ -105,20 +121,35 @@ impl Default for LeptosOptions {
 }
 
 impl LeptosOptions {
+  /// Resolve the front-end dist directory following the documented order:
+  /// env var → config value → `./dist` → `/usr/local/frontend-dist`.
+  pub fn resolve_site_root(g: &crate::setup::GenericValues) -> PathBuf {
+    if let Ok(env_path) = std::env::var(FRONTEND_DIST_ENV)
+      && !env_path.is_empty()
+    {
+      return PathBuf::from(env_path);
+    }
+    if let Some(p) = &g.frontend_dist_path {
+      return p.clone();
+    }
+    let local = PathBuf::from(LOCAL_FRONTEND_DISTRIBUTABLE);
+    if local.exists() {
+      return local;
+    }
+    PathBuf::from(CONTAINER_FRONTEND_DISTRIBUTABLE)
+  }
+
   /// Build options from the generic YAML configuration. Missing fields fall
   /// back to sensible defaults.
   pub fn from_generic_values(g: &crate::setup::GenericValues) -> Self {
-    let mut opts = LeptosOptions::default();
-    if let Some(p) = &g.frontend_dist_path {
-      opts.site_root = p.clone();
-    }
+    let mut opts = LeptosOptions {
+      site_root: LeptosOptions::resolve_site_root(g),
+      ..Default::default()
+    };
     if let Some(name) = &g.leptos_output_name {
       opts.output_name = name.clone();
     } else {
       opts.output_name = g.app_name.clone();
-    }
-    if let Some(pkg) = &g.leptos_site_pkg_dir {
-      opts.site_pkg_dir = pkg.clone();
     }
     if let Some(prefix) = &g.leptos_server_fn_prefix {
       opts.server_fn_prefix = prefix.clone();

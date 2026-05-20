@@ -7,6 +7,13 @@ Simple static server. Features:
 - when receives any request other than `/`, it returns `index.html`, excluding files
 - provides in-memory cache for files less than 16 MiB via `CustomStaticRouter::new_with_cacher` or by default - with `ETag` and `Last-Modified`
 
+> [!NOTE]
+> Since v1.1.1 the routing logic lives in `impulse-server-kit::static_server`,
+> behind the `static-server` feature. This crate is a thin re-export and the
+> `iks` binary entry point. The same handlers power asset serving for the
+> Leptos SSR adapter (`leptos-ssr` feature), so SSR setups get the same
+> logging, caching and `ETag` / `Last-Modified` behaviour.
+
 ## Build
 
 This project is supporting Deployer. You can build server with:

@@ -45,7 +45,10 @@ mod theme;
 
 pub use assets::assets_only_router;
 pub use handler::{LeptosSsrHandler, SsrStreamMode, leptos_router};
-pub use options::{FallbackStrategy, LeptosOptions, SeoDefaults};
+pub use options::{
+  CONTAINER_FRONTEND_DISTRIBUTABLE, FRONTEND_DIST_ENV, FallbackStrategy, LOCAL_FRONTEND_DISTRIBUTABLE, LeptosOptions,
+  PKG_SUBDIR, SeoDefaults,
+};
 pub use theme::{InitialTheme, parse_theme_cookie};
 
 #[cfg(feature = "leptos-server-fn")]
