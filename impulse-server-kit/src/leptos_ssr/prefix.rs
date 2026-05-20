@@ -73,6 +73,14 @@ pub(super) fn build_html_prefix(ctx: &PrefixContext<'_>) -> String {
     ));
   }
   head_extras.push_str("<meta property=\"og:type\" content=\"website\">");
+  if let Some(base) = &seo.canonical_base {
+    let trimmed = base.trim_end_matches('/');
+    head_extras.push_str(&format!(
+      "<meta property=\"og:url\" content=\"{}{}\">",
+      html_escape(trimmed),
+      html_escape(ctx.request_path)
+    ));
+  }
 
   let asset_links = build_asset_links(ctx.opts);
 
