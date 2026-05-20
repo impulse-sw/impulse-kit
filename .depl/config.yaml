@@ -1301,6 +1301,54 @@ pipelines:
       - from: impulse-static-server/static-server.yaml
         to: static-server/static-server.yaml
     exclusive_exec_tag: binaries
+  - title: build-showcase
+    info: ui-kit-example-build@0.1.0
+    default: false
+    actions:
+      - title: Lint
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ui-kit-showcase
+          "{target}": target-wasm
+      - title: "Format #1"
+        used: leptos-fmt@0.1.0
+      - title: "Format #2"
+        used: cargo-fmt@0.1.0
+      - title: Compile TailwindCSS
+        used: tailwindcss-compile@0.2.0
+        with:
+          "{tw-input}": showcase-tw-input
+          "{tw-output}": showcase-tw-output
+      - title: Build WASM
+        used: trunk-build-rel@0.1.0
+        with:
+          "{project-folder}": folder-showcase
+      - title: Strip WASM
+        used: wasm-strip@0.1.0
+        with:
+          "{file}": showcase-wasm-file
+      - title: Optimize WASM
+        used: wasm-opt@0.1.0
+        with:
+          "{file}": showcase-wasm-file
+      - title: Add files to `dist`
+        used: wasm-prepare-showcase-dist-folder@0.1.0
+        with:
+          "{favicon}": showcase-favicon
+          "{tw-output}": showcase-tw-output
+      - title: Sync static server
+        used: sync-static-server@0.1.0
+      - title: Move static server to showcase directory
+        used: sync-static-server@0.1.1
+    artifacts:
+      - from: impulse-ui-kit/examples/showcase/iks
+        to: showcase/iks
+      - from: impulse-ui-kit/examples/showcase/static-server.yaml
+        to: showcase/static-server.yaml
+      - from: impulse-ui-kit/examples/showcase/dist
+        to: showcase/dist
   - title: deploy-showcase
     info: ui-kit-example-deploy@0.1.0
     default: false
