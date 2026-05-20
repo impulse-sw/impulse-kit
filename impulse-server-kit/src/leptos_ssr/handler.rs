@@ -226,7 +226,7 @@ where
   IV: IntoView + 'static,
 {
   let _ = any_spawner::Executor::init_tokio();
-    let assets = super::assets::build_assets_handler(&opts.site_root);
+  let assets = super::assets::build_assets_handler(&opts.site_root);
   let mut handler = LeptosSsrHandler::new(opts, app_fn);
   if let Some(assets) = assets {
     handler = handler.with_assets(assets);
