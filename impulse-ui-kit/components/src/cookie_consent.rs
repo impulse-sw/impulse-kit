@@ -13,7 +13,11 @@ pub const COOKIE_CONSENT_DECLINED: &str = "declined";
 /// по всей ширине внизу экрана. Состояние сохраняется в `localStorage`.
 ///
 /// Совместим с GDPR и ФЗ № 152 «О персональных данных».
-#[cfg(any(feature = "csr", feature = "hydrate"))]
+///
+/// Содержимое баннера скрыто до завершения гидратации: `mounted` остаётся
+/// `false` на SSR и в начальном клиентском рендере, после чего `Effect` ставит
+/// его в `true`. Благодаря этому SSR-разметка и начальный WASM-рендер
+/// идентичны — tachys не паникует с «unreachable code».
 #[component]
 pub fn CookieConsent(
   /// Ключ `localStorage`. По умолчанию `"cookie_consent"`.
@@ -44,6 +48,10 @@ pub fn CookieConsent(
   use codee::string::FromToStringCodec;
   use leptos_use::storage::use_local_storage;
 
+  // false на SSR и при начальном клиентском рендере; становится true после гидратации
+  let (mounted, set_mounted) = signal(false);
+  Effect::new(move |_| set_mounted.set(true));
+
   let key = storage_key.unwrap_or_else(|| COOKIE_CONSENT_STORAGE_KEY.to_string());
   let title = StoredValue::new(title.unwrap_or_else(|| "Файлы cookie".to_string()));
   let description = StoredValue::new(
@@ -58,7 +66,7 @@ pub fn CookieConsent(
 
   let (consent, set_consent, _) = use_local_storage::<String, FromToStringCodec>(key.as_str());
 
-  let is_visible = Signal::derive(move || consent.get().is_empty());
+  let is_visible = Signal::derive(move || mounted.get() && consent.get().is_empty());
 
   let accept = move |_| set_consent.set(COOKIE_CONSENT_ACCEPTED.to_string());
   let decline = move |_| set_consent.set(COOKIE_CONSENT_DECLINED.to_string());
@@ -80,64 +88,50 @@ pub fn CookieConsent(
         class.as_str(),
       ])
     >
-      <div class="flex flex-col gap-3">
-        <div class="space-y-1">
-          <p class="text-sm font-semibold">{move || title.get_value()}</p>
-          <p class="text-xs text-muted-foreground leading-relaxed">
-            {move || {
-              let desc = description.get_value();
-              let href = policy_href.get_value();
-              if let Some(href) = href {
-                let label = policy_label.get_value().unwrap_or_else(|| "Подробнее".to_string());
-                view! {
-                  <span>
-                    {desc}
-                    " "
-                    <a href=href class="underline hover:text-foreground transition-colors">
-                      {label}
-                    </a>
-                  </span>
+      <Show when=move || mounted.get()>
+        <div class="flex flex-col gap-3">
+          <div class="space-y-1">
+            <p class="text-sm font-semibold">{move || title.get_value()}</p>
+            <p class="text-xs text-muted-foreground leading-relaxed">
+              {move || {
+                let desc = description.get_value();
+                let href = policy_href.get_value();
+                if let Some(href) = href {
+                  let label = policy_label.get_value().unwrap_or_else(|| "Подробнее".to_string());
+                  view! {
+                    <span>
+                      {desc}
+                      " "
+                      <a href=href class="underline hover:text-foreground transition-colors">
+                        {label}
+                      </a>
+                    </span>
+                  }
+                  .into_any()
+                } else {
+                  view! { <span>{desc}</span> }.into_any()
                 }
-                .into_any()
-              } else {
-                view! { <span>{desc}</span> }.into_any()
-              }
-            }}
-          </p>
+              }}
+            </p>
+          </div>
+          <div class="flex gap-2 justify-end flex-wrap">
+            <button
+              type="button"
+              on:click=decline
+              class="inline-flex items-center justify-center rounded-md text-xs font-medium h-8 px-3 border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors"
+            >
+              {move || decline_label.get_value()}
+            </button>
+            <button
+              type="button"
+              on:click=accept
+              class="inline-flex items-center justify-center rounded-md text-xs font-medium h-8 px-3 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              {move || accept_label.get_value()}
+            </button>
+          </div>
         </div>
-        <div class="flex gap-2 justify-end flex-wrap">
-          <button
-            type="button"
-            on:click=decline
-            class="inline-flex items-center justify-center rounded-md text-xs font-medium h-8 px-3 border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors"
-          >
-            {move || decline_label.get_value()}
-          </button>
-          <button
-            type="button"
-            on:click=accept
-            class="inline-flex items-center justify-center rounded-md text-xs font-medium h-8 px-3 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            {move || accept_label.get_value()}
-          </button>
-        </div>
-      </div>
+      </Show>
     </div>
   }
-}
-
-#[cfg(feature = "ssr")]
-#[component]
-#[allow(unused_variables)]
-pub fn CookieConsent(
-  #[prop(into, optional)] storage_key: Option<String>,
-  #[prop(into, optional)] title: Option<String>,
-  #[prop(into, optional)] description: Option<String>,
-  #[prop(into, optional)] accept_label: Option<String>,
-  #[prop(into, optional)] decline_label: Option<String>,
-  #[prop(into, optional)] policy_href: Option<String>,
-  #[prop(into, optional)] policy_label: Option<String>,
-  #[prop(into, optional)] class: String,
-) -> impl IntoView {
-  // Баннер — только клиентский, localStorage на сервере недоступен.
 }

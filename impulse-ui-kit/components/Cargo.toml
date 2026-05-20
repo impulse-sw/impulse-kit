@@ -21,6 +21,8 @@ hydrate = [
 ssr = [
   "impulse-ui-kit/ssr",
   "leptos/ssr",
+  "leptos-use/ssr",
+  "leptos-use/storage",
 ]
 
 [dependencies]
