@@ -11,7 +11,7 @@
 //! body in any extra element (`<div id="main">`, etc.) would cause a
 //! `failed_to_cast_element` panic during hydration.
 
-use super::options::LeptosOptions;
+use super::options::{LeptosOptions, PKG_SUBDIR};
 
 /// Inputs for [`build_html_prefix`].
 pub(super) struct PrefixContext<'a> {
@@ -90,7 +90,7 @@ pub(super) fn build_html_suffix(opts: &LeptosOptions) -> String {
     buf.push_str(&format!(
       "<script type=\"module\">import init,{{hydrate}} from \"/{pkg}/{out}.js\";\
        init({{module_or_path:\"/{pkg}/{out}_bg.wasm\"}}).then(()=>hydrate());</script>",
-      pkg = opts.site_pkg_dir,
+      pkg = PKG_SUBDIR,
       out = opts.output_name,
     ));
   }
@@ -102,7 +102,7 @@ fn build_asset_links(opts: &LeptosOptions) -> String {
   if opts.output_name.is_empty() {
     return String::new();
   }
-  let pkg = &opts.site_pkg_dir;
+  let pkg = PKG_SUBDIR;
   let out = &opts.output_name;
   let css = format!("<link rel=\"stylesheet\" href=\"/{pkg}/{out}.css\">");
   if opts.include_hydration_script {

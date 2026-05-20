@@ -1883,12 +1883,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
-name = "hex"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
-
-[[package]]
 name = "hkdf"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2251,7 +2245,9 @@ dependencies = [
  "cookie",
  "encoding_rs",
  "flate2",
+ "fs-change-notifier",
  "futures",
+ "headers",
  "http",
  "http-body-util",
  "hydration_context",
@@ -2304,13 +2300,9 @@ dependencies = [
 name = "impulse-static-server"
 version = "1.1.1"
 dependencies = [
- "fs-change-notifier",
- "headers",
  "impulse-server-kit",
- "mime",
  "serde",
  "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -3413,12 +3405,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
-name = "path-slash"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e91099d4268b0e11973f036e885d652fb0b21fedcf69738c627f94db6a44f42"
-
-[[package]]
 name = "pathdiff"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4496,7 +4482,6 @@ dependencies = [
  "salvo-oapi",
  "salvo-otel",
  "salvo-proxy",
- "salvo-serve-static",
  "salvo-session",
  "salvo_core",
  "salvo_extra",
@@ -4732,26 +4717,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "salvo-serve-static"
-version = "0.89.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a294628f2bc06d5152a61cdcf086fbab2194b16c1e40b158e6a1ba2b520c90ba"
-dependencies = [
- "hex",
- "mime",
- "mime-infer",
- "path-slash",
- "percent-encoding",
- "rust-embed",
- "salvo_core",
- "serde",
- "serde_json",
- "time",
- "tokio",
- "tracing",
 ]
 
 [[package]]

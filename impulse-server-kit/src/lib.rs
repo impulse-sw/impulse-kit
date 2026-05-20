@@ -99,6 +99,9 @@ pub mod prelude;
 pub mod setup;
 pub mod startup;
 
+#[cfg(feature = "static-server")]
+pub mod static_server;
+
 #[cfg(feature = "leptos-ssr")]
 pub mod leptos_ssr;
 

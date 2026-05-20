@@ -32,6 +32,11 @@ request-id = ["salvo/request-id"]
 session = ["salvo/session"]
 size-limiter = ["salvo/size-limiter"]
 sse = ["salvo/sse"]
+static-server = [
+  "dep:fs-change-notifier",
+  "dep:headers",
+  "dep:mime",
+]
 test = [
   "salvo/test",
   "dep:bytes",
@@ -48,6 +53,7 @@ timeout = ["salvo/timeout"]
 trailing-slash = ["salvo/trailing-slash"]
 tower-compat = ["salvo/tower-compat"]
 leptos-ssr = [
+  "static-server",
   "dep:leptos",
   "dep:leptos_meta",
   "dep:leptos_integration_utils",
@@ -59,7 +65,6 @@ leptos-ssr = [
   "dep:bytes",
   "dep:impulse-ui-kit",
   "impulse-ui-kit/ssr",
-  "salvo/serve-static",
 ]
 leptos-server-fn = [
   "leptos-ssr",
@@ -93,6 +98,7 @@ full = [
   "session",
   "size-limiter",
   "sse",
+  "static-server",
   "test",
   "timeout",
   "trailing-slash",
@@ -104,6 +110,8 @@ brotli = { optional = true, workspace = true, features = ["default"] }
 bytes = { optional = true, workspace = true }
 encoding_rs = { optional = true, workspace = true }
 flate2 = { optional = true, workspace = true, features = ["default"] }
+fs-change-notifier = { optional = true, workspace = true }
+headers = { optional = true, workspace = true }
 http-body-util = { optional = true, workspace = true }
 impulse-utils = { workspace = true, features = ["salvo", "reqwest", "mresult"] }
 mime = { optional = true, workspace = true }
@@ -140,4 +148,4 @@ http = { version = "1", optional = true }
 axum = { version = "0.8", optional = true, default-features = false }
 
 [package.metadata.cargo-all-features]
-denylist = ["flash", "cache", "compression", "csrf", "session", "jwt-auth", "basic-auth", "caching-headers", "catch-panic", "concurrency-limiter", "request-id", "size-limiter", "sse", "timeout", "trailing-slash", "tower-compat", "reqwest-http3", "websocket", "proxy", "leptos-ssr", "leptos-server-fn"]
+denylist = ["flash", "cache", "compression", "csrf", "session", "jwt-auth", "basic-auth", "caching-headers", "catch-panic", "concurrency-limiter", "request-id", "size-limiter", "sse", "static-server", "timeout", "trailing-slash", "tower-compat", "reqwest-http3", "websocket", "proxy", "leptos-ssr", "leptos-server-fn"]

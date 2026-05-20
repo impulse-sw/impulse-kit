@@ -1,10 +1,14 @@
+//! In-memory caching layer for the static-file handlers.
+//!
+//! Tracks file bytes alongside cached `ETag` / `Last-Modified` metadata and a
+//! filesystem watcher (`cache_runner`) that invalidates entries when the
+//! underlying file changes.
+
 use fs_change_notifier::*;
 use headers::{
   AcceptRanges, ContentLength, ContentRange, ContentType, ETag, HeaderMapExt, IfMatch, IfModifiedSince, IfNoneMatch,
   IfUnmodifiedSince, LastModified,
 };
-use impulse_server_kit::prelude::*;
-use impulse_server_kit::salvo::http::HttpRange;
 use salvo::fs::NamedFile;
 use salvo::http::header::{CONTENT_DISPOSITION, CONTENT_ENCODING, CONTENT_TYPE, IF_NONE_MATCH, RANGE};
 use salvo::http::{HeaderMap, HeaderValue};
@@ -14,20 +18,31 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use salvo::http::HttpRange;
+
+use crate::prelude::*;
+
 const CHUNK_SIZE: u64 = 1024 * 1024;
 
+/// Single cached file entry.
 #[derive(Clone)]
 pub struct CachedFile {
+  /// Strong `ETag` derived from file metadata.
   pub etag: Option<ETag>,
+  /// Last-modified timestamp.
   pub last_modified: Option<std::time::SystemTime>,
+  /// MIME type guessed from the filename.
   pub content_type: mime::Mime,
+  /// Optional `Content-Encoding` value (gzip/br/etc.).
   pub content_encoding: Option<HeaderValue>,
+  /// File length in bytes (matches `bytes.len()`).
   pub length: u64,
+  /// Pre-built `Content-Disposition` header, when applicable.
   pub content_disposition: Option<String>,
+  /// File contents loaded into memory.
   pub bytes: Vec<u8>,
 }
 
-/// Returns true if `req_headers` has no `If-Match` header or one which matches `etag`.
 fn any_match(etag: Option<&ETag>, req_headers: &HeaderMap) -> bool {
   match req_headers.typed_get::<IfMatch>() {
     None => true,
@@ -43,7 +58,6 @@ fn any_match(etag: Option<&ETag>, req_headers: &HeaderMap) -> bool {
   }
 }
 
-/// Returns true if `req_headers` doesn't have an `If-None-Match` header matching `req`.
 fn none_match(etag: Option<&ETag>, req_headers: &HeaderMap) -> bool {
   match req_headers.typed_get::<IfNoneMatch>() {
     None => true,
@@ -60,6 +74,7 @@ fn none_match(etag: Option<&ETag>, req_headers: &HeaderMap) -> bool {
 }
 
 impl CachedFile {
+  /// Read a file from disk and build a cache entry.
   pub async fn construct_from(filename: &str, path: &Path, known_length: u64) -> MResult<Self> {
     let named_file = NamedFile::builder(path)
       .attached_name(filename)
@@ -87,8 +102,8 @@ impl CachedFile {
     })
   }
 
+  /// Write the cached file to the response, respecting conditional and range headers.
   pub async fn send(&self, req_headers: &HeaderMap, res: &mut Response) {
-    // check preconditions
     let precondition_failed = if !any_match(self.etag.as_ref(), req_headers) {
       true
     } else if let (Some(last_modified), Some(since)) =
@@ -99,7 +114,6 @@ impl CachedFile {
       false
     };
 
-    // check last modified
     let not_modified = if !none_match(self.etag.as_ref(), req_headers) {
       true
     } else if req_headers.contains_key(IF_NONE_MATCH) {
@@ -139,7 +153,6 @@ impl CachedFile {
     }
     let mut offset = 0;
 
-    // check for range header
     let range = req_headers.get(RANGE);
     if let Some(range) = range {
       if let Ok(range) = range.to_str() {
@@ -197,7 +210,7 @@ impl CachedFile {
   }
 }
 
-/// Request given file either from in-memory cacher or from disk.
+/// Send a file from cache or disk, falling back to streaming for large files.
 pub async fn send_file(
   cacher: &Option<Arc<Mutex<CacheMap>>>,
   req: &mut Request,
@@ -212,6 +225,7 @@ pub async fn send_file(
     {
       let guard = cacher.lock().await;
       if let Ok(Some(cached)) = guard.fetch(path) {
+        tracing::debug!(file = %filename, "static file served from cache");
         cached.send(req.headers(), res).await;
         return Ok(());
       }
@@ -221,10 +235,12 @@ pub async fn send_file(
       .map_err(|e| ServerError::from_private(e).with_404())?
       .len();
     if length > 16 * 1024 * 1024 {
+      tracing::debug!(file = %filename, length, "static file streamed from disk (too large to cache)");
       file_upload!(path.to_path_buf(), filename.to_string())
         .write(req, depot, res)
         .await;
     } else {
+      tracing::debug!(file = %filename, length, "static file read from disk and cached");
       let cached = CachedFile::construct_from(filename, path, length).await?;
       {
         let mut guard = cacher.lock().await;
@@ -233,6 +249,7 @@ pub async fn send_file(
       cached.send(req.headers(), res).await;
     }
   } else {
+    tracing::debug!(file = %filename, "static file streamed from disk (no cacher)");
     file_upload!(path.to_path_buf(), filename.to_string())
       .write(req, depot, res)
       .await;
@@ -240,7 +257,7 @@ pub async fn send_file(
   Ok(())
 }
 
-/// Request given HTML page either from in-memory cacher or from disk.
+/// Send an HTML page from cache or disk.
 pub async fn send_html(
   cacher: &Option<Arc<Mutex<CacheMap>>>,
   req: &mut Request,
@@ -257,7 +274,8 @@ pub async fn send_html(
       guard.fetch(path)
     };
     if let Ok(Some(cached)) = cached {
-      let site = String::from_utf8_lossy_owned(cached.bytes);
+      tracing::debug!(file = %filename, "html served from cache");
+      let site = String::from_utf8_lossy(&cached.bytes).into_owned();
       html!(site).unwrap().write(req, depot, res).await;
       return Ok(());
     }
@@ -266,20 +284,23 @@ pub async fn send_html(
       .map_err(|e| ServerError::from_private(e).with_404())?
       .len();
     if length > 16 * 1024 * 1024 {
+      tracing::debug!(file = %filename, length, "html streamed from disk (too large to cache)");
       let site = tokio::fs::read_to_string(path)
         .await
         .map_err(|e| ServerError::from_private(e).with_404())?;
       html!(site).unwrap().write(req, depot, res).await;
     } else {
+      tracing::debug!(file = %filename, length, "html read from disk and cached");
       let cached = CachedFile::construct_from(filename, path, length).await?;
       {
         let mut guard = cacher.lock().await;
         guard.upsert(path, cached.clone())?;
       }
-      let site = String::from_utf8_lossy_owned(cached.bytes);
+      let site = String::from_utf8_lossy(&cached.bytes).into_owned();
       html!(site).unwrap().write(req, depot, res).await;
     }
   } else {
+    tracing::debug!(file = %filename, "html streamed from disk (no cacher)");
     let site = tokio::fs::read_to_string(path)
       .await
       .map_err(|e| ServerError::from_private(e).with_404())?;
@@ -288,34 +309,34 @@ pub async fn send_html(
   Ok(())
 }
 
-/// In-memory cache implementation for files based on `DashMap`.
+/// In-memory cache for static files, keyed by canonicalised path.
 pub struct CacheMap(HashMap<PathBuf, CachedFile>);
 
 impl CacheMap {
-  /// Create in-memory cache.
+  /// Create a new shared cache.
   pub fn new() -> Arc<Mutex<Self>> {
     Arc::new(Mutex::new(Self(HashMap::new())))
   }
 
-  /// Clear cache.
+  /// Drop all cached entries.
   pub fn clear(&mut self) {
     self.0.clear();
   }
 
-  /// Insert or update content by its path.
+  /// Insert or replace the cached entry for `path`.
   pub fn upsert(&mut self, path: impl AsRef<Path>, content: CachedFile) -> MResult<()> {
     let path = std::fs::canonicalize(path.as_ref()).map_err(ServerError::from_private)?;
     self.0.insert(path, content);
     Ok(())
   }
 
-  /// Fetch content.
+  /// Look up a cached entry.
   pub fn fetch(&self, path: impl AsRef<Path>) -> MResult<Option<CachedFile>> {
     let path = std::fs::canonicalize(path.as_ref()).map_err(ServerError::from_private)?;
     Ok(self.0.get(&path).cloned())
   }
 
-  /// Remove content due to invalidation.
+  /// Remove a cached entry after detecting a filesystem change.
   pub fn invalidate(&mut self, path: impl AsRef<Path>) -> MResult<()> {
     let path = std::fs::canonicalize(path.as_ref()).map_err(ServerError::from_private)?;
     self.0.remove(&path);
@@ -323,7 +344,7 @@ impl CacheMap {
   }
 }
 
-/// Cache invalidator runner.
+/// Background task that invalidates cache entries on filesystem changes.
 pub async fn cache_runner(path: impl AsRef<Path>, cache_map: Arc<Mutex<CacheMap>>) -> MResult<()> {
   let empty = std::collections::HashSet::new();
   loop {
@@ -338,7 +359,8 @@ pub async fn cache_runner(path: impl AsRef<Path>, cache_map: Arc<Mutex<CacheMap>
     let files = fetch_changed(path.as_ref(), rx, &empty).await;
     {
       let mut guard = cache_map.lock().await;
-      for file in files {
+      for file in &files {
+        tracing::info!(?file, "invalidating cached static asset");
         guard.invalidate(file)?;
       }
     }

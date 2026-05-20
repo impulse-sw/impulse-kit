@@ -193,8 +193,9 @@ where
 
 /// Build a Salvo router that serves the Leptos application via SSR.
 ///
-/// The returned router also serves static assets from `opts.site_root`. The
-/// SSR handler matches all unhandled GET paths.
+/// Files under `opts.site_root` (the `dist/` directory) are served at the URL
+/// that mirrors their on-disk path; any path that does not match a real file
+/// falls through to the SSR renderer.
 ///
 /// Initialises the global Leptos task executor (tokio variant) on first call;
 /// subsequent calls are no-ops. Must be invoked from within a tokio runtime.
@@ -204,11 +205,14 @@ where
   IV: IntoView + 'static,
 {
   let _ = any_spawner::Executor::init_tokio();
-  let assets = super::assets::assets_only_router(&opts.site_root, &opts.site_pkg_dir);
+  let asset_hoop = super::assets::build_assets_handler(&opts.site_root);
   let handler = LeptosSsrHandler::new(opts, app_fn);
-  Router::new()
-    .push(assets)
-    .push(Router::with_path("{**any_path}").get(handler))
+
+  let mut route = Router::with_path("{**rest_path}");
+  if let Some(hoop) = asset_hoop {
+    route = route.hoop(hoop);
+  }
+  route.get(handler)
 }
 
 fn build_request_url(req: &Request) -> RequestUrlCtx {
