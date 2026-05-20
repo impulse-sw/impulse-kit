@@ -96,6 +96,7 @@
 #![deny(warnings, clippy::todo, clippy::unimplemented)]
 
 pub mod prelude;
+pub mod security_headers;
 pub mod setup;
 pub mod startup;
 
