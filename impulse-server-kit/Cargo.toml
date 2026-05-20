@@ -119,7 +119,7 @@ notify = { workspace = true }
 opentelemetry = { optional = true, workspace = true, features = ["metrics"] }
 opentelemetry-otlp = { optional = true, workspace = true, features = ["tonic", "trace", "http-proto", "grpc-tonic", "reqwest-blocking-client", "reqwest-rustls"] }
 opentelemetry_sdk = { optional = true, workspace = true, features = ["rt-tokio"] }
-reqwest = { optional = true, workspace = true, features = ["http2", "json", "rustls-tls"] }
+reqwest = { optional = true, workspace = true, features = ["http2", "json", "rustls"] }
 rmp-serde = { optional = true, workspace = true }
 rustls = { workspace = true, features = ["aws_lc_rs"] }
 salvo = { workspace = true, features = ["affix-state", "aws-lc-rs", "compression", "rustls", "cookie", "server", "http1", "http2", "server-handle"] }

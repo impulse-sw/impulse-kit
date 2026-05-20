@@ -124,10 +124,10 @@ impl LeptosOptions {
   /// Resolve the front-end dist directory following the documented order:
   /// env var → config value → `./dist` → `/usr/local/frontend-dist`.
   pub fn resolve_site_root(g: &crate::setup::GenericValues) -> PathBuf {
-    if let Ok(env_path) = std::env::var(FRONTEND_DIST_ENV) {
-      if !env_path.is_empty() {
-        return PathBuf::from(env_path);
-      }
+    if let Ok(env_path) = std::env::var(FRONTEND_DIST_ENV)
+      && !env_path.is_empty()
+    {
+      return PathBuf::from(env_path);
     }
     if let Some(p) = &g.frontend_dist_path {
       return p.clone();
@@ -142,8 +142,10 @@ impl LeptosOptions {
   /// Build options from the generic YAML configuration. Missing fields fall
   /// back to sensible defaults.
   pub fn from_generic_values(g: &crate::setup::GenericValues) -> Self {
-    let mut opts = LeptosOptions::default();
-    opts.site_root = Self::resolve_site_root(g);
+    let mut opts = LeptosOptions {
+      site_root: LeptosOptions::resolve_site_root(g),
+      ..Default::default()
+    };
     if let Some(name) = &g.leptos_output_name {
       opts.output_name = name.clone();
     } else {
