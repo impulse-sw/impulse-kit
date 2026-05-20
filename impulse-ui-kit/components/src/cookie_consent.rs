@@ -55,9 +55,7 @@ pub fn CookieConsent(
   let key = storage_key.unwrap_or_else(|| COOKIE_CONSENT_STORAGE_KEY.to_string());
   let title = StoredValue::new(title.unwrap_or_else(|| "Файлы cookie".to_string()));
   let description = StoredValue::new(
-    description.unwrap_or_else(|| {
-      "Мы используем файлы cookie для аналитики и улучшения работы сайта.".to_string()
-    }),
+    description.unwrap_or_else(|| "Мы используем файлы cookie для аналитики и улучшения работы сайта.".to_string()),
   );
   let accept_label = StoredValue::new(accept_label.unwrap_or_else(|| "Принять".to_string()));
   let decline_label = StoredValue::new(decline_label.unwrap_or_else(|| "Отказаться".to_string()));
