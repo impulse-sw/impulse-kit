@@ -12,7 +12,7 @@ members = [
   "impulse-ui-kit/examples/ssr_showcase",
   "impulse-error-pages",
 ]
-resolver = "2"
+resolver = "3"
 
 [workspace.package]
 version = "1.1.9"
@@ -23,6 +23,7 @@ authors = ["Klimenty Titov <titoffklim@verbalautomation.tech>"]
 
 [workspace.dependencies]
 impulse-server-kit = { path = "impulse-server-kit", default-features = false }
+impulse-skdsl = { path = "impulse-server-kit-dsl" }
 impulse-static-server = { path = "impulse-static-server" }
 impulse-utils = { path = "impulse-utils", default-features = false }
 impulse-ui-kit = { path = "impulse-ui-kit", default-features = false }

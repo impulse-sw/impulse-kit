@@ -907,11 +907,6 @@ pipelines:
         with:
           "{features}": featureset-all
           "{package}": package-utils
-      - title: Publish `impulse-ui-kit`
-        used: cargo-publish@0.2.0
-        with:
-          "{features}": empty
-          "{package}": package-ui-kit
       - title: Publish `impulse-server-kit`
         used: cargo-publish@0.2.0
         with:
@@ -922,6 +917,11 @@ pipelines:
         with:
           "{features}": empty
           "{package}": package-static-server
+      - title: Publish `impulse-ui-kit`
+        used: cargo-publish@0.2.0
+        with:
+          "{features}": empty
+          "{package}": package-ui-kit
   - title: export-ui-components
     desc: Export Impulse UI Kit components to Deployer's storage.
     info: impulse-kit-export-ui-kit-components@0.1.0
