@@ -38,6 +38,11 @@ pub struct SeoDefaults {
   /// Default `og:image` URL.
   #[serde(default)]
   pub og_image: Option<String>,
+  /// Brand logo URL emitted as `og:logo`. Not part of the original OG spec
+  /// but consumed by some validators and structured-data scrapers; commonly
+  /// distinct from `og_image` (square mark vs. social preview).
+  #[serde(default)]
+  pub og_logo: Option<String>,
   /// Canonical base URL; the request path is appended to form
   /// `<link rel="canonical">`.
   #[serde(default)]
@@ -49,8 +54,17 @@ pub struct SeoDefaults {
   #[serde(default)]
   pub robots: Option<String>,
   /// Default `<html lang>` value (e.g. `"en"`).
+  ///
+  /// Also used to populate `og:locale` when set. For OpenGraph the value is
+  /// normalised to a `lang_REGION` form (e.g. `en` → `en_US`, `ru` → `ru_RU`)
+  /// per the OG spec.
   #[serde(default)]
   pub locale: Option<String>,
+  /// Brand name emitted as `og:site_name`. Independent from `default_title`
+  /// because most sites render `Brand` once and `Page Title — Brand` per page.
+  /// Falls back to `default_title` when unset.
+  #[serde(default)]
+  pub site_name: Option<String>,
 }
 
 /// What to do when the SSR handler cannot produce a useful response.

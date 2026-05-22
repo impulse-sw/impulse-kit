@@ -17,6 +17,7 @@ pub mod collapsible;
 pub mod combobox;
 pub mod command;
 pub mod context_menu;
+pub mod cookie_consent;
 pub mod data_table;
 pub mod date_picker;
 pub mod dialog;

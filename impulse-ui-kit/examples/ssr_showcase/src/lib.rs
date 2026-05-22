@@ -55,31 +55,55 @@ pub fn App() -> impl IntoView {
   let slow = Resource::new(|| (), |_| async move { slow_data().await });
 
   view! {
-    <Title text="UI Kit Showcase | Impulse"/>
-    <Meta name="description" content="Server-rendered + hydrated demo of Impulse UI Kit"/>
-    <Link rel="canonical" href="http://127.0.0.1:8802/"/>
+    // Page-level overrides only. Description, canonical, OG and Twitter
+    // defaults are emitted by impulse-server-kit from `leptos_seo` in
+    // server-example.yaml — declaring them here as well would produce two
+    // `<meta name="description">` / `<link rel="canonical">` tags in the
+    // rendered HTML, which SEO scanners flag.
+    <Title text="UI Kit Showcase | Impulse" />
     <main class="min-h-screen flex flex-col items-center justify-center p-8 gap-4">
       <h1 class="text-4xl font-semibold">"Impulse UI Kit"</h1>
-      <p class="text-lg opacity-80">"Server-side rendered demo with hydration and Suspense streaming."</p>
+      <p class="text-lg opacity-80">
+        "Server-side rendered demo with hydration and Suspense streaming."
+      </p>
 
-      <Suspense fallback=move || view! { <p>"Loading greeting…"</p> }>
-        {move || greeting.get().map(|res| match res {
-          Ok(Greeting { message, words }) => view! {
-            <p class="text-base">{message} " (" {words} " words)"</p>
-          }.into_any(),
-          Err(err) => view! { <p>"Greeting failed: " {err.to_string()}</p> }.into_any(),
-        })}
+      <Suspense fallback=move || {
+        view! { <p>"Loading greeting…"</p> }
+      }>
+        {move || {
+          greeting
+            .get()
+            .map(|res| match res {
+              Ok(Greeting { message, words }) => {
+                view! { <p class="text-base">{message} " (" {words} " words)"</p> }.into_any()
+              }
+              Err(err) => view! { <p>"Greeting failed: " {err.to_string()}</p> }.into_any(),
+            })
+        }}
       </Suspense>
 
-      <Suspense fallback=move || view! { <ul><li>"Loading slow data…"</li></ul> }>
-        {move || slow.get().map(|res| match res {
-          Ok(items) => view! {
-            <ul class="text-sm">
-              {items.into_iter().map(|s| view! { <li>{s}</li> }).collect_view()}
-            </ul>
-          }.into_any(),
-          Err(err) => view! { <p>"Slow data failed: " {err.to_string()}</p> }.into_any(),
-        })}
+      <Suspense fallback=move || {
+        view! {
+          <ul>
+            <li>"Loading slow data…"</li>
+          </ul>
+        }
+      }>
+        {move || {
+          slow
+            .get()
+            .map(|res| match res {
+              Ok(items) => {
+                view! {
+                  <ul class="text-sm">
+                    {items.into_iter().map(|s| view! { <li>{s}</li> }).collect_view()}
+                  </ul>
+                }
+                  .into_any()
+              }
+              Err(err) => view! { <p>"Slow data failed: " {err.to_string()}</p> }.into_any(),
+            })
+        }}
       </Suspense>
     </main>
   }
@@ -94,5 +118,5 @@ pub fn App() -> impl IntoView {
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn hydrate() {
   use impulse_ui_kit::prelude::*;
-  setup_app(log::Level::Info, Box::new(move || view! { <App/> }.into_any()));
+  setup_app(log::Level::Info, Box::new(move || view! { <App /> }.into_any()));
 }

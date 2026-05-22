@@ -97,6 +97,14 @@ where
         return;
       }
     }
+    if is_index_alias(req.uri().path()) {
+      res.status_code(StatusCode::MOVED_PERMANENTLY);
+      res.headers_mut().insert(
+        salvo::http::header::LOCATION,
+        salvo::http::header::HeaderValue::from_static("/"),
+      );
+      return;
+    }
     let url = build_request_url(req);
     let theme_value = parse_theme_cookie(req.headers());
     let request_path = url.path.clone();
@@ -226,7 +234,7 @@ where
   IV: IntoView + 'static,
 {
   let _ = any_spawner::Executor::init_tokio();
-    let assets = super::assets::build_assets_handler(&opts.site_root);
+  let assets = super::assets::build_assets_handler(&opts.site_root);
   let mut handler = LeptosSsrHandler::new(opts, app_fn);
   if let Some(assets) = assets {
     handler = handler.with_assets(assets);
@@ -273,3 +281,34 @@ fn build_request_url(req: &Request) -> RequestUrlCtx {
 }
 
 fn _assert_stream_send<S: Stream + Send>(_: &S) {}
+
+/// Whether `path` is an alias for the site root that should be 301-redirected
+/// to `/`. Matches `/index.html`, `/index.htm` and `/index.php` so SEO
+/// crawlers don't index the canonical landing page under two URLs.
+///
+/// The asset router runs ahead of this check: a real `dist/index.html`
+/// (rare in SSR setups) is still served as a file.
+fn is_index_alias(path: &str) -> bool {
+  matches!(path, "/index.html" | "/index.htm" | "/index.php")
+}
+
+#[cfg(test)]
+mod tests {
+  use super::is_index_alias;
+
+  #[test]
+  fn matches_known_index_aliases() {
+    assert!(is_index_alias("/index.html"));
+    assert!(is_index_alias("/index.htm"));
+    assert!(is_index_alias("/index.php"));
+  }
+
+  #[test]
+  fn does_not_match_root_or_nested() {
+    assert!(!is_index_alias("/"));
+    assert!(!is_index_alias("/blog/index.html"));
+    assert!(!is_index_alias("/index"));
+    assert!(!is_index_alias("/index.html/extra"));
+    assert!(!is_index_alias("/INDEX.HTML"));
+  }
+}

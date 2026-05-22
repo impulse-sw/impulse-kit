@@ -154,7 +154,12 @@ impl Handler for SecurityHeaders {
     // startup variant when available.
     let hsts_allowed = depot
       .obtain::<GenericServerState>()
-      .map(|s| !matches!(s.startup_variant, StartupVariant::HttpLocalhost | StartupVariant::UnsafeHttp))
+      .map(|s| {
+        !matches!(
+          s.startup_variant,
+          StartupVariant::HttpLocalhost | StartupVariant::UnsafeHttp
+        )
+      })
       .unwrap_or(true);
 
     self.apply(hsts_allowed, res.headers_mut());
@@ -178,7 +183,10 @@ mod tests {
     assert_eq!(headers["x-content-type-options"], "nosniff");
     assert_eq!(headers["x-frame-options"], "SAMEORIGIN");
     assert_eq!(headers["referrer-policy"], "strict-origin-when-cross-origin");
-    assert_eq!(headers["strict-transport-security"], "max-age=31536000; includeSubDomains");
+    assert_eq!(
+      headers["strict-transport-security"],
+      "max-age=31536000; includeSubDomains"
+    );
     assert!(!headers.contains_key("content-security-policy"));
     assert!(!headers.contains_key("permissions-policy"));
   }
