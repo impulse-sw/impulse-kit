@@ -19,7 +19,7 @@ version = "1.1.8"
 edition = "2024"
 rust-version = "1.96"
 license = "MIT"
-authors = ["Klimenty Titov <aclo.create@gmail.com>"]
+authors = ["Klimenty Titov <titoffklim@verbalautomation.tech>"]
 
 [workspace.dependencies]
 impulse-server-kit = { path = "impulse-server-kit", default-features = false }
