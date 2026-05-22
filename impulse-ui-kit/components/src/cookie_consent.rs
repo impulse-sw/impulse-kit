@@ -73,18 +73,20 @@ pub fn CookieConsent(
     <div
       data-slot="cookie-consent"
       data-state=move || if is_visible.get() { "open" } else { "closed" }
-      class=move || cn(&[
-        "fixed z-50",
-        "bottom-0 inset-x-0 sm:bottom-6 sm:inset-x-auto sm:right-6 sm:w-88",
-        "bg-background border-t sm:border sm:rounded-xl border-border shadow-lg",
-        "p-4 sm:p-5",
-        "data-[state=open]:animate-in data-[state=closed]:animate-out",
-        "data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom",
-        "data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
-        "data-[state=closed]:pointer-events-none data-[state=closed]:invisible",
-        "duration-300",
-        class.as_str(),
-      ])
+      class=move || cn(
+        &[
+          "fixed z-50",
+          "bottom-0 inset-x-0 sm:bottom-6 sm:inset-x-auto sm:right-6 sm:w-88",
+          "bg-background border-t sm:border sm:rounded-xl border-border shadow-lg",
+          "p-4 sm:p-5",
+          "data-[state=open]:animate-in data-[state=closed]:animate-out",
+          "data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom",
+          "data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
+          "data-[state=closed]:pointer-events-none data-[state=closed]:invisible",
+          "duration-300",
+          class.as_str(),
+        ],
+      )
     >
       <Show when=move || mounted.get()>
         <div class="flex flex-col gap-3">
@@ -95,17 +97,22 @@ pub fn CookieConsent(
                 let desc = description.get_value();
                 let href = policy_href.get_value();
                 if let Some(href) = href {
-                  let label = policy_label.get_value().unwrap_or_else(|| "Подробнее".to_string());
+                  let label = policy_label
+                    .get_value()
+                    .unwrap_or_else(|| "Подробнее".to_string());
                   view! {
                     <span>
-                      {desc}
-                      " "
-                      <a href=href class="underline hover:text-foreground transition-colors" target="_blank">
+                      {desc} " "
+                      <a
+                        href=href
+                        class="underline hover:text-foreground transition-colors"
+                        target="_blank"
+                      >
                         {label}
                       </a>
                     </span>
                   }
-                  .into_any()
+                    .into_any()
                 } else {
                   view! { <span>{desc}</span> }.into_any()
                 }
