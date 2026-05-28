@@ -1,5 +1,5 @@
 project_name: impulse-kit
-version: 8
+version: 9
 ignore_files:
   - .*.kate-swp
   - .git
@@ -11,14 +11,14 @@ variables:
     value:
       type: plain
       value: target/x86_64-unknown-linux-gnu/release/skdsl
-  binary-static-server:
-    value:
-      type: plain
-      value: target/x86_64-unknown-linux-gnu/release/iks
   binary-ssr-showcase:
     value:
       type: plain
       value: target/x86_64-unknown-linux-gnu/release/ssr-showcase
+  binary-static-server:
+    value:
+      type: plain
+      value: target/x86_64-unknown-linux-gnu/release/iks
   component-accordion:
     value:
       type: plain
@@ -235,6 +235,14 @@ variables:
     value:
       type: plain
       value: " --all-features"
+  featureset-ssr-showcase-hydrate:
+    value:
+      type: plain
+      value: " --no-default-features --features=hydrate"
+  featureset-ssr-showcase-server:
+    value:
+      type: plain
+      value: " --no-default-features --features=ssr"
   featureset-ui-kit-net:
     value:
       type: plain
@@ -243,30 +251,6 @@ variables:
     value:
       type: plain
       value: " --no-default-features --features=reqwest"
-  featureset-ssr-showcase-server:
-    value:
-      type: plain
-      value: " --no-default-features --features=ssr"
-  featureset-ssr-showcase-hydrate:
-    value:
-      type: plain
-      value: " --no-default-features --features=hydrate"
-  ssr-showcase-wasm-file:
-    value:
-      type: plain
-      value: ./target/wasm32-unknown-unknown/release/ssr_showcase.wasm
-  ssr-showcase-wasm-bg-file:
-    value:
-      type: plain
-      value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg/ssr_showcase_bg.wasm
-  ssr-showcase-wasm-out-name:
-    value:
-      type: plain
-      value: ssr_showcase
-  ssr-showcase-dist-folder:
-    value:
-      type: plain
-      value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg
   file-alert-dialog:
     value:
       type: plain
@@ -347,6 +331,10 @@ variables:
     value:
       type: plain
       value: impulse-server-kit
+  package-ssr-showcase:
+    value:
+      type: plain
+      value: ssr-showcase
   package-static-server:
     value:
       type: plain
@@ -363,10 +351,6 @@ variables:
     value:
       type: plain
       value: ui-kit-showcase
-  package-ssr-showcase:
-    value:
-      type: plain
-      value: ssr-showcase
   package-utils:
     value:
       type: plain
@@ -375,10 +359,6 @@ variables:
     value:
       type: plain
       value: 'RUSTFLAGS=''--cfg reqwest_unstable'' '
-  web-sys-unstable-flag:
-    value:
-      type: plain
-      value: 'RUSTFLAGS=''--cfg web_sys_unstable_apis'' '
   showcase-favicon:
     value:
       type: plain
@@ -395,6 +375,10 @@ variables:
     value:
       type: plain
       value: ./impulse-ui-kit/examples/showcase/dist/ui-kit-showcase_bg.wasm
+  ssr-showcase-dist-folder:
+    value:
+      type: plain
+      value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg
   ssr-showcase-dist-pkg-folder:
     value:
       type: plain
@@ -407,6 +391,18 @@ variables:
     value:
       type: plain
       value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg/ssr_showcase.css
+  ssr-showcase-wasm-bg-file:
+    value:
+      type: plain
+      value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg/ssr_showcase_bg.wasm
+  ssr-showcase-wasm-file:
+    value:
+      type: plain
+      value: ./target/wasm32-unknown-unknown/release/ssr_showcase.wasm
+  ssr-showcase-wasm-out-name:
+    value:
+      type: plain
+      value: ssr_showcase
   target-wasm:
     value:
       type: plain
@@ -415,6 +411,10 @@ variables:
     value:
       type: plain
       value: x86_64-unknown-linux-gnu
+  web-sys-unstable-flag:
+    value:
+      type: plain
+      value: 'RUSTFLAGS=''--cfg web_sys_unstable_apis'' '
 actions:
   - info: add-static-server-to-storage@0.1.0
     action:
@@ -505,6 +505,22 @@ actions:
       type: staged
       stage: build
       cmd: cargo test --doc
+  - info: cargo-wasm-rel@0.1.0
+    tags:
+      - rust
+      - cargo
+      - wasm
+    requirements:
+      - type: in_path
+        executable: cargo
+    action:
+      type: staged
+      stage: build
+      cmd: "{flags}cargo build --release --lib --package {package} --target wasm32-unknown-unknown{features}"
+      placeholders:
+        - "{flags}"
+        - "{package}"
+        - "{features}"
   - info: copy@0.1.0
     action:
       type: staged
@@ -608,22 +624,20 @@ actions:
       cmd: cd {project-folder} && RUSTFLAGS="-Zlocation-detail=none -Zfmt-debug=none -Zunstable-options -Cpanic=immediate-abort" CARGO_UNSTABLE_BUILD_STD="std,panic_abort" CARGO_UNSTABLE_BUILD_STD_FEATURES="optimize_for_size" trunk build --release
       placeholders:
         - "{project-folder}"
-  - info: cargo-wasm-rel@0.1.0
-    tags:
-      - rust
-      - cargo
-      - wasm
+  - info: upx@0.1.0
     requirements:
       - type: in_path
-        executable: cargo
+        executable: upx
     action:
       type: staged
       stage: build
-      cmd: "{flags}cargo build --release --lib --package {package} --target wasm32-unknown-unknown{features}"
+      cmd: upx %af%
       placeholders:
-        - "{flags}"
-        - "{package}"
-        - "{features}"
+        - "%af%"
+  - info: use-rust-package-version@0.1.0
+    action:
+      type: use_from_storage
+      content_info: get-know-rust-package-version@latest
   - info: wasm-bindgen-cli@0.1.0
     tags:
       - wasm
@@ -640,20 +654,6 @@ actions:
         - "{out-dir}"
         - "{out-name}"
         - "{wasm-file}"
-  - info: upx@0.1.0
-    requirements:
-      - type: in_path
-        executable: upx
-    action:
-      type: staged
-      stage: build
-      cmd: upx %af%
-      placeholders:
-        - "%af%"
-  - info: use-rust-package-version@0.1.0
-    action:
-      type: use_from_storage
-      content_info: get-know-rust-package-version@latest
   - info: wasm-opt@0.1.0
     tags:
       - wasm
@@ -806,6 +806,8 @@ pipelines:
       - fmt
     default: true
     actions:
+      - title: Format
+        used: cargo-fmt@0.1.0
       - title: Lint `impulse-utils` on x86-64
         used: cargo-lint@0.2.0
         with:
@@ -883,8 +885,6 @@ pipelines:
           "{flags}": empty
           "{package}": package-ssr-showcase
           "{target}": target-x86
-      - title: Format
-        used: cargo-fmt@0.1.0
       - title: Test docs
         used: cargo-test-doc@0.1.0
       - title: Generate docs
@@ -1408,13 +1408,13 @@ pipelines:
   - title: build-ssr-showcase
     desc: Build the server-rendered showcase binary and ship it with its YAML config.
     info: ui-kit-ssr-example-build@0.1.0
-    default: false
     tags:
       - cargo
       - clippy
       - lint
       - leptos
       - ssr
+    default: false
     actions:
       - title: Lint
         used: cargo-lint@0.2.0
@@ -1458,7 +1458,6 @@ pipelines:
   - title: deploy-ssr-showcase
     desc: Build the SSR + hydration showcase (server binary, wasm bundle, CSS) and run it.
     info: ui-kit-ssr-example-deploy@0.1.0
-    default: false
     tags:
       - cargo
       - clippy
@@ -1466,6 +1465,7 @@ pipelines:
       - leptos
       - ssr
       - wasm
+    default: false
     actions:
       - title: Lint server
         used: cargo-lint@0.2.0
