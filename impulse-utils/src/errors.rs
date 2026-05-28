@@ -194,7 +194,9 @@ pub(crate) fn public_msg_from(status_code: &Option<u16>) -> &'static str {
     Some(403) => "Access denied.",
     Some(404) => "Page or method not found.",
     Some(405) => "Method not allowed.",
+    Some(409) => "Conflict.",
     Some(500) => "Internal server error. Contact the administrator.",
+    Some(502) => "Bad gateway. Contact the administrator.",
     _ => "Specific error. Check with the administrator for details.",
   }
 }
@@ -307,9 +309,21 @@ impl ServerError {
     self
   }
 
+  /// Error CONFLICT (409).
+  pub fn with_409(mut self) -> Self {
+    self.status_code = Some(StatusCode::CONFLICT);
+    self
+  }
+
   /// Error INTERNAL SERVER ERROR (500).
   pub fn with_500(mut self) -> Self {
     self.status_code = Some(StatusCode::INTERNAL_SERVER_ERROR);
+    self
+  }
+
+  /// Error BAD GATEWAY (502).
+  pub fn with_502(mut self) -> Self {
+    self.status_code = Some(StatusCode::BAD_GATEWAY);
     self
   }
 
