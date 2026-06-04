@@ -8,6 +8,7 @@ members = [
   "impulse-static-server",
   "impulse-ui-kit",
   "impulse-ui-kit/components",
+  "impulse-ui-kit/tailwind-sources",
   "impulse-ui-kit/examples/showcase",
   "impulse-ui-kit/examples/ssr_showcase",
   "impulse-error-pages",
@@ -15,7 +16,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "1.1.10"
+version = "1.2.0"
 edition = "2024"
 rust-version = "1.96"
 license = "MIT"
@@ -28,6 +29,7 @@ impulse-static-server = { path = "impulse-static-server" }
 impulse-utils = { path = "impulse-utils", default-features = false }
 impulse-ui-kit = { path = "impulse-ui-kit", default-features = false }
 impulse-ui-kit-components = { path = "impulse-ui-kit/components", default-features = false }
+impulse-tailwind-sources = { path = "impulse-ui-kit/tailwind-sources" }
 
 anyhow = "1"
 brotli = { version = "7", default-features = false }
