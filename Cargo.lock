@@ -5570,6 +5570,7 @@ dependencies = [
  "console_error_panic_hook",
  "impulse-server-kit",
  "impulse-ui-kit",
+ "impulse-ui-kit-components",
  "leptos",
  "leptos_meta",
  "serde",

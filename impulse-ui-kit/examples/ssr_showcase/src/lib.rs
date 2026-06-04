@@ -14,6 +14,9 @@
 
 #![allow(dead_code)]
 
+use impulse_ui_kit_components::badge::{Badge, BadgeVariant};
+use impulse_ui_kit_components::button::{Button, ButtonVariant};
+use impulse_ui_kit_components::card::{Card, CardContent, CardDescription, CardHeader, CardTitle};
 use leptos::prelude::*;
 use leptos_meta::*;
 use serde::{Deserialize, Serialize};
@@ -66,6 +69,23 @@ pub fn App() -> impl IntoView {
       <p class="text-lg opacity-80">
         "Server-side rendered demo with hydration and Suspense streaming."
       </p>
+
+      // Components from `impulse-ui-kit-components`, rendered on the server and
+      // hydrated on the client. Their Tailwind classes are compiled via the
+      // `@source` partial generated in build.rs.
+      <Card class="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>"Styled components"</CardTitle>
+          <CardDescription>"Pulled straight from the dependency — no copying."</CardDescription>
+        </CardHeader>
+        <CardContent class="flex flex-wrap items-center gap-2">
+          <Button>"Primary"</Button>
+          <Button variant=ButtonVariant::Secondary>"Secondary"</Button>
+          <Button variant=ButtonVariant::Outline>"Outline"</Button>
+          <Badge>"New"</Badge>
+          <Badge variant=BadgeVariant::Destructive>"Error"</Badge>
+        </CardContent>
+      </Card>
 
       <Suspense fallback=move || {
         view! { <p>"Loading greeting…"</p> }
