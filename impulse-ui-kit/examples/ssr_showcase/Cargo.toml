@@ -34,6 +34,9 @@ hydrate = [
   "dep:wasm-bindgen",
 ]
 
+[build-dependencies]
+impulse-tailwind-sources = { workspace = true }
+
 [dependencies]
 impulse-ui-kit = { workspace = true, default-features = false }
 impulse-ui-kit-components = { workspace = true, default-features = false }

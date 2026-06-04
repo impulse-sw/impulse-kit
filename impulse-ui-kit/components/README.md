@@ -39,17 +39,24 @@ of its sources to dependents as build-script metadata:
   every component source, and
 * `DEP_IMPULSE_UI_KIT_COMPONENTS_SOURCE_DIR` — the raw `src` directory.
 
-Drop a tiny `build.rs` in your project that writes a `@source` partial:
+The [`impulse-tailwind-sources`](../tailwind-sources) helper turns that metadata
+into a `@source` partial for you. Add it as a build-dependency:
+
+```toml
+[build-dependencies]
+impulse-tailwind-sources = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.1.0" }
+```
+
+…and call it from a tiny `build.rs`:
 
 ```rust
 // build.rs
-use std::{env, fs, path::Path};
+use std::{env, path::Path};
 
 fn main() {
-    let source = env::var("DEP_IMPULSE_UI_KIT_COMPONENTS_STYLES").unwrap();
-    let partial = Path::new(env!("CARGO_MANIFEST_DIR")).join(".tailwind-sources.css");
-    fs::write(&partial, format!("@source \"{source}\";\n")).unwrap();
-    println!("cargo::rerun-if-changed=build.rs");
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let partial = Path::new(&manifest_dir).join(".tailwind-sources.css");
+    impulse_tailwind_sources::write_source_partial(partial, &["DEP_IMPULSE_UI_KIT_COMPONENTS_STYLES"]);
 }
 ```
 
@@ -71,6 +78,35 @@ and everything is compiled together in a single pass. Add the generated
 
 > A complete, working setup lives in [`examples/showcase`](../examples/showcase)
 > (`build.rs` + `input.css`).
+
+#### Building a component library on top of these
+
+If you ship your own component library built on top of these components (auth
+pages, forms, …), Cargo only forwards `DEP_*` metadata one level deep — so your
+library must re-export the upstream sources together with its own. Declare a
+`links` key and call [`export`](../tailwind-sources), passing the upstream
+`DEP_*_STYLES` you build on:
+
+```toml
+# Cargo.toml of your library
+links = "my-ui-lib"
+build = "build.rs"
+
+[build-dependencies]
+impulse-tailwind-sources = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.1.0" }
+```
+
+```rust
+// build.rs of your library
+fn main() {
+    impulse_tailwind_sources::export(&["DEP_IMPULSE_UI_KIT_COMPONENTS_STYLES"]);
+}
+```
+
+`export` folds the upstream bundle into your own, so the file it publishes as
+`DEP_MY_UI_LIB_STYLES` already contains every class from both layers. The final
+app then only deals with a single `@source` from its direct dependency — the
+pattern composes to any depth.
 
 ### Usage
 

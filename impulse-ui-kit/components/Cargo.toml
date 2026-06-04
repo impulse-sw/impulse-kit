@@ -10,6 +10,9 @@ build = "build.rs"
 # `DEP_IMPULSE_UI_KIT_COMPONENTS_{STYLES,SOURCE_DIR}` so Tailwind can scan them.
 links = "impulse-ui-kit-components"
 
+[build-dependencies]
+impulse-tailwind-sources = { workspace = true }
+
 [features]
 default = ["csr"]
 csr = [

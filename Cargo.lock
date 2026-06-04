@@ -2506,6 +2506,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "impulse-tailwind-sources"
+version = "1.1.10"
+
+[[package]]
 name = "impulse-ui-kit"
 version = "1.1.10"
 dependencies = [
@@ -2529,6 +2533,7 @@ dependencies = [
  "chrono",
  "codee",
  "icondata",
+ "impulse-tailwind-sources",
  "impulse-ui-kit",
  "leptos",
  "leptos-use",
@@ -5569,6 +5574,7 @@ version = "1.1.10"
 dependencies = [
  "console_error_panic_hook",
  "impulse-server-kit",
+ "impulse-tailwind-sources",
  "impulse-ui-kit",
  "impulse-ui-kit-components",
  "leptos",
@@ -6247,6 +6253,7 @@ dependencies = [
  "chrono",
  "codee",
  "icondata",
+ "impulse-tailwind-sources",
  "impulse-ui-kit",
  "impulse-ui-kit-components",
  "leptos",
