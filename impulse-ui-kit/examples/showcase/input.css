@@ -1,5 +1,7 @@
 @import 'tailwindcss';
 @import "./tw-animate.css";
+/* Tailwind classes used by `impulse-ui-kit-components`, wired up by build.rs. */
+@import "./.tailwind-sources.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 

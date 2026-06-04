@@ -5,6 +5,10 @@ version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 authors = { workspace = true }
+build = "build.rs"
+# Lets `build.rs` publish the component sources' path to dependents via
+# `DEP_IMPULSE_UI_KIT_COMPONENTS_{STYLES,SOURCE_DIR}` so Tailwind can scan them.
+links = "impulse-ui-kit-components"
 
 [features]
 default = ["csr"]
