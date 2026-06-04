@@ -474,8 +474,10 @@ pub fn SelectScrollUpButton(#[prop(optional, into)] class: String) -> impl IntoV
       && let Some(viewport) = ctx.viewport_ref.get()
     {
       let el: &HtmlElement = viewport.as_ref();
-      let current_scroll = el.scroll_top();
-      el.set_scroll_top(current_scroll - 50);
+      // Relative scroll keeps the call signature stable: `set_scroll_top` is `i32`
+      // normally but `f64` under `--cfg=web_sys_unstable_apis`, while
+      // `scroll_by_with_x_and_y` is always `f64`.
+      el.scroll_by_with_x_and_y(0.0, -50.0);
     }
   };
 
@@ -520,8 +522,8 @@ pub fn SelectScrollDownButton(#[prop(optional, into)] class: String) -> impl Int
       && let Some(viewport) = ctx.viewport_ref.get()
     {
       let el: &HtmlElement = viewport.as_ref();
-      let current_scroll = el.scroll_top();
-      el.set_scroll_top(current_scroll + 50);
+      // See `SelectScrollUpButton` for why a relative scroll is used here.
+      el.scroll_by_with_x_and_y(0.0, 50.0);
     }
   };
 
