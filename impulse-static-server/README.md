@@ -43,7 +43,7 @@ Just include it into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-impulse-static-server = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.1.0" }
+impulse-static-server = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.0" }
 ```
 
 and use one of these functions:
