@@ -38,9 +38,6 @@ pub fn TabsList(#[prop(optional, into)] class: String, children: Children) -> im
       aria-orientation="horizontal"
       class=cn(
         &[
-          // Horizontally scrollable on narrow viewports so triggers never
-          // overflow or wrap. The scrollbar is hidden for a clean look while
-          // remaining swipe/keyboard scrollable.
           "bg-muted text-muted-foreground flex h-10 w-full max-w-full items-center justify-start gap-1 overflow-x-auto rounded-md p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           class.as_str(),
         ],
