@@ -118,7 +118,7 @@ fn App() -> impl IntoView {
               default_value="basic"
               on_value_change=Callback::new(move |v| active_section.set(v))
             >
-              <TabsList class="grid w-full grid-cols-5 lg:grid-cols-10">
+              <TabsList class="w-full">
                 <TabsTrigger value="basic">"Basic"</TabsTrigger>
                 <TabsTrigger value="forms">"Forms"</TabsTrigger>
                 <TabsTrigger value="layout">"Layout"</TabsTrigger>
