@@ -27,29 +27,29 @@ printf '[5/12] Action `%bLint \`showcase\`%b`...\n' "$BLUE" "$RESET"
 printf 'Executing `%b{flags}cargo clippy --package {package} --target {target}{features}%b`...\n' "$GREEN" "$RESET"
 cargo clippy --package ui-kit-showcase --target wasm32-unknown-unknown
 
-printf '[6/12] Action `%bLint \`ssr-showcase\` server%b`...\n' "$BLUE" "$RESET"
-printf 'Executing `%b{flags}cargo clippy --package {package} --target {target}{features}%b`...\n' "$GREEN" "$RESET"
-cargo clippy --package ssr-showcase --target x86_64-unknown-linux-gnu --no-default-features --features=ssr
-
-printf '[7/12] Action `%bLint \`ssr-showcase\` wasm%b`...\n' "$BLUE" "$RESET"
+printf '[6/12] Action `%bLint \`ssr-showcase\` wasm%b`...\n' "$BLUE" "$RESET"
 printf 'Executing `%b{flags}cargo clippy --package {package} --target {target}{features}%b`...\n' "$GREEN" "$RESET"
 cargo clippy --package ssr-showcase --target wasm32-unknown-unknown --no-default-features --features=hydrate
 
-printf '[8/12] Action `%bLint \`impulse-error-pages\`%b`...\n' "$BLUE" "$RESET"
+printf '[7/12] Action `%bLint \`impulse-error-pages\`%b`...\n' "$BLUE" "$RESET"
 printf 'Executing `%b{flags}cargo clippy --package {package} --target {target}{features}%b`...\n' "$GREEN" "$RESET"
 cargo clippy --package impulse-error-pages --target wasm32-unknown-unknown
 
-printf '[9/12] Action `%bLint \`impulse-server-kit\`%b`...\n' "$BLUE" "$RESET"
+printf '[8/12] Action `%bLint \`impulse-server-kit\`%b`...\n' "$BLUE" "$RESET"
 printf 'Executing `%b{flags}cargo clippy --package {package} --target {target}{features}%b`...\n' "$GREEN" "$RESET"
 RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package impulse-server-kit --target x86_64-unknown-linux-gnu
 
-printf '[10/12] Action `%bLint \`impulse-server-kit-dsl\`%b`...\n' "$BLUE" "$RESET"
+printf '[9/12] Action `%bLint \`impulse-server-kit-dsl\`%b`...\n' "$BLUE" "$RESET"
 printf 'Executing `%b{flags}cargo clippy --package {package} --target {target}{features}%b`...\n' "$GREEN" "$RESET"
 cargo clippy --package impulse-skdsl --target x86_64-unknown-linux-gnu
 
-printf '[11/12] Action `%bLint \`impulse-static-server\`%b`...\n' "$BLUE" "$RESET"
+printf '[10/12] Action `%bLint \`impulse-static-server\`%b`...\n' "$BLUE" "$RESET"
 printf 'Executing `%b{flags}cargo clippy --package {package} --target {target}{features}%b`...\n' "$GREEN" "$RESET"
 cargo clippy --package impulse-static-server --target x86_64-unknown-linux-gnu
+
+printf '[11/12] Action `%bLint \`ssr-showcase\` server%b`...\n' "$BLUE" "$RESET"
+printf 'Executing `%b{flags}cargo clippy --package {package} --target {target}{features}%b`...\n' "$GREEN" "$RESET"
+cargo clippy --package ssr-showcase --target x86_64-unknown-linux-gnu --no-default-features --features=ssr
 
 printf '[12/12] Action `%bTest docs%b`...\n' "$BLUE" "$RESET"
 printf 'Executing `%bcargo test --doc%b`...\n' "$GREEN" "$RESET"
