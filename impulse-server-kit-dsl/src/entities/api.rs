@@ -179,7 +179,7 @@ pub fn generate_api_tag(tag: &TaggedApi, api_desc: &File) -> MResult<String> {
 pub fn generate_router(tag: &TaggedApi) -> MResult<String> {
   let mut lines = vec![
     format!("pub fn {}_router() -> Router {{", tag.tag),
-    format!("  Router::new()"),
+    "  Router::new()".to_string(),
   ];
 
   for endp in &tag.endpoints {
