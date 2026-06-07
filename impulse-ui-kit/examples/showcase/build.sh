@@ -19,22 +19,25 @@ printf '[3/8] Action `%bFormat #2%b`...\n' "$BLUE" "$RESET"
 printf 'Executing `%bcargo fmt -- --config tab_spaces=2,max_width=120 $(find . -name \"*.rs\" -not -path \"*/target/*\")%b`...\n' "$GREEN" "$RESET"
 cargo fmt -- --config tab_spaces=2,max_width=120 $(find . -name "*.rs" -not -path "*/target/*")
 
-printf '[4/8] Action `%bCompile TailwindCSS%b`...\n' "$BLUE" "$RESET"
-printf 'Executing `%btailwindcss -i {tw-input} -o {tw-output} --minify%b`...\n' "$GREEN" "$RESET"
-tailwindcss -i ./input.css -o ./public/tailwind.css --minify
+printf '[4/8] Action `%bBuild WASM%b`...\n' "$BLUE" "$RESET"
+printf 'Executing `%bcd {project-folder} && RUSTFLAGS=\"-Zlocation-detail=none -Zfmt-debug=none -Zunstable-options -Cpanic=immediate-abort\" CARGO_UNSTABLE_BUILD_STD=\"std,panic_abort\" CARGO_UNSTABLE_BUILD_STD_FEATURES=\"optimize_for_size\" trunk build --release%b`...\n' "$GREEN" "$RESET"
+cd impulse-ui-kit/examples/showcase/ && RUSTFLAGS="-Zlocation-detail=none -Zfmt-debug=none -Zunstable-options -Cpanic=immediate-abort" CARGO_UNSTABLE_BUILD_STD="std,panic_abort" CARGO_UNSTABLE_BUILD_STD_FEATURES="optimize_for_size" trunk build --release
 
-printf '[5/8] Action `%bBuild WASM%b`...\n' "$BLUE" "$RESET"
-printf 'Executing `%bRUSTFLAGS=\"-Zlocation-detail=none -Zfmt-debug=none -Zunstable-options -Cpanic=immediate-abort\" CARGO_UNSTABLE_BUILD_STD=\"std,panic_abort\" CARGO_UNSTABLE_BUILD_STD_FEATURES=\"optimize_for_size\" trunk build --release%b`...\n' "$GREEN" "$RESET"
-RUSTFLAGS="-Zlocation-detail=none -Zfmt-debug=none -Zunstable-options -Cpanic=immediate-abort" CARGO_UNSTABLE_BUILD_STD="std,panic_abort" CARGO_UNSTABLE_BUILD_STD_FEATURES="optimize_for_size" trunk build --release
-
-printf '[6/8] Action `%bStrip WASM%b`...\n' "$BLUE" "$RESET"
+printf '[5/8] Action `%bStrip WASM%b`...\n' "$BLUE" "$RESET"
 printf 'Executing `%bwasm-strip {file}%b`...\n' "$GREEN" "$RESET"
-wasm-strip ./dist/ui-kit-showcase_bg.wasm
+wasm-strip ./impulse-ui-kit/examples/showcase/dist/ui-kit-showcase_bg.wasm
 
-printf '[7/8] Action `%bOptimize WASM%b`...\n' "$BLUE" "$RESET"
+printf '[6/8] Action `%bOptimize WASM%b`...\n' "$BLUE" "$RESET"
 printf 'Executing `%bwasm-opt -Oz --all-features --strip-debug --strip-producers -o {file} {file}%b`...\n' "$GREEN" "$RESET"
-wasm-opt -Oz --all-features --strip-debug --strip-producers -o ./dist/ui-kit-showcase_bg.wasm ./dist/ui-kit-showcase_bg.wasm
+wasm-opt -Oz --all-features --strip-debug --strip-producers -o ./impulse-ui-kit/examples/showcase/dist/ui-kit-showcase_bg.wasm ./impulse-ui-kit/examples/showcase/dist/ui-kit-showcase_bg.wasm
+
+printf '[7/8] Action `%bCompile TailwindCSS%b`...\n' "$BLUE" "$RESET"
+printf 'Executing `%btailwindcss -i {tw-input} -o {tw-output} --minify%b`...\n' "$GREEN" "$RESET"
+tailwindcss -i ./impulse-ui-kit/examples/showcase/input.css -o ./impulse-ui-kit/examples/showcase/public/tailwind.css --minify
 
 printf '[8/8] Action `%bAdd files to \`dist\`%b`...\n' "$BLUE" "$RESET"
-printf 'Executing `%bcp {tw-output} {favicon} dist/%b`...\n' "$GREEN" "$RESET"
-cp ./public/tailwind.css ./public/favicon.ico dist/
+printf 'Executing `%bcp {tw-output} {favicon} impulse-ui-kit/examples/showcase/dist/%b`...\n' "$GREEN" "$RESET"
+cp ./impulse-ui-kit/examples/showcase/public/tailwind.css ./impulse-ui-kit/examples/showcase/public/favicon.ico impulse-ui-kit/examples/showcase/dist/
+
+mkdir -p artifacts
+cp -rf impulse-ui-kit/examples/showcase/dist artifacts/showcase/dist || true
