@@ -40,4 +40,13 @@ impulse-ui-kit = { workspace = true }
 leptos = { version = "0.8", default-features = false }
 leptos-use = { version = "0.16", default-features = false }
 uuid = { version = "1.18.1", features = ["v4", "js"] }
-web-sys = { version = "0.3.82", features = ["ClipboardEvent", "DataTransfer", "DomRect", "Element", "HtmlButtonElement", "HtmlDivElement", "NodeList"] }
+web-sys = { version = "0.3.82", features = [
+  "ClipboardEvent",
+  "DataTransfer",
+  "DomRect",
+  "Element",
+  "HtmlButtonElement",
+  "HtmlDivElement",
+  "NodeList",
+  "Clipboard",
+] }
