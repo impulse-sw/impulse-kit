@@ -51,6 +51,7 @@ webtransport = [
   "dep:wasm-bindgen",
   "dep:wasm-bindgen-futures",
   "dep:web-sys",
+  "web-sys/Window",
   "web-sys/ReadableStream",
   "web-sys/ReadableStreamDefaultReader",
   "web-sys/WebTransport",

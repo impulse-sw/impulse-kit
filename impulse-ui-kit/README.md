@@ -178,6 +178,35 @@ Effect::new(move |_| {
 
 `WebTransportHandle` also exposes `open_bidirectional_stream()` and `open_unidirectional_stream()` for application-level framing on top of QUIC streams. See [`wt.rs`](./src/wt.rs) for the full API.
 
+### Automatic reconnection
+
+Both wrappers can transparently re-establish a dropped connection. Reconnection is **off by default**; opt in with a `ReconnectOptions` policy. The delay before the first retry, the backoff multiplier, the maximum delay, and an optional cap on the number of attempts are all configurable:
+
+```rust
+use std::time::Duration;
+use impulse_ui_kit::prelude::*;
+
+// Retry forever, starting at 500ms and doubling up to 10s.
+let policy = ReconnectOptions::enabled()
+  .with_initial_delay(Duration::from_millis(500))
+  .with_max_delay(Duration::from_secs(10))
+  .with_backoff_factor(2.0);
+
+// WebSocket: pass the policy via `WebSocketOptions`.
+let ws = use_websocket_with_options(
+  "wss://example.com/socket",
+  WebSocketOptions::default().with_reconnect(policy),
+)?;
+
+// WebTransport: a constant 1s delay capped at five attempts.
+let wt = use_webtransport_with_reconnect(
+  "https://example.com/wt",
+  ReconnectOptions::enabled().with_backoff_factor(1.0).with_max_attempts(Some(5)),
+)?;
+```
+
+While waiting between attempts the handle reports `Connecting`. The reactive `state`, inbound `message`/`datagram_signal`, sends, and stream constructors all keep working across reconnects — there is no need to re-create the handle. A close requested through `close()` (and, for WebTransport, a graceful close by either peer) is treated as final and never reconnects.
+
 ## Some other utils
 
 See [`utils.rs` file](./src/utils.rs).

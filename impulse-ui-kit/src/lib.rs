@@ -28,6 +28,8 @@ compile_error!("impulse-ui-kit: feature `webtransport` requires `csr` or `hydrat
 pub mod router;
 pub mod utils;
 
+#[cfg(any(feature = "websocket", feature = "webtransport"))]
+pub mod reconnect;
 #[cfg(feature = "websocket")]
 pub mod ws;
 #[cfg(feature = "webtransport")]
