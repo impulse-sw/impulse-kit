@@ -413,7 +413,12 @@ impl WebTransportHandle {
 
   /// Open a new bidirectional stream for application framing.
   pub async fn open_bidirectional_stream(&self) -> CResult<WebTransportBidirectionalStream> {
-    let promise: js_sys::Promise = self.inner.transport.borrow().create_bidirectional_stream().unchecked_into();
+    let promise: js_sys::Promise = self
+      .inner
+      .transport
+      .borrow()
+      .create_bidirectional_stream()
+      .unchecked_into();
     let val = JsFuture::from(promise)
       .await
       .map_err(|e| ClientError::from_str(format!("Failed to open bidirectional stream: {e:?}")))?;
@@ -424,7 +429,12 @@ impl WebTransportHandle {
 
   /// Open a new outbound unidirectional stream.
   pub async fn open_unidirectional_stream(&self) -> CResult<WebTransportSendStream> {
-    let promise: js_sys::Promise = self.inner.transport.borrow().create_unidirectional_stream().unchecked_into();
+    let promise: js_sys::Promise = self
+      .inner
+      .transport
+      .borrow()
+      .create_unidirectional_stream()
+      .unchecked_into();
     let val = JsFuture::from(promise)
       .await
       .map_err(|e| ClientError::from_str(format!("Failed to open unidirectional stream: {e:?}")))?;
@@ -442,7 +452,9 @@ impl WebTransportHandle {
   /// exclusive — call this at most once per handle.
   pub fn datagram_signal(&self) -> CResult<ReadSignal<Option<Vec<u8>>>> {
     if self.inner.datagram_sink.borrow().is_some() {
-      return Err(ClientError::from_str("datagram_signal already registered for this handle"));
+      return Err(ClientError::from_str(
+        "datagram_signal already registered for this handle",
+      ));
     }
     let (sig, set_sig) = signal::<Option<Vec<u8>>>(None);
     *self.inner.datagram_sink.borrow_mut() = Some(set_sig);

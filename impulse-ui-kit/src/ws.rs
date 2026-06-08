@@ -352,7 +352,10 @@ pub fn use_websocket(url: impl AsRef<str>) -> CResult<WebSocketHandle> {
 
 /// Open a WebSocket negotiating one of the given subprotocols.
 pub fn use_websocket_with_protocols(url: impl AsRef<str>, protocols: &[&str]) -> CResult<WebSocketHandle> {
-  use_websocket_with_options(url, WebSocketOptions::default().with_protocols(protocols.iter().copied()))
+  use_websocket_with_options(
+    url,
+    WebSocketOptions::default().with_protocols(protocols.iter().copied()),
+  )
 }
 
 /// Open a WebSocket with full [`WebSocketOptions`], including an optional
