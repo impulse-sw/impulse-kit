@@ -47,6 +47,7 @@ web-sys = { version = "0.3.82", features = [
   "Element",
   "HtmlButtonElement",
   "HtmlDivElement",
+  "HtmlDocument",
   "NodeList",
   "Clipboard",
 ] }

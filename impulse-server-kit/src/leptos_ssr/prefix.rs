@@ -106,9 +106,34 @@ pub(super) fn build_html_prefix(ctx: &PrefixContext<'_>) -> String {
     "<!DOCTYPE html><html lang=\"{lang}\" class=\"{theme_class}\"><head>\
        <meta charset=\"UTF-8\">\
        <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
+       {THEME_INIT_SCRIPT}\
        {head_extras}{asset_links}<!--HEAD--></head><body>"
   )
 }
+
+/// Blocking, render-before-paint script that reconciles the `<html>` theme
+/// class with the visitor's actual preference, eliminating the dark-mode
+/// flash-of-incorrect-theme (FOIT) on SSR.
+///
+/// The server picks `theme_class` from the `impulse_theme` cookie, defaulting
+/// to `light`. For a first-time visitor the cookie is absent, so the server
+/// can never know the OS-level `prefers-color-scheme` and would paint light
+/// before the hydration runtime swaps in dark — the classic flicker.
+///
+/// This synchronous inline script runs while the `<head>` is parsed, *before*
+/// the `<body>` is painted, and sets the class from the same source of truth
+/// the client [`ThemeProvider`] uses:
+/// 1. the `theme` key in `localStorage` (an explicit user choice), then
+/// 2. the `prefers-color-scheme` media query (the OS default).
+///
+/// Because it precedes first paint, the body is never painted with the wrong
+/// theme. The literals (`theme`, `dark`, `light`) mirror the constants in
+/// `impulse-ui-kit-components::theme`; keep them in sync.
+const THEME_INIT_SCRIPT: &str = "<script>(function(){try{\
+var e=localStorage.getItem(\"theme\"),c=document.documentElement.classList;\
+if(e===\"dark\"||(e!==\"light\"&&window.matchMedia&&window.matchMedia(\"(prefers-color-scheme: dark)\").matches)){c.add(\"dark\");c.remove(\"light\")}\
+else{c.remove(\"dark\");c.add(\"light\")}\
+}catch(_){}})()</script>";
 
 pub(super) fn build_html_suffix(opts: &LeptosOptions) -> String {
   let mut buf = String::new();
@@ -185,7 +210,26 @@ fn og_locale(lang: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-  use super::og_locale;
+  use super::{PrefixContext, build_html_prefix, og_locale};
+  use crate::leptos_ssr::options::LeptosOptions;
+
+  #[test]
+  fn prefix_embeds_blocking_theme_script_before_body() {
+    let opts = LeptosOptions::default();
+    let html = build_html_prefix(&PrefixContext {
+      opts: &opts,
+      initial_theme: Some("dark"),
+      request_path: "/",
+    });
+    // Server-side class reflects the cookie, the blocking script lives in the
+    // <head> ahead of the <body>, and it reads both signals the client uses.
+    assert!(html.contains("class=\"dark\""));
+    let script_at = html.find("<script>(function()").expect("theme init script present");
+    let body_at = html.find("<body>").expect("body opener present");
+    assert!(script_at < body_at, "theme script must run before <body> is painted");
+    assert!(html.contains("localStorage.getItem(\"theme\")"));
+    assert!(html.contains("prefers-color-scheme: dark"));
+  }
 
   #[test]
   fn og_locale_expands_known_primary() {

@@ -24,8 +24,12 @@ pub struct RequestUrlCtx {
 
 /// Initial theme resolved on the server from the `impulse_theme` cookie.
 ///
-/// `ThemeProvider` consumes this to render `<html class="dark">` (or `light`)
-/// without flicker on the first paint.
+/// The SSR handler uses this to render the matching `<html class="dark">` (or
+/// `light`) in the HTML prefix. For first-time visitors the cookie is absent,
+/// so a blocking inline script in the `<head>` reconciles the class from
+/// `localStorage` + `prefers-color-scheme` before first paint, avoiding the
+/// dark-mode flicker. The value is also exposed as a Leptos context so user
+/// components can read the current theme during SSR.
 #[derive(Clone, Debug, Default)]
 pub struct InitialTheme(pub Option<String>);
 
