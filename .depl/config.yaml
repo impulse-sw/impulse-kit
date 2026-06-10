@@ -486,6 +486,13 @@ pipelines:
           "{flags}": web-sys-unstable-flag
           "{package}": package-ui-kit
           "{target}": target-wasm
+      - title: Lint `impulse-ui-kit-components`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ui-kit-components
+          "{target}": target-wasm
       - title: Lint `showcase`
         used: cargo-lint@0.2.0
         with:
@@ -596,6 +603,13 @@ pipelines:
           "{features}": featureset-ui-kit-net
           "{flags}": web-sys-unstable-flag
           "{package}": package-ui-kit
+          "{target}": target-wasm
+      - title: Lint `impulse-ui-kit-components`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ui-kit-components
           "{target}": target-wasm
       - title: Lint `showcase`
         used: cargo-lint@0.2.0
