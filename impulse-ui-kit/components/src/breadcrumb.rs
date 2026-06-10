@@ -114,8 +114,7 @@ pub fn BreadcrumbMenu(
     <li data-slot="breadcrumb-menu" class=cn(&["inline-flex items-center", class.as_str()])>
       <details class="group relative">
         <summary class="text-muted-foreground hover:text-foreground flex cursor-pointer list-none items-center gap-1 transition-colors [&::-webkit-details-marker]:hidden">
-          {label}
-          <ChevronRight class="size-3.5 transition-transform group-open:rotate-90" />
+          {label} <ChevronRight class="size-3.5 transition-transform group-open:rotate-90" />
         </summary>
         <ul class="bg-popover text-popover-foreground absolute left-0 z-50 mt-1 flex min-w-40 flex-col gap-1 rounded-md border p-1 shadow-md">
           {children()}
