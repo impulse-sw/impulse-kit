@@ -97,6 +97,34 @@ pub fn BreadcrumbSeparator(
   }
 }
 
+/// A collapsible breadcrumb item that reveals its children in a small dropdown.
+///
+/// Handy for narrow / mobile headers where the full trail (or a set of section
+/// links and actions) does not fit: render the secondary items as children and
+/// they fold away behind `label` until tapped. Built on the native `<details>`
+/// disclosure, so it needs no client-side state and works without JS.
+#[component]
+pub fn BreadcrumbMenu(
+  #[prop(into, optional)] class: String,
+  #[prop(into, optional)] label: String,
+  children: Children,
+) -> impl IntoView {
+  let label = if label.is_empty() { "…".to_string() } else { label };
+  view! {
+    <li data-slot="breadcrumb-menu" class=cn(&["inline-flex items-center", class.as_str()])>
+      <details class="group relative">
+        <summary class="text-muted-foreground hover:text-foreground flex cursor-pointer list-none items-center gap-1 transition-colors [&::-webkit-details-marker]:hidden">
+          {label}
+          <ChevronRight class="size-3.5 transition-transform group-open:rotate-90" />
+        </summary>
+        <ul class="bg-popover text-popover-foreground absolute left-0 z-50 mt-1 flex min-w-40 flex-col gap-1 rounded-md border p-1 shadow-md">
+          {children()}
+        </ul>
+      </details>
+    </li>
+  }
+}
+
 #[component]
 pub fn BreadcrumbEllipsis(#[prop(into, optional)] class: String) -> impl IntoView {
   view! {
