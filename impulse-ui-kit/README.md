@@ -8,7 +8,7 @@ Just include it into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-impulse-ui-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.0" }
+impulse-ui-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.7" }
 ```
 
 ## Components and its usage
@@ -107,7 +107,7 @@ Enable the `websocket` feature:
 
 ```toml
 [dependencies]
-impulse-ui-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.0", features = ["websocket"] }
+impulse-ui-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.7", features = ["websocket"] }
 ```
 
 Open a connection and observe state/messages reactively:
@@ -141,7 +141,7 @@ Enable the `webtransport` feature:
 
 ```toml
 [dependencies]
-impulse-ui-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.0", features = ["webtransport"] }
+impulse-ui-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.7", features = ["webtransport"] }
 ```
 
 The browser WebTransport API is gated by `web-sys` behind `--cfg=web_sys_unstable_apis`. Add this to your downstream `.cargo/config.toml`:

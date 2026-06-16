@@ -24,7 +24,7 @@
 //! ```rust,ignore
 //! // Cargo.toml dependencies:
 //! //
-//! // impulse-server-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.0" }
+//! // impulse-server-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.7" }
 //! // serde = { version = "1", features = ["derive"] }
 //! // tokio = { version = "1", features = ["macros"] }
 //! // tracing = "1"

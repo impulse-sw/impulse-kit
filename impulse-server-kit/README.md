@@ -28,7 +28,7 @@ To use Server Kit, include this line into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-impulse-server-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.0" }
+impulse-server-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.7" }
 ```
 
 And create empty `{app-name}.yaml` to fill later (see [Configuration Overview](#7) below).
@@ -75,7 +75,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-impulse-server-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.0" }
+impulse-server-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.7" }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["macros"] }
 tracing = "1"
