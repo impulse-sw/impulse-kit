@@ -109,7 +109,7 @@ fn App() -> impl IntoView {
 
         // Main Content
         <div class="container mx-auto py-8">
-          <div class="flex flex-col space-y-8">
+          <div class="flex flex-col space-y-2">
             // Title and Description
             <div class="space-y-2">
               <h1 class="text-4xl font-bold tracking-tight">"Component Showcase"</h1>
