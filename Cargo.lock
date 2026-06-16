@@ -6278,6 +6278,7 @@ dependencies = [
  "icondata",
  "impulse-tailwind-sources",
  "impulse-ui-kit",
+ "impulse-ui-kit-blocks",
  "impulse-ui-kit-components",
  "leptos",
  "leptos-use",

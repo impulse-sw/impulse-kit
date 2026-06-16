@@ -79,6 +79,9 @@ use components::toggle_group::*;
 // Utility Components
 use crate::components::theme::{ThemeProvider, ThemeToggle};
 
+// Blocks
+use impulse_ui_kit_blocks::markdown::{Markdown, MarkdownClasses, MarkdownSource};
+
 fn main() {
   setup_app(log::Level::Info, Box::new(move || view! { <App /> }.into_any()))
 }
@@ -128,6 +131,7 @@ fn App() -> impl IntoView {
                 <TabsTrigger value="data">"Data"</TabsTrigger>
                 <TabsTrigger value="interactive">"Interactive"</TabsTrigger>
                 <TabsTrigger value="utility">"Utility"</TabsTrigger>
+                <TabsTrigger value="blocks">"Blocks"</TabsTrigger>
                 <TabsTrigger value="combined">"Combined"</TabsTrigger>
               </TabsList>
 
@@ -174,6 +178,11 @@ fn App() -> impl IntoView {
               // Utility Components Section
               <TabsContent value="utility">
                 <UtilityComponentsSection />
+              </TabsContent>
+
+              // Blocks Section
+              <TabsContent value="blocks">
+                <BlocksSection />
               </TabsContent>
 
               // Combined Examples Section
@@ -1077,6 +1086,115 @@ fn CombinedExamplesSection() -> impl IntoView {
 }
 
 // Helper Components
+
+/// Sample document used by the live Markdown editor demo.
+const MARKDOWN_SAMPLE: &str = r#"# Markdown block
+
+A **block** is a small widget composed of UI Kit components. This one renders
+*Markdown* — either inline content like this, or an `.md` file fetched from a URL.
+
+## Features
+
+- GFM tables, ~~strikethrough~~ and task lists
+- Per-element Tailwind classes with sensible defaults
+- Inline `code` and fenced blocks
+
+```rust
+fn main() {
+    println!("Hello from a code block!");
+}
+```
+
+> Blockquotes follow the UI Kit theme tokens out of the box.
+
+### Tasks
+
+- [x] Parse Markdown
+- [x] Inject Tailwind classes
+- [ ] Conquer the world
+
+### A table
+
+| Element | Default class hint   |
+| ------- | -------------------- |
+| Heading | `font-semibold`      |
+| Link    | `text-primary`       |
+
+Read more at the [Impulse Kit repo](https://github.com/impulse-sw/impulse-kit).
+
+---
+
+That's it!
+"#;
+
+#[component]
+fn BlocksSection() -> impl IntoView {
+  let markdown = RwSignal::new(MARKDOWN_SAMPLE.to_string());
+
+  // A few per-element overrides, leaving everything else at its default.
+  let custom_classes = MarkdownClasses {
+    h1: "mt-6 mb-4 text-3xl font-black tracking-tight text-primary".into(),
+    h2: "mt-6 mb-3 text-2xl font-bold tracking-tight text-primary/90".into(),
+    link: "font-medium text-chart-2 underline decoration-dotted underline-offset-4 hover:text-chart-2/80".into(),
+    inline_code: "rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[0.85em] text-primary".into(),
+    blockquote: "my-4 rounded-md border-l-4 border-primary bg-primary/5 py-2 pl-4 italic text-foreground/80".into(),
+    ..Default::default()
+  };
+
+  view! {
+    <div class="space-y-8">
+      <SectionHeader
+        title="Blocks"
+        description="Higher-level widgets composed of UI Kit components"
+      />
+
+      // Live Markdown editor.
+      <ComponentCard
+        title="Markdown"
+        description="Render inline Markdown (or an .md file from a URL) into themed HTML"
+      >
+        <div class="grid gap-4 md:grid-cols-2">
+          <div class="space-y-2">
+            <Label>"Markdown source"</Label>
+            <Textarea
+              value=markdown
+              class="min-h-[28rem] w-full font-mono text-sm"
+            />
+          </div>
+          <div class="space-y-2">
+            <Label>"Rendered output"</Label>
+            <div class="min-h-[28rem] overflow-auto rounded-md border bg-card p-4">
+              {move || view! { <Markdown source=MarkdownSource::inline(markdown.get()) /> }}
+            </div>
+          </div>
+        </div>
+      </ComponentCard>
+
+      // Per-element style overrides.
+      <ComponentCard
+        title="Custom element styles"
+        description="Override the Tailwind classes of individual Markdown elements via MarkdownClasses"
+      >
+        <div class="rounded-md border bg-card p-4">
+          <Markdown
+            source=MarkdownSource::inline(MARKDOWN_SAMPLE)
+            classes=custom_classes
+          />
+        </div>
+      </ComponentCard>
+
+      // Loading from a URL.
+      <ComponentCard
+        title="From a URL"
+        description="Pass MarkdownSource::url(..) to fetch and render an .md file at runtime"
+      >
+        <div class="rounded-md border bg-card p-4">
+          <Markdown source=MarkdownSource::url("/sample.md") />
+        </div>
+      </ComponentCard>
+    </div>
+  }
+}
 
 #[component]
 fn SectionHeader(title: &'static str, description: &'static str) -> impl IntoView {
