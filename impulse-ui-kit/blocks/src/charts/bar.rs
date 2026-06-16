@@ -173,7 +173,10 @@ pub fn BarChart(
   if n_cat == 0 || n_series == 0 {
     return view! {
       <div class=cn(
-        &["flex h-48 w-full items-center justify-center text-sm text-muted-foreground", class.as_str()],
+        &[
+          "flex h-48 w-full items-center justify-center text-sm text-muted-foreground",
+          class.as_str(),
+        ],
       )>"No data to display"</div>
     }
     .into_any();
@@ -370,9 +373,10 @@ pub fn BarChart(
   let view_box = format!("0 0 {} {}", opts.width, opts.height);
 
   view! {
-    <div class=cn(&["w-full", class.as_str()])>
-      {legend}
-      <div node_ref=container class="relative w-full">
+    <div class=cn(
+      &["w-full", class.as_str()],
+    )>
+      {legend} <div node_ref=container class="relative w-full">
         <svg viewBox=view_box preserveAspectRatio="xMidYMid meet" role="img" class="h-auto w-full">
           {grid}
           {axis}

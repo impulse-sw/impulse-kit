@@ -194,7 +194,10 @@ pub fn LineChart(
   if n_cat == 0 || n_series == 0 {
     return view! {
       <div class=cn(
-        &["flex h-48 w-full items-center justify-center text-sm text-muted-foreground", class.as_str()],
+        &[
+          "flex h-48 w-full items-center justify-center text-sm text-muted-foreground",
+          class.as_str(),
+        ],
       )>"No data to display"</div>
     }
     .into_any();
@@ -343,7 +346,14 @@ pub fn LineChart(
     hovered.get().map(|ci| {
       let x = frame.x_center(ci, n_cat);
       view! {
-        <line x1=x x2=x y1=frame.top y2=frame.top + frame.inner_h class=guide_class.clone() stroke-width="1" />
+        <line
+          x1=x
+          x2=x
+          y1=frame.top
+          y2=frame.top + frame.inner_h
+          class=guide_class.clone()
+          stroke-width="1"
+        />
       }
     })
   };
@@ -423,9 +433,10 @@ pub fn LineChart(
   let view_box = format!("0 0 {} {}", opts.width, opts.height);
 
   view! {
-    <div class=cn(&["w-full", class.as_str()])>
-      {legend}
-      <div node_ref=container class="relative w-full">
+    <div class=cn(
+      &["w-full", class.as_str()],
+    )>
+      {legend} <div node_ref=container class="relative w-full">
         <svg viewBox=view_box preserveAspectRatio="xMidYMid meet" role="img" class="h-auto w-full">
           {grid}
           {axis}

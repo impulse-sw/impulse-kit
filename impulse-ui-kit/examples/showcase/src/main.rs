@@ -1429,10 +1429,7 @@ fn BlocksSection() -> impl IntoView {
         <div class="grid gap-4 md:grid-cols-2">
           <div class="space-y-2">
             <Label>"Markdown source"</Label>
-            <Textarea
-              value=markdown
-              class="min-h-[28rem] w-full font-mono text-sm"
-            />
+            <Textarea value=markdown class="min-h-[28rem] w-full font-mono text-sm" />
           </div>
           <div class="space-y-2">
             <Label>"Rendered output"</Label>
@@ -1449,10 +1446,7 @@ fn BlocksSection() -> impl IntoView {
         description="Override the Tailwind classes of individual Markdown elements via MarkdownClasses"
       >
         <div class="rounded-md border bg-card p-4">
-          <Markdown
-            source=MarkdownSource::inline(MARKDOWN_SAMPLE)
-            classes=custom_classes
-          />
+          <Markdown source=MarkdownSource::inline(MARKDOWN_SAMPLE) classes=custom_classes />
         </div>
       </ComponentCard>
 

@@ -169,7 +169,10 @@ pub fn PieChart(
   if slices.is_empty() || total <= 0.0 {
     return view! {
       <div class=cn(
-        &["flex h-48 w-full items-center justify-center text-sm text-muted-foreground", class.as_str()],
+        &[
+          "flex h-48 w-full items-center justify-center text-sm text-muted-foreground",
+          class.as_str(),
+        ],
       )>"No data to display"</div>
     }
     .into_any();
@@ -267,12 +270,7 @@ pub fn PieChart(
       let text = format!("{:.0}%", fraction * 100.0);
       labels.push(
         view! {
-          <text
-            x=lx
-            y=ly + 4.0
-            text-anchor="middle"
-            class=classes.slice_label.clone()
-          >
+          <text x=lx y=ly + 4.0 text-anchor="middle" class=classes.slice_label.clone()>
             {text}
           </text>
         }
@@ -306,9 +304,15 @@ pub fn PieChart(
   let view_box = format!("0 0 {} {}", opts.width, opts.height);
 
   view! {
-    <div class=cn(&["w-full", class.as_str()])>
+    <div class=cn(
+      &["w-full", class.as_str()],
+    )>
       {legend}
-      <div node_ref=container class="relative mx-auto w-full" style=format!("max-width:{}px", opts.width)>
+      <div
+        node_ref=container
+        class="relative mx-auto w-full"
+        style=format!("max-width:{}px", opts.width)
+      >
         <svg viewBox=view_box preserveAspectRatio="xMidYMid meet" role="img" class="h-auto w-full">
           {segments}
           {labels}

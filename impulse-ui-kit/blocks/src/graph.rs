@@ -718,11 +718,12 @@ pub fn GraphCanvas(
               class="pointer-events-auto cursor-pointer"
               on:pointerenter=move |_| hovered_edge.set(Some(i))
               on:pointerleave=move |_| {
-                hovered_edge.update(|h| {
-                  if *h == Some(i) {
-                    *h = None;
-                  }
-                })
+                hovered_edge
+                  .update(|h| {
+                    if *h == Some(i) {
+                      *h = None;
+                    }
+                  })
               }
               on:click=move |ev| {
                 ev.stop_propagation();
@@ -868,7 +869,9 @@ pub fn GraphCanvas(
   view! {
     <div
       node_ref=canvas
-      class=cn(&["relative w-full overflow-hidden rounded-lg border border-border", cursor, class.as_str()])
+      class=cn(
+        &["relative w-full overflow-hidden rounded-lg border border-border", cursor, class.as_str()],
+      )
       style=container_style
       on:pointerdown=on_down
       on:pointermove=on_move
@@ -1197,10 +1200,7 @@ pub fn GraphPort(
     .into_any()
   } else {
     view! {
-      <div class=row_class>
-        {socket}
-        <span class="text-xs text-muted-foreground">{label}</span>
-      </div>
+      <div class=row_class>{socket} <span class="text-xs text-muted-foreground">{label}</span></div>
     }
     .into_any()
   }
