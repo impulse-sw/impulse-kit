@@ -85,7 +85,8 @@ use impulse_ui_kit_blocks::charts::{
   PieChartData, PieChartOptions, PieSlice, Sparkline, SparklineKind, SparklineOptions,
 };
 use impulse_ui_kit_blocks::graph::{
-  GraphCanvas, GraphEdge, GraphNode, GraphNodeBody, GraphNodeHeader, GraphPort, NodeVariant, PortSide,
+  GraphCanvas, GraphCanvasOptions, GraphEdge, GraphNode, GraphNodeBody, GraphNodeHeader, GraphPort, NodeVariant,
+  PortSide,
 };
 use impulse_ui_kit_blocks::markdown::{Markdown, MarkdownClasses, MarkdownSource};
 
@@ -1324,9 +1325,15 @@ fn BlocksSection() -> impl IntoView {
       // Interactive node graph.
       <ComponentCard
         title="Node graph"
-        description="Drag node headers to move them; drag from one socket to another to connect. Sockets sit on the node border and edges route around nodes in the way."
+        description="Drag node headers (snapping to the grid) to move them; the active node rises to the front. Drag between sockets to connect, click a wire to remove it, or use the × on a node to delete it. Edges route around nodes in the way."
       >
-        <GraphCanvas edges=graph_edges>
+        <GraphCanvas
+          edges=graph_edges
+          options=GraphCanvasOptions {
+            snap: true,
+            ..Default::default()
+          }
+        >
           <GraphNode id="input" x=24.0 y=150.0 variant=NodeVariant::Solid>
             <GraphNodeHeader>"Input"</GraphNodeHeader>
             <GraphNodeBody>

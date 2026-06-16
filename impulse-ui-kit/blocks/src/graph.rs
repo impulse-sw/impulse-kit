@@ -151,6 +151,24 @@ struct GraphContext {
   edges: RwSignal<Vec<GraphEdge>>,
   drag: RwSignal<Option<NodeDrag>>,
   pending: RwSignal<Option<Pending>>,
+  /// Id of the node raised to the front (last interacted).
+  active: RwSignal<Option<String>>,
+  /// Whether delete affordances are shown.
+  deletable: bool,
+}
+
+/// Remove a node and everything referencing it.
+fn remove_node(ctx: &GraphContext, id: &str) {
+  ctx.positions.update(|m| {
+    m.remove(id);
+  });
+  ctx.sizes.update(|m| {
+    m.remove(id);
+  });
+  ctx.ports.update(|m| m.retain(|key, _| key.0 != id));
+  ctx
+    .edges
+    .update(|e| e.retain(|edge| edge.from.0 != id && edge.to.0 != id));
 }
 
 /// Per-node context, so ports can find their node id and box for measuring.
@@ -167,6 +185,12 @@ pub struct GraphCanvasOptions {
   pub height: f64,
   /// Draw the dotted background grid.
   pub show_grid: bool,
+  /// Grid step in pixels (background dots and snapping).
+  pub grid_size: f64,
+  /// Snap dragged nodes to the grid.
+  pub snap: bool,
+  /// Allow removing edges (click a wire) and nodes (× button).
+  pub deletable: bool,
 }
 
 impl Default for GraphCanvasOptions {
@@ -174,6 +198,9 @@ impl Default for GraphCanvasOptions {
     Self {
       height: 480.0,
       show_grid: true,
+      grid_size: 16.0,
+      snap: false,
+      deletable: true,
     }
   }
 }
@@ -350,6 +377,16 @@ pub fn GraphCanvas(
   let ports = RwSignal::new(HashMap::<(String, String), PortInfo>::new());
   let drag = RwSignal::new(None::<NodeDrag>);
   let pending = RwSignal::new(None::<Pending>);
+  let active = RwSignal::new(None::<String>);
+  let hovered_edge = RwSignal::new(None::<usize>);
+
+  let (grid, snap, deletable, height, show_grid) = (
+    options.grid_size,
+    options.snap,
+    options.deletable,
+    options.height,
+    options.show_grid,
+  );
 
   let ctx = GraphContext {
     canvas,
@@ -359,6 +396,8 @@ pub fn GraphCanvas(
     edges,
     drag,
     pending,
+    active,
+    deletable,
   };
   provide_context(ctx);
 
@@ -370,7 +409,8 @@ pub fn GraphCanvas(
     edges
       .get()
       .iter()
-      .filter_map(|edge| {
+      .enumerate()
+      .filter_map(|(i, edge)| {
         let (p1, s1) = port_abs(&positions, &ports, &edge.from)?;
         let (p2, s2) = port_abs(&positions, &ports, &edge.to)?;
         // Every other node is an obstacle to route around.
@@ -386,13 +426,68 @@ pub fn GraphCanvas(
             })
           })
           .collect();
-        let stroke = edge
+        let d = route_edge(p1, s1, p2, s2, &obstacles);
+        let base = edge
           .color
           .clone()
           .unwrap_or_else(|| "var(--muted-foreground)".to_string());
+
+        let stroke = move || {
+          if deletable && hovered_edge.get() == Some(i) {
+            "var(--destructive)".to_string()
+          } else {
+            base.clone()
+          }
+        };
+        let stroke_width = move || {
+          if deletable && hovered_edge.get() == Some(i) {
+            "3"
+          } else {
+            "2"
+          }
+        };
+
+        // A wide, transparent hit path makes the thin wire easy to click.
+        let hit = deletable.then(|| {
+          let edge = edge.clone();
+          view! {
+            <path
+              d=d.clone()
+              fill="none"
+              stroke="transparent"
+              stroke-width="16"
+              class="pointer-events-auto cursor-pointer"
+              on:pointerenter=move |_| hovered_edge.set(Some(i))
+              on:pointerleave=move |_| {
+                hovered_edge.update(|h| {
+                  if *h == Some(i) {
+                    *h = None;
+                  }
+                })
+              }
+              on:click=move |ev| {
+                ev.stop_propagation();
+                edges.update(|v| v.retain(|e| !(e.from == edge.from && e.to == edge.to)));
+                hovered_edge.set(None);
+              }
+            >
+              <title>"Click to remove"</title>
+            </path>
+          }
+        });
+
         Some(
           view! {
-            <path d=route_edge(p1, s1, p2, s2, &obstacles) fill="none" stroke=stroke stroke-width="2" />
+            <g>
+              {hit}
+              <path
+                d=d
+                fill="none"
+                stroke=stroke
+                stroke-width=stroke_width
+                class="pointer-events-none transition-colors"
+              />
+            </g>
           }
           .into_any(),
         )
@@ -424,8 +519,12 @@ pub fn GraphCanvas(
   let on_move = move |ev: web_sys::PointerEvent| {
     let c = pointer_pos(&canvas, &ev);
     if let Some(d) = drag.get_untracked() {
+      let mut p = (c.0 - d.offset.0, c.1 - d.offset.1);
+      if snap && grid > 0.0 {
+        p = ((p.0 / grid).round() * grid, (p.1 / grid).round() * grid);
+      }
       positions.update(|m| {
-        m.insert(d.id.clone(), (c.0 - d.offset.0, c.1 - d.offset.1));
+        m.insert(d.id.clone(), p);
       });
     }
     if pending.get_untracked().is_some() {
@@ -441,11 +540,11 @@ pub fn GraphCanvas(
     pending.set(None);
   };
 
-  let mut container_style = format!("height:{}px;touch-action:none;", options.height);
-  if options.show_grid {
-    container_style.push_str(
-      "background-color:var(--background);background-image:radial-gradient(circle, var(--border) 1px, transparent 1px);background-size:16px 16px;",
-    );
+  let mut container_style = format!("height:{height}px;touch-action:none;");
+  if show_grid {
+    container_style.push_str(&format!(
+      "background-color:var(--background);background-image:radial-gradient(circle, var(--border) 1px, transparent 1px);background-size:{grid}px {grid}px;",
+    ));
   }
 
   view! {
@@ -521,17 +620,48 @@ pub fn GraphNode(
   let pos_id = id.clone();
   let transform = move || {
     let (px, py) = ctx.positions.with(|m| m.get(&pos_id).copied()).unwrap_or((x, y));
-    format!("transform:translate({px}px,{py}px);width:{width}px;")
+    // The last-interacted node is raised above the others.
+    let z = if ctx.active.with(|a| a.as_deref() == Some(pos_id.as_str())) {
+      30
+    } else {
+      1
+    };
+    format!("transform:translate({px}px,{py}px);width:{width}px;z-index:{z};")
   };
+
+  // Optional delete button, revealed on node hover.
+  let delete = ctx.deletable.then(|| {
+    let id = id.clone();
+    let on_delete = move |ev: web_sys::MouseEvent| {
+      ev.stop_propagation();
+      remove_node(&ctx, &id);
+    };
+    view! {
+      <button
+        type="button"
+        aria-label="Remove node"
+        class="absolute -right-2 -top-2 z-10 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-xs leading-none text-muted-foreground opacity-0 shadow-sm transition hover:text-destructive group-hover:opacity-100"
+        on:pointerdown=|ev| ev.stop_propagation()
+        on:click=on_delete
+      >
+        "×"
+      </button>
+    }
+  });
 
   view! {
     <div
       node_ref=container
       class=cn(
-        &["absolute left-0 top-0 rounded-lg text-card-foreground shadow-sm select-none", variant.class(), class.as_str()],
+        &[
+          "group absolute left-0 top-0 rounded-lg text-card-foreground shadow-sm select-none",
+          variant.class(),
+          class.as_str(),
+        ],
       )
       style=transform
     >
+      {delete}
       {children()}
     </div>
   }
@@ -550,6 +680,7 @@ pub fn GraphNodeHeader(#[prop(optional, into)] class: String, children: Children
       .positions
       .with_untracked(|m| m.get(&node.id).copied())
       .unwrap_or((0.0, 0.0));
+    ctx.active.set(Some(node.id.clone()));
     ctx.drag.set(Some(NodeDrag {
       id: node.id.clone(),
       offset: (cursor.0 - pos.0, cursor.1 - pos.1),
@@ -612,9 +743,11 @@ pub fn GraphPort(
   }
 
   let start_key = key.clone();
+  let node_id = node.id.clone();
   let on_down = move |ev: web_sys::PointerEvent| {
     ev.stop_propagation();
     let cursor = pointer_pos(&ctx.canvas, &ev);
+    ctx.active.set(Some(node_id.clone()));
     ctx.pending.set(Some(Pending {
       from: start_key.clone(),
       cursor,
