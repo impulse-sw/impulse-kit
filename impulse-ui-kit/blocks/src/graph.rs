@@ -19,7 +19,7 @@
 //! let _ = PortSide::Right.opposite();
 //! ```
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use impulse_ui_kit::utils::cn;
 use leptos::prelude::*;
@@ -180,12 +180,17 @@ struct GraphContext {
   view: RwSignal<Viewport>,
   /// Id of the node raised to the front (last interacted).
   active: RwSignal<Option<String>>,
+  /// Ids of nodes removed by the user (statically-declared nodes are hidden).
+  removed: RwSignal<HashSet<String>>,
   /// Whether delete affordances are shown.
   deletable: bool,
 }
 
 /// Remove a node and everything referencing it.
 fn remove_node(ctx: &GraphContext, id: &str) {
+  ctx.removed.update(|s| {
+    s.insert(id.to_string());
+  });
   ctx.positions.update(|m| {
     m.remove(id);
   });
@@ -203,6 +208,8 @@ fn remove_node(ctx: &GraphContext, id: &str) {
 struct NodeLocalContext {
   id: String,
   container: NodeRef<leptos::html::Div>,
+  /// Initial position, used as a drag fallback if the map has no entry.
+  init: (f64, f64),
 }
 
 /// Layout and behavior options for a [`GraphCanvas`].
@@ -422,6 +429,7 @@ pub fn GraphCanvas(
   let drag = RwSignal::new(None::<NodeDrag>);
   let pending = RwSignal::new(None::<Pending>);
   let active = RwSignal::new(None::<String>);
+  let removed = RwSignal::new(HashSet::<String>::new());
   let view = RwSignal::new(Viewport::default());
   let hovered_edge = RwSignal::new(None::<usize>);
   // Background-drag pan: (start screen point, start translate).
@@ -445,6 +453,7 @@ pub fn GraphCanvas(
     pending,
     view,
     active,
+    removed,
     deletable,
   };
   provide_context(ctx);
@@ -728,10 +737,15 @@ pub fn GraphNode(
   provide_context(NodeLocalContext {
     id: id.clone(),
     container,
+    init: (x, y),
   });
 
   let pos_id = id.clone();
   let transform = move || {
+    // A node removed by the user is hidden in place (its data is already gone).
+    if ctx.removed.with(|s| s.contains(&pos_id)) {
+      return "display:none;".to_string();
+    }
     let (px, py) = ctx.positions.with(|m| m.get(&pos_id).copied()).unwrap_or((x, y));
     // The last-interacted node is raised above the others.
     let z = if ctx.active.with(|a| a.as_deref() == Some(pos_id.as_str())) {
@@ -792,7 +806,7 @@ pub fn GraphNodeHeader(#[prop(optional, into)] class: String, children: Children
     let pos = ctx
       .positions
       .with_untracked(|m| m.get(&node.id).copied())
-      .unwrap_or((0.0, 0.0));
+      .unwrap_or(node.init);
     ctx.active.set(Some(node.id.clone()));
     ctx.drag.set(Some(NodeDrag {
       id: node.id.clone(),
