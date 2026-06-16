@@ -103,6 +103,10 @@ variables:
     value:
       type: plain
       value: impulse-ui-kit
+  package-ui-kit-blocks:
+    value:
+      type: plain
+      value: impulse-ui-kit-blocks
   package-ui-kit-components:
     value:
       type: plain
@@ -493,6 +497,13 @@ pipelines:
           "{flags}": empty
           "{package}": package-ui-kit-components
           "{target}": target-wasm
+      - title: Lint `impulse-ui-kit-blocks`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ui-kit-blocks
+          "{target}": target-wasm
       - title: Lint `showcase`
         used: cargo-lint@0.2.0
         with:
@@ -610,6 +621,13 @@ pipelines:
           "{features}": empty
           "{flags}": empty
           "{package}": package-ui-kit-components
+          "{target}": target-wasm
+      - title: Lint `impulse-ui-kit-blocks`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-ui-kit-blocks
           "{target}": target-wasm
       - title: Lint `showcase`
         used: cargo-lint@0.2.0

@@ -1,0 +1,41 @@
+[package]
+name = "impulse-ui-kit-blocks"
+description = "Higher-level UI blocks (markdown, charts, graphs, …) composed from UI Kit components"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+build = "build.rs"
+# Lets `build.rs` publish this crate's sources — plus the forwarded
+# `impulse-ui-kit-components` ones — to dependents via
+# `DEP_IMPULSE_UI_KIT_BLOCKS_{STYLES,SOURCE_DIR}` so Tailwind can scan them.
+links = "impulse-ui-kit-blocks"
+
+[build-dependencies]
+impulse-tailwind-sources = { workspace = true }
+
+[features]
+default = ["csr"]
+csr = [
+  "impulse-ui-kit/csr",
+  "impulse-ui-kit-components/csr",
+  "leptos/csr",
+]
+hydrate = [
+  "impulse-ui-kit/hydrate",
+  "impulse-ui-kit-components/hydrate",
+  "leptos/hydrate",
+]
+ssr = [
+  "impulse-ui-kit/ssr",
+  "impulse-ui-kit-components/ssr",
+  "leptos/ssr",
+]
+
+[dependencies]
+gloo-net = { version = "0.6", default-features = false, features = ["http"] }
+impulse-ui-kit = { workspace = true }
+impulse-ui-kit-components = { workspace = true }
+leptos = { version = "0.8", default-features = false }
+log = { workspace = true }
+pulldown-cmark = { version = "0.13", default-features = false }
