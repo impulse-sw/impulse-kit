@@ -20,6 +20,7 @@
 //! ```
 
 use std::collections::{HashMap, HashSet};
+use std::f64::consts::PI;
 
 use impulse_ui_kit::utils::cn;
 use leptos::prelude::*;
@@ -120,11 +121,45 @@ impl GraphEdge {
   }
 }
 
-/// Measured position of a port, relative to its node's top-left corner.
-#[derive(Clone, Copy)]
+/// Whether a [`GraphPort`] accepts incoming connections or starts outgoing ones.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PortKind {
+  /// An input — the target of a connection.
+  Input,
+  /// An output — the source of a connection.
+  Output,
+}
+
+impl PortKind {
+  /// Default kind inferred from the side: left/top are inputs, right/bottom outputs.
+  fn from_side(side: PortSide) -> Self {
+    match side {
+      PortSide::Left | PortSide::Top => PortKind::Input,
+      PortSide::Right | PortSide::Bottom => PortKind::Output,
+    }
+  }
+}
+
+/// Measured position of a port, relative to its node's top-left corner, plus its
+/// connection direction and optional data type.
+#[derive(Clone)]
 struct PortInfo {
   side: PortSide,
+  kind: PortKind,
+  data_type: Option<String>,
   rel: (f64, f64),
+}
+
+/// Whether two ports may be connected: opposite directions and matching types
+/// (a port without a `data_type` acts as a wildcard).
+fn ports_compatible(a: &PortInfo, b: &PortInfo) -> bool {
+  if a.kind == b.kind {
+    return false;
+  }
+  match (&a.data_type, &b.data_type) {
+    (Some(x), Some(y)) => x == y,
+    _ => true,
+  }
 }
 
 /// In-progress node drag: which node, and the cursor-to-origin offset.
@@ -212,6 +247,15 @@ struct NodeLocalContext {
   init: (f64, f64),
 }
 
+/// An automatic node-placement algorithm for a [`GraphCanvas`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GraphLayout {
+  /// Force-directed (Fruchterman-Reingold): good for general graphs.
+  ForceDirected,
+  /// Layered left-to-right placement by edge depth: good for DAGs / pipelines.
+  Hierarchical,
+}
+
 /// Layout and behavior options for a [`GraphCanvas`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct GraphCanvasOptions {
@@ -233,6 +277,8 @@ pub struct GraphCanvasOptions {
   pub min_scale: f64,
   /// Maximum zoom scale.
   pub max_scale: f64,
+  /// Run this layout once after the nodes mount (overrides their initial `x`/`y`).
+  pub layout: Option<GraphLayout>,
 }
 
 impl Default for GraphCanvasOptions {
@@ -247,6 +293,7 @@ impl Default for GraphCanvasOptions {
       zoomable: true,
       min_scale: 0.25,
       max_scale: 2.5,
+      layout: None,
     }
   }
 }
@@ -404,6 +451,119 @@ fn port_abs(
   Some(((pos.0 + info.rel.0, pos.1 + info.rel.1), info.side))
 }
 
+/// Compute node positions for `kind`, given node sizes and edge index pairs.
+fn compute_layout(
+  kind: GraphLayout,
+  edges: &[(usize, usize)],
+  sizes: &[(f64, f64)],
+  width: f64,
+  height: f64,
+) -> Vec<(f64, f64)> {
+  match kind {
+    GraphLayout::ForceDirected => force_layout(edges, sizes, width, height),
+    GraphLayout::Hierarchical => hier_layout(edges, sizes, 72.0, 28.0),
+  }
+}
+
+/// Fruchterman-Reingold force-directed layout. Returns top-left positions.
+fn force_layout(edges: &[(usize, usize)], sizes: &[(f64, f64)], width: f64, height: f64) -> Vec<(f64, f64)> {
+  let n = sizes.len();
+  if n == 0 {
+    return Vec::new();
+  }
+  let (cx, cy) = (width / 2.0, height / 2.0);
+  let radius = (width.min(height) / 2.0 - 48.0).max(48.0);
+  let mut pos: Vec<(f64, f64)> = (0..n)
+    .map(|i| {
+      let a = 2.0 * PI * i as f64 / n as f64;
+      (cx + radius * a.cos(), cy + radius * a.sin())
+    })
+    .collect();
+
+  let k = (width * height / n as f64).sqrt();
+  let mut temp = width / 8.0;
+  for _ in 0..320 {
+    let mut disp = vec![(0.0, 0.0); n];
+    for i in 0..n {
+      for j in 0..n {
+        if i == j {
+          continue;
+        }
+        let (dx, dy) = (pos[i].0 - pos[j].0, pos[i].1 - pos[j].1);
+        let dist = (dx * dx + dy * dy).sqrt().max(0.01);
+        let rep = k * k / dist;
+        disp[i].0 += dx / dist * rep;
+        disp[i].1 += dy / dist * rep;
+      }
+    }
+    for &(a, b) in edges {
+      let (dx, dy) = (pos[a].0 - pos[b].0, pos[a].1 - pos[b].1);
+      let dist = (dx * dx + dy * dy).sqrt().max(0.01);
+      let att = dist * dist / k;
+      let (fx, fy) = (dx / dist * att, dy / dist * att);
+      disp[a].0 -= fx;
+      disp[a].1 -= fy;
+      disp[b].0 += fx;
+      disp[b].1 += fy;
+    }
+    for i in 0..n {
+      let dl = (disp[i].0 * disp[i].0 + disp[i].1 * disp[i].1).sqrt().max(0.01);
+      pos[i].0 = (pos[i].0 + disp[i].0 / dl * dl.min(temp)).clamp(48.0, width - 48.0);
+      pos[i].1 = (pos[i].1 + disp[i].1 / dl * dl.min(temp)).clamp(48.0, height - 48.0);
+    }
+    temp *= 0.95;
+  }
+
+  pos
+    .iter()
+    .enumerate()
+    .map(|(i, c)| (c.0 - sizes[i].0 / 2.0, c.1 - sizes[i].1 / 2.0))
+    .collect()
+}
+
+/// Layered left-to-right layout by longest-path depth. Returns top-left positions.
+fn hier_layout(edges: &[(usize, usize)], sizes: &[(f64, f64)], x_gap: f64, y_gap: f64) -> Vec<(f64, f64)> {
+  let n = sizes.len();
+  if n == 0 {
+    return Vec::new();
+  }
+  // Longest-path layering, relaxed up to n times (cycles are capped).
+  let mut layer = vec![0usize; n];
+  for _ in 0..n {
+    let mut changed = false;
+    for &(a, b) in edges {
+      if layer[b] < layer[a] + 1 {
+        layer[b] = layer[a] + 1;
+        changed = true;
+      }
+    }
+    if !changed {
+      break;
+    }
+  }
+
+  let max_layer = layer.iter().copied().max().unwrap_or(0);
+  let mut col_w = vec![0.0f64; max_layer + 1];
+  for i in 0..n {
+    col_w[layer[i]] = col_w[layer[i]].max(sizes[i].0);
+  }
+  let mut col_x = vec![0.0f64; max_layer + 1];
+  let mut acc = 40.0;
+  for l in 0..=max_layer {
+    col_x[l] = acc;
+    acc += col_w[l] + x_gap;
+  }
+
+  let mut y_cursor = vec![40.0f64; max_layer + 1];
+  let mut pos = vec![(0.0, 0.0); n];
+  for i in 0..n {
+    let l = layer[i];
+    pos[i] = (col_x[l], y_cursor[l]);
+    y_cursor[l] += sizes[i].1 + y_gap;
+  }
+  pos
+}
+
 /// The node-graph canvas: a draggable, connectable surface for [`GraphNode`]s.
 ///
 /// * `positions` — optional controlled map of `node_id -> (x, y)`; the developer
@@ -442,6 +602,7 @@ pub fn GraphCanvas(
   let (min_scale, max_scale) = (options.min_scale, options.max_scale);
   let height = options.height;
   let show_grid = options.show_grid;
+  let layout = options.layout;
 
   let ctx = GraphContext {
     canvas,
@@ -457,6 +618,47 @@ pub fn GraphCanvas(
     deletable,
   };
   provide_context(ctx);
+
+  // Apply an automatic layout once, on the frame after the nodes have mounted
+  // and seeded their positions.
+  if let Some(kind) = layout {
+    let applied = StoredValue::new(false);
+    Effect::new(move |_| {
+      let has_any = positions.with(|m| !m.is_empty());
+      if !has_any || applied.get_value() {
+        return;
+      }
+      applied.set_value(true);
+      request_animation_frame(move || {
+        let ids: Vec<String> = positions.get_untracked().keys().cloned().collect();
+        if ids.is_empty() {
+          return;
+        }
+        let sizes_map = sizes.get_untracked();
+        let sizes_vec: Vec<(f64, f64)> = ids
+          .iter()
+          .map(|id| sizes_map.get(id).copied().unwrap_or((192.0, 96.0)))
+          .collect();
+        let index: HashMap<&String, usize> = ids.iter().enumerate().map(|(i, id)| (id, i)).collect();
+        let pairs: Vec<(usize, usize)> = edges
+          .get_untracked()
+          .iter()
+          .filter_map(|e| Some((*index.get(&e.from.0)?, *index.get(&e.to.0)?)))
+          .collect();
+        let w = canvas
+          .get_untracked()
+          .map(|el| el.get_bounding_client_rect().width())
+          .filter(|w| *w > 1.0)
+          .unwrap_or(800.0);
+        let placed = compute_layout(kind, &pairs, &sizes_vec, w, height);
+        positions.update(|m| {
+          for (i, id) in ids.iter().enumerate() {
+            m.insert(id.clone(), placed[i]);
+          }
+        });
+      });
+    });
+  }
 
   // Edge paths follow node positions reactively and route around other nodes.
   let edge_paths = move || {
@@ -837,10 +1039,17 @@ pub fn GraphNodeBody(#[prop(optional, into)] class: String, children: Children) 
 
 /// A connector socket on a node. Drag from it to start a connection and drop on
 /// another port to wire them up. `label` is shown next to the socket.
+///
+/// Connections are validated: an output may only connect to an input, and if
+/// both ports declare a `data_type` the types must match (a port without a type
+/// is a wildcard). `kind` defaults to the side (left/top inputs, right/bottom
+/// outputs).
 #[component]
 pub fn GraphPort(
   #[prop(into)] id: String,
   side: PortSide,
+  #[prop(optional)] kind: Option<PortKind>,
+  #[prop(optional, into)] data_type: Option<String>,
   #[prop(optional, into)] label: String,
   #[prop(optional, into)] class: String,
 ) -> impl IntoView {
@@ -848,11 +1057,13 @@ pub fn GraphPort(
   let node = use_context::<NodeLocalContext>().expect("GraphPort must be used within a GraphNode");
   let dot = NodeRef::<leptos::html::Div>::new();
   let key = (node.id.clone(), id.clone());
+  let kind = kind.unwrap_or_else(|| PortKind::from_side(side));
 
   // Measure the socket center relative to the node once both are mounted.
   {
     let key = key.clone();
     let container = node.container;
+    let data_type = data_type.clone();
     Effect::new(move |_| {
       let (Some(node_el), Some(dot_el)) = (container.get(), dot.get()) else {
         return;
@@ -866,7 +1077,15 @@ pub fn GraphPort(
         (dr.top() + dr.height() / 2.0 - nr.top()) / scale,
       );
       ctx.ports.update(|m| {
-        m.insert(key.clone(), PortInfo { side, rel });
+        m.insert(
+          key.clone(),
+          PortInfo {
+            side,
+            kind,
+            data_type: data_type.clone(),
+            rel,
+          },
+        );
       });
     });
   }
@@ -887,16 +1106,27 @@ pub fn GraphPort(
     ev.stop_propagation();
     if let Some(p) = ctx.pending.get_untracked() {
       if p.from != finish_key {
-        let edge = GraphEdge {
-          from: p.from,
-          to: finish_key.clone(),
-          color: None,
-        };
-        ctx.edges.update(|e| {
-          if !e.iter().any(|x| x.from == edge.from && x.to == edge.to) {
-            e.push(edge);
-          }
-        });
+        // Validate direction + type and orient the edge output -> input.
+        let edge = ctx
+          .ports
+          .with_untracked(|m| match (m.get(&p.from), m.get(&finish_key)) {
+            (Some(src), Some(dst)) if ports_compatible(src, dst) => {
+              let (from, to) = if src.kind == PortKind::Output {
+                (p.from.clone(), finish_key.clone())
+              } else {
+                (finish_key.clone(), p.from.clone())
+              };
+              Some(GraphEdge { from, to, color: None })
+            }
+            _ => None,
+          });
+        if let Some(edge) = edge {
+          ctx.edges.update(|e| {
+            if !e.iter().any(|x| x.from == edge.from && x.to == edge.to) {
+              e.push(edge);
+            }
+          });
+        }
       }
       ctx.pending.set(None);
     }
@@ -913,16 +1143,45 @@ pub fn GraphPort(
     PortSide::Bottom => ("flex items-center gap-2", "translate-y-1/2"),
   };
 
+  // While a connection is being dragged, highlight compatible targets and dim
+  // incompatible ones.
+  let class_for_socket = class.clone();
+  let highlight_key = key.clone();
+  let highlight_type = data_type.clone();
+  let highlight = move || match ctx.pending.get() {
+    None => "",
+    Some(p) if p.from == highlight_key => "ring-2 ring-primary",
+    Some(p) => {
+      let me = PortInfo {
+        side,
+        kind,
+        data_type: highlight_type.clone(),
+        rel: (0.0, 0.0),
+      };
+      let ok = ctx
+        .ports
+        .with(|m| m.get(&p.from).map(|src| ports_compatible(src, &me)).unwrap_or(false));
+      if ok {
+        "ring-2 ring-primary ring-offset-1"
+      } else {
+        "opacity-40"
+      }
+    }
+  };
+
   let socket = view! {
     <div
       node_ref=dot
-      class=cn(
-        &[
-          "h-3 w-3 shrink-0 cursor-crosshair rounded-full border-2 border-border bg-background transition-colors hover:border-primary hover:bg-primary",
-          dot_translate,
-          class.as_str(),
-        ],
-      )
+      class=move || {
+        cn(
+          &[
+            "h-3 w-3 shrink-0 cursor-crosshair rounded-full border-2 border-border bg-background transition-all hover:border-primary hover:bg-primary",
+            dot_translate,
+            highlight(),
+            class_for_socket.as_str(),
+          ],
+        )
+      }
       on:pointerdown=on_down
       on:pointerup=on_up
     />

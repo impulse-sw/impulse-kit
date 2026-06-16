@@ -85,8 +85,8 @@ use impulse_ui_kit_blocks::charts::{
   PieChartData, PieChartOptions, PieSlice, Sparkline, SparklineKind, SparklineOptions,
 };
 use impulse_ui_kit_blocks::graph::{
-  GraphCanvas, GraphCanvasOptions, GraphEdge, GraphNode, GraphNodeBody, GraphNodeHeader, GraphPort, NodeVariant,
-  PortSide,
+  GraphCanvas, GraphCanvasOptions, GraphEdge, GraphLayout, GraphNode, GraphNodeBody, GraphNodeHeader, GraphPort,
+  NodeVariant, PortSide,
 };
 use impulse_ui_kit_blocks::markdown::{Markdown, MarkdownClasses, MarkdownSource};
 
@@ -1216,6 +1216,15 @@ fn BlocksSection() -> impl IntoView {
     GraphEdge::new("input", "out", "output", "in"),
   ]);
 
+  // A small DAG placed automatically by the hierarchical layout.
+  let layout_edges = RwSignal::new(vec![
+    GraphEdge::new("a", "out", "b", "in"),
+    GraphEdge::new("a", "out", "c", "in"),
+    GraphEdge::new("b", "out", "d", "in"),
+    GraphEdge::new("c", "out", "d", "in"),
+    GraphEdge::new("d", "out", "e", "in"),
+  ]);
+
   view! {
     <div class="space-y-8">
       <SectionHeader
@@ -1325,7 +1334,7 @@ fn BlocksSection() -> impl IntoView {
       // Interactive node graph.
       <ComponentCard
         title="Node graph"
-        description="Scroll to zoom, drag the background to pan. Drag node headers (snapping to the grid) to move them; the active node rises to the front. Drag between sockets to connect, click a wire to remove it, or use the × on a node to delete it. Edges route around nodes in the way."
+        description="Scroll to zoom, drag the background to pan. Drag node headers (snapping to the grid) to move them; the active node rises to the front. Drag between sockets to connect — ports are typed, so an output only links to a matching input (the text output won't accept the number inputs). Click a wire to remove it, or use the × on a node to delete it. Edges route around nodes in the way."
       >
         <GraphCanvas
           edges=graph_edges
@@ -1338,26 +1347,75 @@ fn BlocksSection() -> impl IntoView {
             <GraphNodeHeader>"Input"</GraphNodeHeader>
             <GraphNodeBody>
               <p class="text-muted-foreground">"A source node."</p>
-              <GraphPort id="out" side=PortSide::Right label="Value" />
+              <GraphPort id="out" side=PortSide::Right data_type="number" label="Value" />
+              <GraphPort id="label" side=PortSide::Right data_type="text" label="Label" />
             </GraphNodeBody>
           </GraphNode>
 
           <GraphNode id="process" x=320.0 y=150.0 variant=NodeVariant::Accent width=220.0>
             <GraphNodeHeader>"Process"</GraphNodeHeader>
             <GraphNodeBody>
-              <GraphPort id="in" side=PortSide::Left label="In" />
+              <GraphPort id="in" side=PortSide::Left data_type="number" label="In" />
               <Button size=ButtonSize::Sm variant=ButtonVariant::Outline class="w-full">
                 "Run"
               </Button>
-              <GraphPort id="out" side=PortSide::Right label="Result" />
+              <GraphPort id="out" side=PortSide::Right data_type="number" label="Result" />
             </GraphNodeBody>
           </GraphNode>
 
           <GraphNode id="output" x=640.0 y=150.0 variant=NodeVariant::Dashed>
             <GraphNodeHeader>"Output"</GraphNodeHeader>
             <GraphNodeBody>
-              <GraphPort id="in" side=PortSide::Left label="Sink" />
+              <GraphPort id="in" side=PortSide::Left data_type="number" label="Sink" />
               <p class="text-muted-foreground">"A dashed-variant node."</p>
+            </GraphNodeBody>
+          </GraphNode>
+        </GraphCanvas>
+      </ComponentCard>
+
+      // Auto-laid-out node graph.
+      <ComponentCard
+        title="Node graph — auto layout"
+        description="The same canvas with GraphCanvasOptions.layout = Some(Hierarchical): node positions are computed once from the edges (left-to-right by depth). ForceDirected is also available."
+      >
+        <GraphCanvas
+          edges=layout_edges
+          options=GraphCanvasOptions {
+            layout: Some(GraphLayout::Hierarchical),
+            ..Default::default()
+          }
+        >
+          <GraphNode id="a" variant=NodeVariant::Solid>
+            <GraphNodeHeader>"Source"</GraphNodeHeader>
+            <GraphNodeBody>
+              <GraphPort id="out" side=PortSide::Right label="Out" />
+            </GraphNodeBody>
+          </GraphNode>
+          <GraphNode id="b" variant=NodeVariant::Outline>
+            <GraphNodeHeader>"Filter"</GraphNodeHeader>
+            <GraphNodeBody>
+              <GraphPort id="in" side=PortSide::Left label="In" />
+              <GraphPort id="out" side=PortSide::Right label="Out" />
+            </GraphNodeBody>
+          </GraphNode>
+          <GraphNode id="c" variant=NodeVariant::Outline>
+            <GraphNodeHeader>"Map"</GraphNodeHeader>
+            <GraphNodeBody>
+              <GraphPort id="in" side=PortSide::Left label="In" />
+              <GraphPort id="out" side=PortSide::Right label="Out" />
+            </GraphNodeBody>
+          </GraphNode>
+          <GraphNode id="d" variant=NodeVariant::Accent>
+            <GraphNodeHeader>"Merge"</GraphNodeHeader>
+            <GraphNodeBody>
+              <GraphPort id="in" side=PortSide::Left label="In" />
+              <GraphPort id="out" side=PortSide::Right label="Out" />
+            </GraphNodeBody>
+          </GraphNode>
+          <GraphNode id="e" variant=NodeVariant::Dashed>
+            <GraphNodeHeader>"Sink"</GraphNodeHeader>
+            <GraphNodeBody>
+              <GraphPort id="in" side=PortSide::Left label="In" />
             </GraphNodeBody>
           </GraphNode>
         </GraphCanvas>
