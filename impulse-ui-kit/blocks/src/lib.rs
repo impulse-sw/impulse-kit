@@ -12,4 +12,5 @@
 //! Blocks are wired into Tailwind through the same `build.rs` mechanism as the
 //! components crate (see the workspace `README.md` and `impulse-tailwind-sources`).
 
+pub mod charts;
 pub mod markdown;

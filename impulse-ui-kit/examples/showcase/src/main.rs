@@ -80,6 +80,7 @@ use components::toggle_group::*;
 use crate::components::theme::{ThemeProvider, ThemeToggle};
 
 // Blocks
+use impulse_ui_kit_blocks::charts::{BarChart, BarChartData, BarChartOptions, BarSeries};
 use impulse_ui_kit_blocks::markdown::{Markdown, MarkdownClasses, MarkdownSource};
 
 fn main() {
@@ -1141,12 +1142,56 @@ fn BlocksSection() -> impl IntoView {
     ..Default::default()
   };
 
+  // Single-series column chart with value labels.
+  let revenue = BarChartData {
+    categories: vec![
+      "Jan".into(),
+      "Feb".into(),
+      "Mar".into(),
+      "Apr".into(),
+      "May".into(),
+      "Jun".into(),
+    ],
+    series: vec![BarSeries::new("Revenue, k$", vec![18.0, 24.0, 21.0, 33.0, 29.0, 41.0])],
+  };
+
+  // Grouped, multi-series column chart.
+  let quarters = BarChartData {
+    categories: vec!["Q1".into(), "Q2".into(), "Q3".into(), "Q4".into()],
+    series: vec![
+      BarSeries::new("2024", vec![12.0, 19.0, 7.0, 15.0]),
+      BarSeries::new("2025", vec![16.0, 11.0, 21.0, 9.0]),
+    ],
+  };
+
   view! {
     <div class="space-y-8">
       <SectionHeader
         title="Blocks"
         description="Higher-level widgets composed of UI Kit components"
       />
+
+      // Single-series column chart.
+      <ComponentCard
+        title="Bar chart"
+        description="SVG column chart with axes, grid, value labels and a hover tooltip"
+      >
+        <BarChart
+          data=revenue
+          options=BarChartOptions {
+            show_values: true,
+            ..Default::default()
+          }
+        />
+      </ComponentCard>
+
+      // Grouped multi-series column chart.
+      <ComponentCard
+        title="Grouped bar chart"
+        description="Multiple series are drawn as grouped columns, colored from the theme --chart-* palette"
+      >
+        <BarChart data=quarters />
+      </ComponentCard>
 
       // Live Markdown editor.
       <ComponentCard

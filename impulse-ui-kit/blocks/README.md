@@ -50,6 +50,49 @@ explanation of the pattern.
 
 ## Blocks
 
+### `<BarChart>`
+
+A grouped column (bar) chart rendered as plain **SVG**. Every primitive (column,
+axis tick, gridline) is a real DOM node, so the chart is tiny in the bundle,
+theme-aware through the `--chart-*` / `--color-*` CSS variables, and gets
+hit-testing and pointer events for free — the foundation for the interactive
+graphs planned on top of this module.
+
+It comes with axes, a grid, an optional value label per column, a legend and a
+hover tooltip. Multiple series are drawn as grouped columns and colored from the
+theme `--chart-1..5` palette (or an explicit per-series color).
+
+**Props:**
+
+- `data`: `BarChartData` — `categories` plus one or more `BarSeries`.
+- `options`: `BarChartOptions` — sizes, margins, ticks, and toggles for grid,
+  value labels, tooltip and legend.
+- `classes`: `BarChartClasses` — per-element Tailwind overrides (axis labels via
+  `fill-*`, gridlines via `stroke-*`, tooltip, …).
+- `class`: `String` — additional classes for the wrapping container.
+
+**Example:**
+
+```rust
+use impulse_ui_kit_blocks::charts::{BarChart, BarChartData, BarChartOptions, BarSeries};
+use leptos::prelude::*;
+
+let data = BarChartData {
+  categories: vec!["Q1".into(), "Q2".into(), "Q3".into(), "Q4".into()],
+  series: vec![
+    BarSeries::new("2024", vec![12.0, 19.0, 7.0, 15.0]),
+    BarSeries::new("2025", vec![16.0, 11.0, 21.0, 9.0]).with_color("var(--chart-3)"),
+  ],
+};
+
+view! {
+  <BarChart
+    data=data
+    options=BarChartOptions { show_values: true, ..Default::default() }
+  />
+}
+```
+
 ### `<Markdown>`
 
 Render a Markdown document — given either inline text or a URL to fetch an

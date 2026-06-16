@@ -39,3 +39,11 @@ impulse-ui-kit-components = { workspace = true }
 leptos = { version = "0.8", default-features = false }
 log = { workspace = true }
 pulldown-cmark = { version = "0.13", default-features = false }
+web-sys = { workspace = true, features = [
+  "DomRect",
+  "Element",
+  "HtmlElement",
+  "HtmlDivElement",
+  "MouseEvent",
+  "PointerEvent",
+] }

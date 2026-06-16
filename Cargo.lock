@@ -2537,6 +2537,7 @@ dependencies = [
  "leptos",
  "log",
  "pulldown-cmark",
+ "web-sys",
 ]
 
 [[package]]
