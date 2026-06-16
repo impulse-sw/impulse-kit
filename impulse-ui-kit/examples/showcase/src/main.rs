@@ -80,7 +80,10 @@ use components::toggle_group::*;
 use crate::components::theme::{ThemeProvider, ThemeToggle};
 
 // Blocks
-use impulse_ui_kit_blocks::charts::{BarChart, BarChartData, BarChartOptions, BarSeries};
+use impulse_ui_kit_blocks::charts::{
+  BarChart, BarChartData, BarChartOptions, BarSeries, LineChart, LineChartData, LineChartOptions, LineSeries, PieChart,
+  PieChartData, PieChartOptions, PieSlice, Sparkline, SparklineKind, SparklineOptions,
+};
 use impulse_ui_kit_blocks::markdown::{Markdown, MarkdownClasses, MarkdownSource};
 
 fn main() {
@@ -1164,6 +1167,43 @@ fn BlocksSection() -> impl IntoView {
     ],
   };
 
+  // Stacked column chart.
+  let traffic = BarChartData {
+    categories: vec!["Mon".into(), "Tue".into(), "Wed".into(), "Thu".into(), "Fri".into()],
+    series: vec![
+      BarSeries::new("Organic", vec![8.0, 10.0, 7.0, 12.0, 9.0]),
+      BarSeries::new("Direct", vec![5.0, 4.0, 6.0, 5.0, 7.0]),
+      BarSeries::new("Referral", vec![3.0, 2.0, 4.0, 3.0, 5.0]),
+    ],
+  };
+
+  // Line / area chart.
+  let visitors = LineChartData {
+    categories: vec![
+      "Mon".into(),
+      "Tue".into(),
+      "Wed".into(),
+      "Thu".into(),
+      "Fri".into(),
+      "Sat".into(),
+      "Sun".into(),
+    ],
+    series: vec![
+      LineSeries::new("This week", vec![120.0, 180.0, 150.0, 210.0, 260.0, 230.0, 300.0]),
+      LineSeries::new("Last week", vec![100.0, 140.0, 130.0, 160.0, 190.0, 220.0, 250.0]),
+    ],
+  };
+
+  // Pie / donut chart.
+  let browsers = PieChartData {
+    slices: vec![
+      PieSlice::new("Chrome", 64.0),
+      PieSlice::new("Safari", 19.0),
+      PieSlice::new("Firefox", 9.0),
+      PieSlice::new("Other", 8.0),
+    ],
+  };
+
   view! {
     <div class="space-y-8">
       <SectionHeader
@@ -1191,6 +1231,83 @@ fn BlocksSection() -> impl IntoView {
         description="Multiple series are drawn as grouped columns, colored from the theme --chart-* palette"
       >
         <BarChart data=quarters />
+      </ComponentCard>
+
+      // Stacked column chart.
+      <ComponentCard
+        title="Stacked bar chart"
+        description="The same BarChart with options.stacked — series accumulate per category"
+      >
+        <BarChart
+          data=traffic
+          options=BarChartOptions {
+            stacked: true,
+            ..Default::default()
+          }
+        />
+      </ComponentCard>
+
+      // Line / area chart.
+      <ComponentCard
+        title="Line / area chart"
+        description="Smoothed, area-filled lines with per-category hover guide and tooltip"
+      >
+        <LineChart
+          data=visitors
+          options=LineChartOptions {
+            area: true,
+            smooth: true,
+            ..Default::default()
+          }
+        />
+      </ComponentCard>
+
+      // Pie / donut chart.
+      <ComponentCard
+        title="Pie / donut chart"
+        description="Category shares as arcs; donut mode keeps a KPI in the center"
+      >
+        <div class="grid items-center gap-4 sm:grid-cols-2">
+          <PieChart data=browsers.clone() />
+          <PieChart
+            data=browsers
+            options=PieChartOptions {
+              donut: true,
+              ..Default::default()
+            }
+          >
+            <div>
+              <div class="text-2xl font-bold text-foreground">"100%"</div>
+              <div class="text-xs text-muted-foreground">"Share"</div>
+            </div>
+          </PieChart>
+        </div>
+      </ComponentCard>
+
+      // Sparklines.
+      <ComponentCard
+        title="Sparkline"
+        description="Compact, axis-less trends for tables and cards — line, area or bars"
+      >
+        <div class="flex flex-wrap items-center gap-6">
+          <Sparkline data=vec![3.0, 5.0, 2.0, 8.0, 6.0, 9.0, 7.0, 11.0] />
+          <Sparkline
+            data=vec![3.0, 5.0, 2.0, 8.0, 6.0, 9.0, 7.0, 11.0]
+            options=SparklineOptions {
+              area: true,
+              color: Some("var(--chart-2)".into()),
+              ..Default::default()
+            }
+          />
+          <Sparkline
+            data=vec![4.0, 6.0, 3.0, 7.0, 5.0, 8.0, 6.0]
+            options=SparklineOptions {
+              kind: SparklineKind::Bar,
+              color: Some("var(--chart-4)".into()),
+              ..Default::default()
+            }
+          />
+        </div>
       </ComponentCard>
 
       // Live Markdown editor.

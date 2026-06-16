@@ -50,17 +50,18 @@ explanation of the pattern.
 
 ## Blocks
 
+All charts are rendered as plain **SVG** through Leptos `view!`. Every primitive
+(column, line point, pie slice, axis tick, gridline) is a real DOM node, so the
+charts are tiny in the bundle, theme-aware through the `--chart-*` / `--color-*`
+CSS variables, and get hit-testing and pointer events for free — the foundation
+for the interactive graphs planned on top of this module. Series default to the
+theme `--chart-1..5` palette, or an explicit per-series color.
+
 ### `<BarChart>`
 
-A grouped column (bar) chart rendered as plain **SVG**. Every primitive (column,
-axis tick, gridline) is a real DOM node, so the chart is tiny in the bundle,
-theme-aware through the `--chart-*` / `--color-*` CSS variables, and gets
-hit-testing and pointer events for free — the foundation for the interactive
-graphs planned on top of this module.
-
-It comes with axes, a grid, an optional value label per column, a legend and a
-hover tooltip. Multiple series are drawn as grouped columns and colored from the
-theme `--chart-1..5` palette (or an explicit per-series color).
+A grouped or stacked column (bar) chart with axes, a grid, an optional value
+label per column, a legend and a hover tooltip. Set `BarChartOptions.stacked` to
+accumulate series per category instead of drawing them side by side.
 
 **Props:**
 
@@ -89,6 +90,73 @@ view! {
   <BarChart
     data=data
     options=BarChartOptions { show_values: true, ..Default::default() }
+  />
+}
+```
+
+### `<LineChart>`
+
+A line / area chart over categorical data. `LineChartOptions` toggles area fill
+(`area`), stacking (`stacked`), Catmull-Rom smoothing (`smooth`) and point
+markers (`show_markers`). Hovering snaps to the nearest category, drawing a guide
+line and a tooltip listing every series at that x.
+
+```rust
+use impulse_ui_kit_blocks::charts::{LineChart, LineChartData, LineChartOptions, LineSeries};
+use leptos::prelude::*;
+
+let data = LineChartData {
+  categories: vec!["Mon".into(), "Tue".into(), "Wed".into(), "Thu".into(), "Fri".into()],
+  series: vec![LineSeries::new("Visitors", vec![120.0, 180.0, 150.0, 210.0, 260.0])],
+};
+
+view! {
+  <LineChart
+    data=data
+    options=LineChartOptions { area: true, smooth: true, ..Default::default() }
+  />
+}
+```
+
+### `<PieChart>`
+
+A pie or donut chart of category shares, with arc segments, a legend, percentage
+labels and a hover tooltip. Set `PieChartOptions.donut` for a hollow center, and
+pass `children` to render content (a KPI, the total, …) in the middle.
+
+```rust
+use impulse_ui_kit_blocks::charts::{PieChart, PieChartData, PieChartOptions, PieSlice};
+use leptos::prelude::*;
+
+let data = PieChartData {
+  slices: vec![
+    PieSlice::new("Chrome", 64.0),
+    PieSlice::new("Safari", 19.0),
+    PieSlice::new("Firefox", 9.0),
+    PieSlice::new("Other", 8.0),
+  ],
+};
+
+view! {
+  <PieChart data=data options=PieChartOptions { donut: true, ..Default::default() }>
+    <div class="text-2xl font-bold">"100%"</div>
+  </PieChart>
+}
+```
+
+### `<Sparkline>`
+
+A compact, axis-less line or bar trend for tables, cards and KPIs.
+
+```rust
+use impulse_ui_kit_blocks::charts::{Sparkline, SparklineKind, SparklineOptions};
+use leptos::prelude::*;
+
+view! {
+  <Sparkline data=vec![3.0, 5.0, 2.0, 8.0, 6.0, 9.0, 7.0] />
+  <Sparkline
+    data=vec![4.0, 6.0, 3.0, 7.0, 5.0, 8.0]
+    options=SparklineOptions { kind: SparklineKind::Bar, ..Default::default() }
   />
 }
 ```
