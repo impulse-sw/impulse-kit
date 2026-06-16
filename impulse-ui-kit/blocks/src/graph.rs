@@ -141,6 +141,31 @@ struct Pending {
   cursor: (f64, f64),
 }
 
+/// The canvas viewport: a pan offset (screen px) and a zoom scale.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Viewport {
+  tx: f64,
+  ty: f64,
+  scale: f64,
+}
+
+impl Default for Viewport {
+  fn default() -> Self {
+    Self {
+      tx: 0.0,
+      ty: 0.0,
+      scale: 1.0,
+    }
+  }
+}
+
+impl Viewport {
+  /// Convert a canvas-relative screen point to world coordinates.
+  fn to_world(self, screen: (f64, f64)) -> (f64, f64) {
+    ((screen.0 - self.tx) / self.scale, (screen.1 - self.ty) / self.scale)
+  }
+}
+
 /// Canvas-wide reactive state shared with every node and port via context.
 #[derive(Clone, Copy)]
 struct GraphContext {
@@ -151,6 +176,8 @@ struct GraphContext {
   edges: RwSignal<Vec<GraphEdge>>,
   drag: RwSignal<Option<NodeDrag>>,
   pending: RwSignal<Option<Pending>>,
+  /// Pan/zoom viewport applied to the world layer.
+  view: RwSignal<Viewport>,
   /// Id of the node raised to the front (last interacted).
   active: RwSignal<Option<String>>,
   /// Whether delete affordances are shown.
@@ -191,6 +218,14 @@ pub struct GraphCanvasOptions {
   pub snap: bool,
   /// Allow removing edges (click a wire) and nodes (× button).
   pub deletable: bool,
+  /// Pan the canvas by dragging the empty background.
+  pub pannable: bool,
+  /// Zoom the canvas with the mouse wheel.
+  pub zoomable: bool,
+  /// Minimum zoom scale.
+  pub min_scale: f64,
+  /// Maximum zoom scale.
+  pub max_scale: f64,
 }
 
 impl Default for GraphCanvasOptions {
@@ -201,18 +236,27 @@ impl Default for GraphCanvasOptions {
       grid_size: 16.0,
       snap: false,
       deletable: true,
+      pannable: true,
+      zoomable: true,
+      min_scale: 0.25,
+      max_scale: 2.5,
     }
   }
 }
 
-/// Cursor position relative to the canvas element.
-fn pointer_pos(canvas: &NodeRef<leptos::html::Div>, ev: &web_sys::PointerEvent) -> (f64, f64) {
+/// Client coordinates mapped to the canvas element's top-left (screen px).
+fn client_to_canvas(canvas: &NodeRef<leptos::html::Div>, client_x: f64, client_y: f64) -> (f64, f64) {
   if let Some(el) = canvas.get_untracked() {
     let rect = el.get_bounding_client_rect();
-    (ev.client_x() as f64 - rect.left(), ev.client_y() as f64 - rect.top())
+    (client_x - rect.left(), client_y - rect.top())
   } else {
-    (ev.client_x() as f64, ev.client_y() as f64)
+    (client_x, client_y)
   }
+}
+
+/// Pointer position relative to the canvas element (screen px).
+fn pointer_pos(canvas: &NodeRef<leptos::html::Div>, ev: &web_sys::PointerEvent) -> (f64, f64) {
+  client_to_canvas(canvas, ev.client_x() as f64, ev.client_y() as f64)
 }
 
 /// An axis-aligned node rectangle, used as an edge-routing obstacle.
@@ -378,15 +422,18 @@ pub fn GraphCanvas(
   let drag = RwSignal::new(None::<NodeDrag>);
   let pending = RwSignal::new(None::<Pending>);
   let active = RwSignal::new(None::<String>);
+  let view = RwSignal::new(Viewport::default());
   let hovered_edge = RwSignal::new(None::<usize>);
+  // Background-drag pan: (start screen point, start translate).
+  let panning = RwSignal::new(None::<((f64, f64), (f64, f64))>);
 
-  let (grid, snap, deletable, height, show_grid) = (
-    options.grid_size,
-    options.snap,
-    options.deletable,
-    options.height,
-    options.show_grid,
-  );
+  let grid = options.grid_size;
+  let snap = options.snap;
+  let deletable = options.deletable;
+  let (pannable, zoomable) = (options.pannable, options.zoomable);
+  let (min_scale, max_scale) = (options.min_scale, options.max_scale);
+  let height = options.height;
+  let show_grid = options.show_grid;
 
   let ctx = GraphContext {
     canvas,
@@ -396,6 +443,7 @@ pub fn GraphCanvas(
     edges,
     drag,
     pending,
+    view,
     active,
     deletable,
   };
@@ -516,10 +564,23 @@ pub fn GraphCanvas(
     })
   };
 
+  // Pointer down on the empty background starts a pan (nodes/ports/header and
+  // edge hit paths stop propagation, so this only fires on blank canvas).
+  let on_down = move |ev: web_sys::PointerEvent| {
+    if pannable {
+      let screen = pointer_pos(&canvas, &ev);
+      let v = view.get_untracked();
+      panning.set(Some((screen, (v.tx, v.ty))));
+    }
+  };
+
   let on_move = move |ev: web_sys::PointerEvent| {
-    let c = pointer_pos(&canvas, &ev);
+    let screen = pointer_pos(&canvas, &ev);
+    let v = view.get_untracked();
+    let world = v.to_world(screen);
+
     if let Some(d) = drag.get_untracked() {
-      let mut p = (c.0 - d.offset.0, c.1 - d.offset.1);
+      let mut p = (world.0 - d.offset.0, world.1 - d.offset.1);
       if snap && grid > 0.0 {
         p = ((p.0 / grid).round() * grid, (p.1 / grid).round() * grid);
       }
@@ -530,37 +591,87 @@ pub fn GraphCanvas(
     if pending.get_untracked().is_some() {
       pending.update(|p| {
         if let Some(p) = p.as_mut() {
-          p.cursor = c;
+          p.cursor = world;
         }
+      });
+    }
+    if let Some((start, start_t)) = panning.get_untracked() {
+      view.update(|v| {
+        v.tx = start_t.0 + (screen.0 - start.0);
+        v.ty = start_t.1 + (screen.1 - start.1);
       });
     }
   };
   let on_up = move |_: web_sys::PointerEvent| {
     drag.set(None);
     pending.set(None);
+    panning.set(None);
   };
 
-  let mut container_style = format!("height:{height}px;touch-action:none;");
-  if show_grid {
-    container_style.push_str(&format!(
-      "background-color:var(--background);background-image:radial-gradient(circle, var(--border) 1px, transparent 1px);background-size:{grid}px {grid}px;",
-    ));
-  }
+  // Wheel zooms toward the cursor, keeping the world point under it fixed.
+  let on_wheel = move |ev: web_sys::WheelEvent| {
+    if !zoomable {
+      return;
+    }
+    ev.prevent_default();
+    let cursor = client_to_canvas(&canvas, ev.client_x() as f64, ev.client_y() as f64);
+    let v = view.get_untracked();
+    let factor = if ev.delta_y() < 0.0 { 1.1 } else { 1.0 / 1.1 };
+    let scale = (v.scale * factor).clamp(min_scale, max_scale);
+    let world = v.to_world(cursor);
+    view.set(Viewport {
+      tx: cursor.0 - world.0 * scale,
+      ty: cursor.1 - world.1 * scale,
+      scale,
+    });
+  };
+
+  // The dotted grid lives on the fixed container, but pans and zooms with the view.
+  let container_style = move || {
+    let mut s = format!("height:{height}px;touch-action:none;");
+    if show_grid {
+      let v = view.get();
+      let step = grid * v.scale;
+      s.push_str(&format!(
+        "background-color:var(--background);background-image:radial-gradient(circle, var(--border) 1px, transparent 1px);background-size:{step}px {step}px;background-position:{}px {}px;",
+        v.tx, v.ty
+      ));
+    }
+    s
+  };
+  // CSS transform mapping world coordinates to screen.
+  let world_style = move || {
+    let v = view.get();
+    format!(
+      "position:absolute;inset:0;transform-origin:0 0;transform:translate({}px,{}px) scale({});",
+      v.tx, v.ty, v.scale
+    )
+  };
+
+  let cursor = if pannable {
+    "cursor-grab active:cursor-grabbing"
+  } else {
+    ""
+  };
 
   view! {
     <div
       node_ref=canvas
-      class=cn(&["relative w-full overflow-hidden rounded-lg border border-border", class.as_str()])
+      class=cn(&["relative w-full overflow-hidden rounded-lg border border-border", cursor, class.as_str()])
       style=container_style
+      on:pointerdown=on_down
       on:pointermove=on_move
       on:pointerup=on_up
       on:pointerleave=on_up
+      on:wheel=on_wheel
     >
-      <svg class="pointer-events-none absolute inset-0 h-full w-full">
-        {edge_paths}
-        {pending_path}
-      </svg>
-      {children()}
+      <div style=world_style>
+        <svg class="pointer-events-none absolute inset-0 h-full w-full" style="overflow:visible">
+          {edge_paths}
+          {pending_path}
+        </svg>
+        {children()}
+      </div>
     </div>
   }
 }
@@ -597,7 +708,7 @@ pub fn GraphNode(
     });
   }
 
-  // Measure the rendered node box so edges can route around it.
+  // Measure the rendered node box (in world units) so edges can route around it.
   {
     let id = id.clone();
     Effect::new(move |_| {
@@ -605,7 +716,9 @@ pub fn GraphNode(
         return;
       };
       let rect = el.get_bounding_client_rect();
-      let size = (rect.width(), rect.height());
+      // getBoundingClientRect is post-transform, so undo the current zoom.
+      let scale = ctx.view.get_untracked().scale.max(f64::MIN_POSITIVE);
+      let size = (rect.width() / scale, rect.height() / scale);
       ctx.sizes.update(|m| {
         m.insert(id.clone(), size);
       });
@@ -675,7 +788,7 @@ pub fn GraphNodeHeader(#[prop(optional, into)] class: String, children: Children
 
   let on_down = move |ev: web_sys::PointerEvent| {
     ev.stop_propagation();
-    let cursor = pointer_pos(&ctx.canvas, &ev);
+    let world = ctx.view.get_untracked().to_world(pointer_pos(&ctx.canvas, &ev));
     let pos = ctx
       .positions
       .with_untracked(|m| m.get(&node.id).copied())
@@ -683,7 +796,7 @@ pub fn GraphNodeHeader(#[prop(optional, into)] class: String, children: Children
     ctx.active.set(Some(node.id.clone()));
     ctx.drag.set(Some(NodeDrag {
       id: node.id.clone(),
-      offset: (cursor.0 - pos.0, cursor.1 - pos.1),
+      offset: (world.0 - pos.0, world.1 - pos.1),
     }));
   };
 
@@ -732,9 +845,11 @@ pub fn GraphPort(
       };
       let nr = node_el.get_bounding_client_rect();
       let dr = dot_el.get_bounding_client_rect();
+      // Socket center offset within the node, converted to world units.
+      let scale = ctx.view.get_untracked().scale.max(f64::MIN_POSITIVE);
       let rel = (
-        dr.left() + dr.width() / 2.0 - nr.left(),
-        dr.top() + dr.height() / 2.0 - nr.top(),
+        (dr.left() + dr.width() / 2.0 - nr.left()) / scale,
+        (dr.top() + dr.height() / 2.0 - nr.top()) / scale,
       );
       ctx.ports.update(|m| {
         m.insert(key.clone(), PortInfo { side, rel });
@@ -746,11 +861,11 @@ pub fn GraphPort(
   let node_id = node.id.clone();
   let on_down = move |ev: web_sys::PointerEvent| {
     ev.stop_propagation();
-    let cursor = pointer_pos(&ctx.canvas, &ev);
+    let world = ctx.view.get_untracked().to_world(pointer_pos(&ctx.canvas, &ev));
     ctx.active.set(Some(node_id.clone()));
     ctx.pending.set(Some(Pending {
       from: start_key.clone(),
-      cursor,
+      cursor: world,
     }));
   };
   let finish_key = key.clone();

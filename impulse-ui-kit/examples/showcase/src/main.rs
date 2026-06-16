@@ -1325,7 +1325,7 @@ fn BlocksSection() -> impl IntoView {
       // Interactive node graph.
       <ComponentCard
         title="Node graph"
-        description="Drag node headers (snapping to the grid) to move them; the active node rises to the front. Drag between sockets to connect, click a wire to remove it, or use the × on a node to delete it. Edges route around nodes in the way."
+        description="Scroll to zoom, drag the background to pan. Drag node headers (snapping to the grid) to move them; the active node rises to the front. Drag between sockets to connect, click a wire to remove it, or use the × on a node to delete it. Edges route around nodes in the way."
       >
         <GraphCanvas
           edges=graph_edges

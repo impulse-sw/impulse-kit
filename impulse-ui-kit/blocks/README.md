@@ -205,13 +205,15 @@ view! {
 Sockets sit on the node's outer border, and edges automatically detour around any
 other node that would otherwise sit under the wire, so connections stay readable.
 
-`GraphCanvasOptions` controls the canvas: `snap` + `grid_size` snap dragged nodes
-to the grid, and `deletable` (on by default) shows delete affordances — click a
-wire to remove it, or use the × that appears on a node to delete it and its
-edges. The last node you interact with is raised above the others.
+`GraphCanvasOptions` controls the canvas: `pannable`/`zoomable` (on by default,
+with `min_scale`/`max_scale`) let users drag the background to pan and scroll to
+zoom toward the cursor; `snap` + `grid_size` snap dragged nodes to the grid; and
+`deletable` (on by default) shows delete affordances — click a wire to remove it,
+or use the × that appears on a node to delete it and its edges. The last node you
+interact with is raised above the others.
 
 > Drag a node by its `GraphNodeHeader`; the body stays interactive so buttons and
-> inputs work. Pan/zoom is intentionally left for a later iteration.
+> inputs work.
 
 ### `<Markdown>`
 
