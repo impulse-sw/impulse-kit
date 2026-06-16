@@ -8,15 +8,19 @@
 //! ```
 //! use impulse_ui_kit_blocks::markdown::{render_markdown, MarkdownClasses};
 //!
-//! let html = render_markdown("# Hello\n\nSome **bold** text.", &MarkdownClasses::default());
+//! let html = render_markdown("# Hello World\n\nSome **bold** text.", &MarkdownClasses::default());
 //! assert!(html.contains("<h1"));
-//! assert!(html.contains("Hello"));
+//! assert!(html.contains("Hello World"));
 //! assert!(html.contains("<strong"));
+//! // Headings get GitHub-style slug ids, so in-page `#anchor` links resolve.
+//! assert!(html.contains("id=\"hello-world\""));
 //! ```
 //!
 //! > **Security note:** like any Markdown renderer, the output is injected via
 //! > `inner_html`, and raw HTML embedded in the source is passed through as-is.
 //! > Only render Markdown you trust, or sanitize it upstream.
+
+use std::collections::HashMap;
 
 use impulse_ui_kit::utils::cn;
 use impulse_ui_kit_components::spinner::{Spinner, SpinnerSize};
@@ -165,6 +169,12 @@ pub fn render_markdown(input: &str, classes: &MarkdownClasses) -> String {
   // While inside an image, all inner events only contribute to its `alt` text.
   let mut image: Option<ImageCtx> = None;
   let mut in_table_head = false;
+  // Headings are buffered so the opening tag can carry a slug `id` (computed
+  // from the heading text) for in-page anchor links to resolve.
+  let mut head: Option<HeadingCtx> = None;
+  let mut head_image: Option<ImageCtx> = None;
+  let mut head_thead = false;
+  let mut slug_counts: HashMap<String, usize> = HashMap::new();
 
   for event in parser {
     if let Some(ctx) = image.as_mut() {
@@ -184,7 +194,58 @@ pub fn render_markdown(input: &str, classes: &MarkdownClasses) -> String {
       continue;
     }
 
+    // Inside a heading, collect both its inner HTML and its plain text.
+    if head.is_some() {
+      match event {
+        Event::End(TagEnd::Heading(_)) => {
+          let h = head.take().expect("heading is set");
+          let (name, class) = heading(h.level, classes);
+          let slug = slugify(&h.text, &mut slug_counts);
+          out.push_str(&format!("<{name} id=\"{slug}\"{}>", class_attr(class)));
+          out.push_str(&h.inner);
+          out.push_str(&format!("</{name}>\n"));
+        }
+        Event::Text(text) => {
+          let h = head.as_mut().expect("heading is set");
+          push_escaped(&mut h.inner, text.as_ref());
+          h.text.push_str(text.as_ref());
+        }
+        Event::Code(text) => {
+          let h = head.as_mut().expect("heading is set");
+          h.inner.push_str(&open("code", &classes.inline_code));
+          push_escaped(&mut h.inner, text.as_ref());
+          h.inner.push_str("</code>");
+          h.text.push_str(text.as_ref());
+        }
+        Event::Start(tag) => {
+          let h = head.as_mut().expect("heading is set");
+          start_tag(&mut h.inner, tag, classes, &mut head_image, &mut head_thead);
+        }
+        Event::End(tag) => {
+          let h = head.as_mut().expect("heading is set");
+          end_tag(&mut h.inner, tag, classes, &mut head_thead);
+        }
+        Event::Html(html) | Event::InlineHtml(html) => {
+          head.as_mut().expect("heading is set").inner.push_str(html.as_ref());
+        }
+        Event::SoftBreak | Event::HardBreak => {
+          let h = head.as_mut().expect("heading is set");
+          h.inner.push(' ');
+          h.text.push(' ');
+        }
+        _ => {}
+      }
+      continue;
+    }
+
     match event {
+      Event::Start(Tag::Heading { level, .. }) => {
+        head = Some(HeadingCtx {
+          level,
+          inner: String::new(),
+          text: String::new(),
+        });
+      }
       Event::Start(tag) => start_tag(&mut out, tag, classes, &mut image, &mut in_table_head),
       Event::End(tag) => end_tag(&mut out, tag, classes, &mut in_table_head),
       Event::Text(text) => push_escaped(&mut out, text.as_ref()),
@@ -214,6 +275,32 @@ pub fn render_markdown(input: &str, classes: &MarkdownClasses) -> String {
   }
 
   out
+}
+
+/// Buffered heading state, so the opening tag can carry a computed slug `id`.
+struct HeadingCtx {
+  level: HeadingLevel,
+  inner: String,
+  text: String,
+}
+
+/// Build a GitHub-style anchor slug from heading text, de-duplicating with a
+/// numeric suffix so repeated headings get unique ids.
+fn slugify(text: &str, counts: &mut HashMap<String, usize>) -> String {
+  let mut base = String::with_capacity(text.len());
+  for c in text.chars() {
+    if c.is_alphanumeric() {
+      base.extend(c.to_lowercase());
+    } else if c == ' ' || c == '-' {
+      base.push('-');
+    } else if c == '_' {
+      base.push('_');
+    }
+  }
+  let n = counts.entry(base.clone()).or_insert(0);
+  let slug = if *n == 0 { base.clone() } else { format!("{base}-{n}") };
+  *n += 1;
+  slug
 }
 
 /// State captured while serializing a Markdown image.
