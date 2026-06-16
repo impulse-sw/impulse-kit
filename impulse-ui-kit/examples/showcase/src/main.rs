@@ -1208,9 +1208,11 @@ fn BlocksSection() -> impl IntoView {
   };
 
   // Node graph — pre-wired edges; users can drag nodes and draw new connections.
+  // The input -> output edge has to route around the "process" node in the middle.
   let graph_edges = RwSignal::new(vec![
     GraphEdge::new("input", "out", "process", "in"),
     GraphEdge::new("process", "out", "output", "in"),
+    GraphEdge::new("input", "out", "output", "in"),
   ]);
 
   view! {
@@ -1322,10 +1324,10 @@ fn BlocksSection() -> impl IntoView {
       // Interactive node graph.
       <ComponentCard
         title="Node graph"
-        description="Drag node headers to move them; drag from one socket to another to connect. Nodes hold any content and pick a style variant."
+        description="Drag node headers to move them; drag from one socket to another to connect. Sockets sit on the node border and edges route around nodes in the way."
       >
         <GraphCanvas edges=graph_edges>
-          <GraphNode id="input" x=24.0 y=48.0 variant=NodeVariant::Solid>
+          <GraphNode id="input" x=24.0 y=150.0 variant=NodeVariant::Solid>
             <GraphNodeHeader>"Input"</GraphNodeHeader>
             <GraphNodeBody>
               <p class="text-muted-foreground">"A source node."</p>
@@ -1333,7 +1335,7 @@ fn BlocksSection() -> impl IntoView {
             </GraphNodeBody>
           </GraphNode>
 
-          <GraphNode id="process" x=300.0 y=120.0 variant=NodeVariant::Accent width=220.0>
+          <GraphNode id="process" x=320.0 y=150.0 variant=NodeVariant::Accent width=220.0>
             <GraphNodeHeader>"Process"</GraphNodeHeader>
             <GraphNodeBody>
               <GraphPort id="in" side=PortSide::Left label="In" />
@@ -1344,7 +1346,7 @@ fn BlocksSection() -> impl IntoView {
             </GraphNodeBody>
           </GraphNode>
 
-          <GraphNode id="output" x=600.0 y=72.0 variant=NodeVariant::Dashed>
+          <GraphNode id="output" x=640.0 y=150.0 variant=NodeVariant::Dashed>
             <GraphNodeHeader>"Output"</GraphNodeHeader>
             <GraphNodeBody>
               <GraphPort id="in" side=PortSide::Left label="Sink" />

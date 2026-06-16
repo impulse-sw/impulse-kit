@@ -202,6 +202,9 @@ view! {
 }
 ```
 
+Sockets sit on the node's outer border, and edges automatically detour around any
+other node that would otherwise sit under the wire, so connections stay readable.
+
 > Drag a node by its `GraphNodeHeader`; the body stays interactive so buttons and
 > inputs work. Pan/zoom is intentionally left for a later iteration.
 

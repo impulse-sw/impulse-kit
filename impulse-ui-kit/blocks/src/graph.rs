@@ -146,6 +146,7 @@ struct Pending {
 struct GraphContext {
   canvas: NodeRef<leptos::html::Div>,
   positions: RwSignal<HashMap<String, (f64, f64)>>,
+  sizes: RwSignal<HashMap<String, (f64, f64)>>,
   ports: RwSignal<HashMap<(String, String), PortInfo>>,
   edges: RwSignal<Vec<GraphEdge>>,
   drag: RwSignal<Option<NodeDrag>>,
@@ -187,19 +188,131 @@ fn pointer_pos(canvas: &NodeRef<leptos::html::Div>, ev: &web_sys::PointerEvent) 
   }
 }
 
-/// Cubic-bezier path between two ports (or a port and a free cursor).
-fn edge_path(p1: (f64, f64), s1: PortSide, p2: (f64, f64), s2: PortSide) -> String {
+/// An axis-aligned node rectangle, used as an edge-routing obstacle.
+#[derive(Clone, Copy)]
+struct Rect {
+  x: f64,
+  y: f64,
+  w: f64,
+  h: f64,
+}
+
+impl Rect {
+  /// Whether `p` lies within the rectangle, inflated by margin `m`.
+  fn contains(&self, p: (f64, f64), m: f64) -> bool {
+    p.0 >= self.x - m && p.0 <= self.x + self.w + m && p.1 >= self.y - m && p.1 <= self.y + self.h + m
+  }
+}
+
+/// The two cubic-bezier control points for an edge leaving `s1` into `s2`.
+fn controls(p1: (f64, f64), s1: PortSide, p2: (f64, f64), s2: PortSide) -> ((f64, f64), (f64, f64)) {
   let dx = (p2.0 - p1.0).abs();
   let dy = (p2.1 - p1.1).abs();
   let k = (dx.max(dy) * 0.5).max(40.0);
   let d1 = s1.dir();
   let d2 = s2.dir();
-  let c1 = (p1.0 + d1.0 * k, p1.1 + d1.1 * k);
-  let c2 = (p2.0 + d2.0 * k, p2.1 + d2.1 * k);
+  ((p1.0 + d1.0 * k, p1.1 + d1.1 * k), (p2.0 + d2.0 * k, p2.1 + d2.1 * k))
+}
+
+/// Plain cubic-bezier path between two ports (or a port and a free cursor).
+fn edge_path(p1: (f64, f64), s1: PortSide, p2: (f64, f64), s2: PortSide) -> String {
+  let (c1, c2) = controls(p1, s1, p2, s2);
   format!(
     "M {} {} C {} {} {} {} {} {}",
     p1.0, p1.1, c1.0, c1.1, c2.0, c2.1, p2.0, p2.1
   )
+}
+
+/// A point on the cubic bezier `p0 c1 c2 p1` at parameter `t`.
+fn cubic_point(p0: (f64, f64), c1: (f64, f64), c2: (f64, f64), p1: (f64, f64), t: f64) -> (f64, f64) {
+  let u = 1.0 - t;
+  let (a, b, c, d) = (u * u * u, 3.0 * u * u * t, 3.0 * u * t * t, t * t * t);
+  (
+    a * p0.0 + b * c1.0 + c * c2.0 + d * p1.0,
+    a * p0.1 + b * c1.1 + c * c2.1 + d * p1.1,
+  )
+}
+
+/// Obstacles the straight bezier passes through (sampled), inflated by `m`.
+fn blocking_rects(
+  p1: (f64, f64),
+  c1: (f64, f64),
+  c2: (f64, f64),
+  p2: (f64, f64),
+  obstacles: &[Rect],
+  m: f64,
+) -> Vec<&Rect> {
+  let steps = 24;
+  obstacles
+    .iter()
+    .filter(|r| (1..steps).any(|i| r.contains(cubic_point(p1, c1, c2, p2, i as f64 / steps as f64), m)))
+    .collect()
+}
+
+fn is_horizontal(side: PortSide) -> bool {
+  matches!(side, PortSide::Left | PortSide::Right)
+}
+
+fn dist(a: (f64, f64), b: (f64, f64)) -> f64 {
+  ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)).sqrt()
+}
+
+/// A point `d` units from `from` toward `to`.
+fn toward(from: (f64, f64), to: (f64, f64), d: f64) -> (f64, f64) {
+  let len = dist(from, to);
+  if len < 1e-6 {
+    return from;
+  }
+  let t = d / len;
+  (from.0 + (to.0 - from.0) * t, from.1 + (to.1 - from.1) * t)
+}
+
+/// An SVG path through `pts` with rounded corners of up to `radius`.
+fn rounded_path(pts: &[(f64, f64)], radius: f64) -> String {
+  let mut d = format!("M {} {}", pts[0].0, pts[0].1);
+  if pts.len() < 3 {
+    for p in &pts[1..] {
+      d.push_str(&format!(" L {} {}", p.0, p.1));
+    }
+    return d;
+  }
+  for i in 1..pts.len() - 1 {
+    let (a, p, b) = (pts[i - 1], pts[i], pts[i + 1]);
+    let entry = toward(p, a, radius.min(dist(a, p) / 2.0));
+    let exit = toward(p, b, radius.min(dist(p, b) / 2.0));
+    d.push_str(&format!(
+      " L {} {} Q {} {} {} {}",
+      entry.0, entry.1, p.0, p.1, exit.0, exit.1
+    ));
+  }
+  let last = pts[pts.len() - 1];
+  d.push_str(&format!(" L {} {}", last.0, last.1));
+  d
+}
+
+/// Route an edge from `p1`/`s1` to `p2`/`s2`, detouring around `obstacles`.
+///
+/// When the direct bezier is clear it is used as-is. Otherwise — for the common
+/// horizontal input/output flow — the edge is rerouted as a rounded orthogonal
+/// path that hops over or under the blocking nodes.
+fn route_edge(p1: (f64, f64), s1: PortSide, p2: (f64, f64), s2: PortSide, obstacles: &[Rect]) -> String {
+  let m = 12.0;
+  let (c1, c2) = controls(p1, s1, p2, s2);
+  let hits = blocking_rects(p1, c1, c2, p2, obstacles, m);
+  if hits.is_empty() || !(is_horizontal(s1) && is_horizontal(s2)) {
+    return edge_path(p1, s1, p2, s2);
+  }
+
+  let top = hits.iter().map(|r| r.y).fold(f64::INFINITY, f64::min) - m;
+  let bottom = hits.iter().map(|r| r.y + r.h).fold(f64::NEG_INFINITY, f64::max) + m;
+  let avg = (p1.1 + p2.1) / 2.0;
+  let detour_y = if avg - top <= bottom - avg { top } else { bottom };
+
+  let out = 24.0;
+  let x1 = p1.0 + s1.dir().0 * out;
+  let x2 = p2.0 + s2.dir().0 * out;
+  let pts = [p1, (x1, p1.1), (x1, detour_y), (x2, detour_y), (x2, p2.1), p2];
+  rounded_path(&pts, 14.0)
 }
 
 /// Resolve a port's absolute canvas position and side.
@@ -233,6 +346,7 @@ pub fn GraphCanvas(
   let positions = positions.unwrap_or_else(|| RwSignal::new(HashMap::new()));
   let edges = edges.unwrap_or_else(|| RwSignal::new(Vec::new()));
   let canvas = NodeRef::<leptos::html::Div>::new();
+  let sizes = RwSignal::new(HashMap::<String, (f64, f64)>::new());
   let ports = RwSignal::new(HashMap::<(String, String), PortInfo>::new());
   let drag = RwSignal::new(None::<NodeDrag>);
   let pending = RwSignal::new(None::<Pending>);
@@ -240,6 +354,7 @@ pub fn GraphCanvas(
   let ctx = GraphContext {
     canvas,
     positions,
+    sizes,
     ports,
     edges,
     drag,
@@ -247,9 +362,10 @@ pub fn GraphCanvas(
   };
   provide_context(ctx);
 
-  // Edge paths follow node positions reactively.
+  // Edge paths follow node positions reactively and route around other nodes.
   let edge_paths = move || {
     let positions = positions.get();
+    let sizes = sizes.get();
     let ports = ports.get();
     edges
       .get()
@@ -257,18 +373,26 @@ pub fn GraphCanvas(
       .filter_map(|edge| {
         let (p1, s1) = port_abs(&positions, &ports, &edge.from)?;
         let (p2, s2) = port_abs(&positions, &ports, &edge.to)?;
+        // Every other node is an obstacle to route around.
+        let obstacles: Vec<Rect> = positions
+          .iter()
+          .filter(|(id, _)| **id != edge.from.0 && **id != edge.to.0)
+          .filter_map(|(id, pos)| {
+            sizes.get(id).map(|&(w, h)| Rect {
+              x: pos.0,
+              y: pos.1,
+              w,
+              h,
+            })
+          })
+          .collect();
         let stroke = edge
           .color
           .clone()
           .unwrap_or_else(|| "var(--muted-foreground)".to_string());
         Some(
           view! {
-            <path
-              d=edge_path(p1, s1, p2, s2)
-              fill="none"
-              stroke=stroke
-              stroke-width="2"
-            />
+            <path d=route_edge(p1, s1, p2, s2, &obstacles) fill="none" stroke=stroke stroke-width="2" />
           }
           .into_any(),
         )
@@ -370,6 +494,21 @@ pub fn GraphNode(
     Effect::new(move |_| {
       ctx.positions.update(|m| {
         m.entry(id.clone()).or_insert((x, y));
+      });
+    });
+  }
+
+  // Measure the rendered node box so edges can route around it.
+  {
+    let id = id.clone();
+    Effect::new(move |_| {
+      let Some(el) = container.get() else {
+        return;
+      };
+      let rect = el.get_bounding_client_rect();
+      let size = (rect.width(), rect.height());
+      ctx.sizes.update(|m| {
+        m.insert(id.clone(), size);
       });
     });
   }
@@ -501,12 +640,24 @@ pub fn GraphPort(
     }
   };
 
+  // The socket sits ON the node's outer border (not inside the padded body), so
+  // edges leave from the edge and never tuck under the block. The row is pulled
+  // full-bleed with `-mx-3` to cancel `GraphNodeBody`'s `px-3`, and the dot is
+  // translated half its size past the border.
+  let (row_class, dot_translate): (&str, &str) = match side {
+    PortSide::Right => ("-mx-3 flex items-center justify-end gap-2 pl-3", "translate-x-1/2"),
+    PortSide::Left => ("-mx-3 flex items-center gap-2 pr-3", "-translate-x-1/2"),
+    PortSide::Top => ("flex items-center gap-2", "-translate-y-1/2"),
+    PortSide::Bottom => ("flex items-center gap-2", "translate-y-1/2"),
+  };
+
   let socket = view! {
     <div
       node_ref=dot
       class=cn(
         &[
           "h-3 w-3 shrink-0 cursor-crosshair rounded-full border-2 border-border bg-background transition-colors hover:border-primary hover:bg-primary",
+          dot_translate,
           class.as_str(),
         ],
       )
@@ -515,15 +666,9 @@ pub fn GraphPort(
     />
   };
 
-  let justify = if matches!(side, PortSide::Right) {
-    "flex items-center justify-end gap-2"
-  } else {
-    "flex items-center gap-2"
-  };
-
   if matches!(side, PortSide::Right) {
     view! {
-      <div class=justify>
+      <div class=row_class>
         <span class="text-xs text-muted-foreground">{label}</span>
         {socket}
       </div>
@@ -531,7 +676,7 @@ pub fn GraphPort(
     .into_any()
   } else {
     view! {
-      <div class=justify>
+      <div class=row_class>
         {socket}
         <span class="text-xs text-muted-foreground">{label}</span>
       </div>
