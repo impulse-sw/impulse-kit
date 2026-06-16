@@ -84,6 +84,9 @@ use impulse_ui_kit_blocks::charts::{
   BarChart, BarChartData, BarChartOptions, BarSeries, LineChart, LineChartData, LineChartOptions, LineSeries, PieChart,
   PieChartData, PieChartOptions, PieSlice, Sparkline, SparklineKind, SparklineOptions,
 };
+use impulse_ui_kit_blocks::graph::{
+  GraphCanvas, GraphEdge, GraphNode, GraphNodeBody, GraphNodeHeader, GraphPort, NodeVariant, PortSide,
+};
 use impulse_ui_kit_blocks::markdown::{Markdown, MarkdownClasses, MarkdownSource};
 
 fn main() {
@@ -1204,6 +1207,12 @@ fn BlocksSection() -> impl IntoView {
     ],
   };
 
+  // Node graph — pre-wired edges; users can drag nodes and draw new connections.
+  let graph_edges = RwSignal::new(vec![
+    GraphEdge::new("input", "out", "process", "in"),
+    GraphEdge::new("process", "out", "output", "in"),
+  ]);
+
   view! {
     <div class="space-y-8">
       <SectionHeader
@@ -1308,6 +1317,41 @@ fn BlocksSection() -> impl IntoView {
             }
           />
         </div>
+      </ComponentCard>
+
+      // Interactive node graph.
+      <ComponentCard
+        title="Node graph"
+        description="Drag node headers to move them; drag from one socket to another to connect. Nodes hold any content and pick a style variant."
+      >
+        <GraphCanvas edges=graph_edges>
+          <GraphNode id="input" x=24.0 y=48.0 variant=NodeVariant::Solid>
+            <GraphNodeHeader>"Input"</GraphNodeHeader>
+            <GraphNodeBody>
+              <p class="text-muted-foreground">"A source node."</p>
+              <GraphPort id="out" side=PortSide::Right label="Value" />
+            </GraphNodeBody>
+          </GraphNode>
+
+          <GraphNode id="process" x=300.0 y=120.0 variant=NodeVariant::Accent width=220.0>
+            <GraphNodeHeader>"Process"</GraphNodeHeader>
+            <GraphNodeBody>
+              <GraphPort id="in" side=PortSide::Left label="In" />
+              <Button size=ButtonSize::Sm variant=ButtonVariant::Outline class="w-full">
+                "Run"
+              </Button>
+              <GraphPort id="out" side=PortSide::Right label="Result" />
+            </GraphNodeBody>
+          </GraphNode>
+
+          <GraphNode id="output" x=600.0 y=72.0 variant=NodeVariant::Dashed>
+            <GraphNodeHeader>"Output"</GraphNodeHeader>
+            <GraphNodeBody>
+              <GraphPort id="in" side=PortSide::Left label="Sink" />
+              <p class="text-muted-foreground">"A dashed-variant node."</p>
+            </GraphNodeBody>
+          </GraphNode>
+        </GraphCanvas>
       </ComponentCard>
 
       // Live Markdown editor.

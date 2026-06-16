@@ -161,6 +161,50 @@ view! {
 }
 ```
 
+### `<GraphCanvas>` — interactive node graph
+
+A draggable, connectable node canvas (think a small Blender-style node editor).
+`GraphNode`s are placed by the developer and dragged by the user; each node
+exposes `GraphPort` sockets that you drag between to wire up `GraphEdge`s, and a
+node can fan out to many connections. Nodes render arbitrary content and pick a
+`NodeVariant` style (`Solid`, `Outline`, `Dashed`, `Accent`, `Ghost`) or a fully
+custom `class`. Edges are drawn as bezier curves and follow the nodes live.
+
+Both `positions` (`node_id -> (x, y)`) and `edges` can be passed as controlled
+`RwSignal`s, so the developer reads/writes them programmatically while the user
+edits them by hand.
+
+```rust
+use impulse_ui_kit_blocks::graph::{
+  GraphCanvas, GraphEdge, GraphNode, GraphNodeBody, GraphNodeHeader, GraphPort, NodeVariant, PortSide,
+};
+use impulse_ui_kit_components::button::*;
+use leptos::prelude::*;
+
+let edges = RwSignal::new(vec![GraphEdge::new("a", "out", "b", "in")]);
+
+view! {
+  <GraphCanvas edges=edges>
+    <GraphNode id="a" x=24.0 y=48.0 variant=NodeVariant::Solid>
+      <GraphNodeHeader>"Input"</GraphNodeHeader>
+      <GraphNodeBody>
+        <GraphPort id="out" side=PortSide::Right label="Value" />
+      </GraphNodeBody>
+    </GraphNode>
+    <GraphNode id="b" x=300.0 y=120.0 variant=NodeVariant::Accent>
+      <GraphNodeHeader>"Process"</GraphNodeHeader>
+      <GraphNodeBody>
+        <GraphPort id="in" side=PortSide::Left label="In" />
+        <Button size=ButtonSize::Sm>"Run"</Button>
+      </GraphNodeBody>
+    </GraphNode>
+  </GraphCanvas>
+}
+```
+
+> Drag a node by its `GraphNodeHeader`; the body stays interactive so buttons and
+> inputs work. Pan/zoom is intentionally left for a later iteration.
+
 ### `<Markdown>`
 
 Render a Markdown document — given either inline text or a URL to fetch an
