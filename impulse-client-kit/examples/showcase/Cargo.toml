@@ -1,6 +1,6 @@
 [package]
 name = "client-kit-showcase"
-description = "UI Kit Component Showcase"
+description = "Client Kit Component Showcase"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }

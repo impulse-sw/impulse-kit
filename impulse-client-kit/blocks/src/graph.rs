@@ -60,7 +60,7 @@ impl PortSide {
   }
 }
 
-/// A built-in node style, mirroring the variant idea of the UI Kit `Button`.
+/// A built-in node style, mirroring the variant idea of the Client Kit `Button`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum NodeVariant {
   /// Thin solid border on a card background.

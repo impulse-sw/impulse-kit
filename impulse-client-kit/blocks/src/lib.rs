@@ -1,6 +1,6 @@
 #![deny(warnings)]
 
-//! Higher-level **blocks** for the Impulse UI Kit.
+//! Higher-level **blocks** for the Impulse Client Kit.
 //!
 //! Where [`impulse-client-kit-components`](impulse_client_kit_components) ships the
 //! low-level building bricks (buttons, inputs, dialogs, …), this crate ships

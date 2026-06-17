@@ -227,6 +227,46 @@ let counter = meter.u64_counter("my_counter").build();
 counter.add(1, &[KeyValue::new("key", "value")]);
 ```
 
+### Telemetry collection
+
+The `telemetry` feature (enabled by default) adds an endpoint that ingests batches of
+client-side telemetry events produced by `impulse-client-kit`'s telemetry monitors. Each
+event is handed to a `TelemetrySink`; the default `TracingTelemetrySink` forwards events
+into the existing tracing/OpenTelemetry stack (emitting the `client_telemetry_events`
+counter and `client_telemetry_values` histogram when `otel` is on).
+
+Mount the default router (events go to tracing/OpenTelemetry):
+
+```rust
+use impulse_server_kit::prelude::*;
+use impulse_server_kit::telemetry::default_telemetry_router;
+
+let router = get_root_router_autoinject(&state, setup.clone())
+  .push(default_telemetry_router("api/telemetry"));
+```
+
+To persist events yourself, implement `TelemetrySink` and pass it to `telemetry_router`:
+
+```rust
+use std::sync::Arc;
+use impulse_server_kit::prelude::*;
+
+struct DbSink { /* pool, ... */ }
+
+#[salvo::async_trait]
+impl TelemetrySink for DbSink {
+  async fn record(&self, event: &TelemetryEvent, ctx: &TelemetryRequestCtx) {
+    // store `event` (anonymous or identified) however you like
+  }
+}
+
+let router = get_root_router_autoinject(&state, setup.clone())
+  .push(telemetry_router("api/telemetry", Arc::new(DbSink { /* ... */ })));
+```
+
+The endpoint accepts MessagePack (the client's canonical transport) and JSON, selected by
+`Content-Type`.
+
 ### Force HTTPS
 
 To enforce HTTPS, you should start another server via `start_force_https_redirect` function:

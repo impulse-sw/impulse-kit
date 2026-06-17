@@ -2,7 +2,7 @@
 //!
 //! These types are populated by `impulse-server-kit::leptos_ssr` for each
 //! incoming request and provided into the Leptos `Owner`/context tree before
-//! rendering. UI Kit components and helpers consume them via
+//! rendering. Client Kit components and helpers consume them via
 //! [`leptos::context::use_context`].
 
 use std::sync::{Arc, Mutex};

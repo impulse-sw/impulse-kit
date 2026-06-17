@@ -8,13 +8,14 @@ license = { workspace = true }
 authors = { workspace = true }
 
 [features]
-default = ["http3", "cors", "acme", "oapi", "otel", "force-https"]
+default = ["http3", "cors", "acme", "oapi", "otel", "telemetry", "force-https"]
 http3 = ["salvo/quinn"]
 acme = ["salvo/acme"]
 cors = ["salvo/cors"]
 websocket = ["salvo/websocket"]
 otel = ["salvo/otel", "dep:opentelemetry", "dep:reqwest", "dep:opentelemetry-otlp", "dep:opentelemetry_sdk", "dep:tracing-opentelemetry"]
 oapi = ["salvo/oapi"]
+telemetry = ["impulse-utils/telemetry"]
 proxy = ["salvo/proxy", "reqwest/stream"]
 reqwest-http3 = ["reqwest/http3"]
 log-without-filtering = []
@@ -82,6 +83,7 @@ full = [
   "websocket",
   "otel",
   "oapi",
+  "telemetry",
   "proxy",
   "reqwest-http3",
   "flash",

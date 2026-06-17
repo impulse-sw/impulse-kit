@@ -1,6 +1,6 @@
 [package]
 name = "impulse-client-kit-blocks"
-description = "Higher-level UI blocks (markdown, charts, graphs, …) composed from UI Kit components"
+description = "Higher-level UI blocks (markdown, charts, graphs, …) composed from Client Kit components"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }

@@ -1,4 +1,4 @@
-# Impulse UI Kit - Component API Documentation
+# Impulse Client Kit - Component API Documentation
 
 A comprehensive component library for building modern web applications with [Leptos](https://leptos.dev/). Inspired by shadcn/ui design patterns.
 

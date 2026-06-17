@@ -8,4 +8,7 @@ pub mod requests;
 pub mod responses;
 pub mod results;
 
+#[cfg(feature = "telemetry")]
+pub mod telemetry;
+
 pub mod prelude;

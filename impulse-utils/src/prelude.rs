@@ -38,6 +38,9 @@ pub use crate::errors::ClientError;
 
 pub use crate::errors::ErrorResponse;
 
+#[cfg(feature = "telemetry")]
+pub use crate::telemetry::{TelemetryAttr, TelemetryBatch, TelemetryEvent, TelemetryEventKind, TelemetryLevel};
+
 #[cfg(feature = "salvo")]
 #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
 pub use salvo::oapi::endpoint;

@@ -1,4 +1,4 @@
-# Impulse UI Kit
+# Impulse Client Kit
 
 Frontend framework with [`shadcn`-styled](https://ui.shadcn.com) components, based on [Leptos](https://leptos.dev/) v0.8.
 
@@ -30,7 +30,7 @@ impulse_client_kit::setup_app(log::Level::Info, Box::new(move || { view! { <Your
 
 ## Automated light/dark theme switch
 
-UI Kit supports automated `dark` Tailwind class switching and also automated Thaw components styling.
+Client Kit supports automated `dark` Tailwind class switching and also automated Thaw components styling.
 
 To use automated light/dark theme switch, ensure to build your app on top of this [`index.html`](./examples/index.html) example:
 
@@ -64,12 +64,12 @@ To use automated light/dark theme switch, ensure to build your app on top of thi
     margin-top: 0px;
     margin-left: 0px;
   }
-  .uikit-app-container {
+  .client-kit-app-container {
     min-height: 100%;
     min-width: 100%;
     overflow-x: auto;
   }
-  .uikit-app-content {
+  .client-kit-app-content {
     display: flex;
     flex-direction: column;
   }
@@ -84,7 +84,7 @@ To use automated light/dark theme switch, ensure to build your app on top of thi
 
 ## Router utils
 
-UI Kit exposes `impulse_client_kit::router::endpoint` to construct full URL of the backend, if this backend provided your frontend also.
+Client Kit exposes `impulse_client_kit::router::endpoint` to construct full URL of the backend, if this backend provided your frontend also.
 
 ```rust
 // Let assume that your backend is located at `127.0.0.1:8080` with HTTP schema
@@ -97,9 +97,64 @@ If you need to go on any other page, use `impulse_client_kit::router::redirect`:
 redirect("https://github.com")
 ```
 
+## Telemetry
+
+The `telemetry` feature (enabled by default) collects usage data and ships it to a
+collection endpoint served by `impulse-server-kit`. Provide a context once near the
+app root, then wrap views in monitor components or call the imperative helpers.
+
+```rust
+use impulse_client_kit::prelude::*;
+
+#[component]
+fn App() -> impl IntoView {
+  // Anonymous by default; events carry only a random session id.
+  provide_telemetry(TelemetryConfig::new("/api/telemetry"));
+
+  view! {
+    <ClickMonitor message="cta:signup">
+      <Button>"Sign up"</Button>
+    </ClickMonitor>
+
+    // Reports an impression the first time it scrolls into view.
+    <ViewMonitor message="hero:seen">
+      <Hero />
+    </ViewMonitor>
+  }
+}
+```
+
+Available monitors: `ClickMonitor`, `ViewMonitor` (impressions via `IntersectionObserver`),
+`HoverMonitor`, `FocusMonitor`, `SubmitMonitor` and the generic `EventMonitor` (any DOM
+event). Each accepts a `message` and an optional `endpoint` override.
+
+Imperative helpers mirror `tracing` for ad-hoc logs, metrics and spans:
+
+```rust
+track_event(TelemetryEventKind::Custom, "video:played");
+track_log(TelemetryLevel::Warn, "retry:checkout");
+track_metric("cart:value", 42.0);
+let _span = track_span("checkout:flow"); // duration reported on drop
+```
+
+### Anonymous vs. identified collection
+
+A `TelemetryContext` is `Anonymous` by default — only a session-scoped random id is
+sent. Switch to identified collection once a user is known:
+
+```rust
+let tele = use_telemetry().unwrap();
+tele.set_mode(TelemetryMode::Identified);
+tele.set_user_id(Some(user_id));
+```
+
+In anonymous mode the `user_id` is never transmitted even if one is set. Events are
+delivered as MessagePack via `navigator.sendBeacon` (fire-and-forget, survives page
+unloads). Under SSR the helpers are no-ops and monitors just render their children.
+
 ## WebSocket and WebTransport
 
-UI Kit ships optional reactive wrappers around the browser `WebSocket` and `WebTransport` APIs. They are pulled in via Cargo features and are designed to mirror their server-side counterparts in `impulse-server-kit`.
+Client Kit ships optional reactive wrappers around the browser `WebSocket` and `WebTransport` APIs. They are pulled in via Cargo features and are designed to mirror their server-side counterparts in `impulse-server-kit`.
 
 ### WebSocket
 

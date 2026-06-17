@@ -8,7 +8,25 @@ license = { workspace = true }
 authors = { workspace = true }
 
 [features]
-default = ["csr"]
+default = ["csr", "telemetry"]
+# Client-side telemetry: monitor components + imperative log/metric/span helpers.
+# DOM delivery is active under `csr`/`hydrate`; under `ssr` everything is a no-op.
+telemetry = [
+  "impulse-utils/telemetry",
+  "dep:rmp-serde",
+  "dep:web-sys",
+  "dep:js-sys",
+  "dep:wasm-bindgen",
+  "web-sys/Window",
+  "web-sys/Navigator",
+  "web-sys/Blob",
+  "web-sys/BlobPropertyBag",
+  "web-sys/Element",
+  "web-sys/EventTarget",
+  "web-sys/HtmlDivElement",
+  "web-sys/IntersectionObserver",
+  "web-sys/IntersectionObserverEntry",
+]
 csr = [
   "leptos/csr",
   "dep:console_error_panic_hook",
@@ -74,6 +92,7 @@ leptos = { workspace = true }
 leptos-use = { workspace = true, optional = true }
 leptos_meta = { workspace = true, optional = true }
 log = { workspace = true }
+rmp-serde = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
 web-sys = { workspace = true, optional = true }

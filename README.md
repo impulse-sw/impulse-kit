@@ -8,6 +8,8 @@ Collection of Rust libraries, frameworks and programs to build better Internet.
 
 Server Kit is a simply configurable backend framework based on [Salvo](https://github.com/salvo-rs/salvo). It is simple enough and powerful.
 
+It also ships a telemetry collection endpoint (the `telemetry` feature, on by default): pair it with `impulse-client-kit`'s telemetry monitors to ingest client-side events through a pluggable `TelemetrySink`, defaulting to the existing tracing/OpenTelemetry stack.
+
 [Server Kit Documentation](./impulse-server-kit/README.md)
 
 ### Impulse Server Kit DSL
@@ -73,15 +75,16 @@ In a way, `impulse-utils` is useful in many cases such as error handling and res
 
 [`impulse-utils` Documentation](./impulse-utils/README.md)
 
-### Impulse UI Kit
+### Impulse Client Kit
 
-UI Kit is just superstructure above Leptos framework. It provides:
+Client Kit is just superstructure above Leptos framework. It provides:
 
 - simple application entrypoint
 - logging support with `log`
 - automated light/dark themes (with Tailwind support)
 - utils to perform request to the backend (`impulse_client_kit::router::endpoint` and `impulse_client_kit::router::redirect` functions)
 - WebSocket & WebTransport bindings (with optional automatic reconnection)
+- telemetry collection: monitor components (`<ClickMonitor>`, `<ViewMonitor>`, `<HoverMonitor>`, `<FocusMonitor>`, `<SubmitMonitor>`, `<EventMonitor>`) plus imperative `track_event`/`track_log`/`track_metric`/`track_span` helpers, with anonymous or identified collection (see the `telemetry` module)
 
 Startup example:
 
@@ -91,9 +94,9 @@ fn main() {
 }
 ```
 
-[UI Kit Documentation](./impulse-client-kit/README.md)
+[Client Kit Documentation](./impulse-client-kit/README.md)
 
-[UI Kit Showcase](./impulse-client-kit/examples/showcase/README.md)
+[Client Kit Showcase](./impulse-client-kit/examples/showcase/README.md)
 
 [Server-Side Rendered Showcase](./impulse-client-kit/examples/ssr_showcase/README.md)
 

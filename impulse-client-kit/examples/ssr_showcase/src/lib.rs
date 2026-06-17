@@ -63,9 +63,9 @@ pub fn App() -> impl IntoView {
     // server-example.yaml — declaring them here as well would produce two
     // `<meta name="description">` / `<link rel="canonical">` tags in the
     // rendered HTML, which SEO scanners flag.
-    <Title text="UI Kit Showcase | Impulse" />
+    <Title text="Client Kit Showcase | Impulse" />
     <main class="min-h-screen flex flex-col items-center justify-center p-8 gap-4">
-      <h1 class="text-4xl font-semibold">"Impulse UI Kit"</h1>
+      <h1 class="text-4xl font-semibold">"Impulse Client Kit"</h1>
       <p class="text-lg opacity-80">
         "Server-side rendered demo with hydration and Suspense streaming."
       </p>

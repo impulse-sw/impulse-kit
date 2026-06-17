@@ -1,4 +1,4 @@
-//! Some utility for UI kit.
+//! Some utility for Client kit.
 
 mod position;
 

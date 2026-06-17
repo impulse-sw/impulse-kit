@@ -1,6 +1,6 @@
 [package]
 name = "impulse-client-kit-components"
-description = "Generic components for UI Kit"
+description = "Generic components for Client Kit"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }

@@ -1,6 +1,6 @@
-# Impulse UI Kit Blocks
+# Impulse Client Kit Blocks
 
-Higher-level **blocks** for the Impulse UI Kit.
+Higher-level **blocks** for the Impulse Client Kit.
 
 Where [`impulse-client-kit-components`](../components) ships the low-level building
 bricks (buttons, inputs, dialogs, …), this crate ships ready-made *blocks*:
@@ -81,7 +81,7 @@ Render a Markdown document — given either inline text or a URL to fetch an
 strikethrough, task lists and smart punctuation.
 
 Every Markdown element is rendered with a sensible default set of Tailwind
-classes that follow the UI Kit theme tokens, and every one of them can be
+classes that follow the Client Kit theme tokens, and every one of them can be
 overridden individually via `MarkdownClasses`.
 
 ```rust

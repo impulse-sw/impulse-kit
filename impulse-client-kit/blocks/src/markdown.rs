@@ -2,7 +2,7 @@
 //! or a URL to fetch an `.md` file from — into styled HTML.
 //!
 //! Every Markdown element (headings, links, code, tables, …) is rendered with a
-//! sensible default set of Tailwind classes that follow the UI Kit theme tokens,
+//! sensible default set of Tailwind classes that follow the Client Kit theme tokens,
 //! and every one of them can be overridden individually via [`MarkdownClasses`].
 //!
 //! ```
@@ -494,7 +494,7 @@ async fn fetch_markdown(url: &str) -> Result<String, String> {
 /// Render a Markdown document — inline or fetched from a URL — into styled HTML.
 ///
 /// * `source` — inline Markdown text or a URL to fetch it from.
-/// * `classes` — per-element Tailwind overrides; defaults follow the UI Kit theme.
+/// * `classes` — per-element Tailwind overrides; defaults follow the Client Kit theme.
 /// * `class` — extra classes for the wrapping container.
 ///
 /// ```rust,ignore

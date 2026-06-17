@@ -100,6 +100,9 @@ pub mod security_headers;
 pub mod setup;
 pub mod startup;
 
+#[cfg(feature = "telemetry")]
+pub mod telemetry;
+
 #[cfg(feature = "static-server")]
 pub mod static_server;
 

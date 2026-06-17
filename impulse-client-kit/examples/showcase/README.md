@@ -1,6 +1,6 @@
-# Impulse UI Kit Showcase
+# Impulse Client Kit Showcase
 
-Components gallery for Impulse UI Kit.
+Components gallery for Impulse Client Kit.
 
 ## Build
 

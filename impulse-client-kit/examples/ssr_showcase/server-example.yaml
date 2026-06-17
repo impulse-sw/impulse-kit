@@ -4,8 +4,8 @@ frontend_dist_path: ./dist
 leptos_output_name: ssr_showcase
 leptos_seo:
   title_template: "{} | Impulse"
-  default_title: UI Kit Showcase
-  description: Server-rendered demo of Impulse UI Kit
+  default_title: Client Kit Showcase
+  description: Server-rendered demo of Impulse Client Kit
   canonical_base: http://127.0.0.1:8802
   locale: en
   robots: index,follow

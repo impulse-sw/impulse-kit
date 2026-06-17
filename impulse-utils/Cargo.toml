@@ -13,6 +13,8 @@ salvo = ["dep:salvo"]
 reqwest = ["dep:reqwest", "cresult"]
 mresult = ["salvo"]
 cresult = []
+# Shared, platform-agnostic telemetry wire types (see `telemetry` module).
+telemetry = []
 
 [dependencies]
 anyhow = { workspace = true }

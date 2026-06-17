@@ -1,4 +1,4 @@
-//! UI Kit framework built on top of Leptos.
+//! Client Kit framework built on top of Leptos.
 //!
 //! Selects between three rendering modes via mutually exclusive Cargo features:
 //! `csr` (client-side rendering), `hydrate` (client hydration of SSR markup,
@@ -27,6 +27,9 @@ compile_error!("impulse-client-kit: feature `webtransport` requires `csr` or `hy
 
 pub mod router;
 pub mod utils;
+
+#[cfg(feature = "telemetry")]
+pub mod telemetry;
 
 #[cfg(any(feature = "websocket", feature = "webtransport"))]
 pub mod reconnect;

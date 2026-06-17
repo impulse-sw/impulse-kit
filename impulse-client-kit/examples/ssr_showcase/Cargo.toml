@@ -1,6 +1,6 @@
 [package]
 name = "ssr-showcase"
-description = "Server-rendered + hydrated demo of Impulse UI Kit + Server Kit"
+description = "Server-rendered + hydrated demo of Impulse Client Kit + Server Kit"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }

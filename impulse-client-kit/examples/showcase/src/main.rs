@@ -1,6 +1,6 @@
-//! Impulse UI Kit - Comprehensive Component Showcase
+//! Impulse Client Kit - Comprehensive Component Showcase
 //!
-//! This example demonstrates all 50+ components available in the Impulse UI Kit.
+//! This example demonstrates all 50+ components available in the Impulse Client Kit.
 
 #![allow(unused_imports)]
 #![warn(missing_docs)]
@@ -105,7 +105,7 @@ fn App() -> impl IntoView {
         <header class="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div class="px-4 flex h-14 items-center space-x-2 justify-between">
             <a href="/">
-              <span class="font-bold text-xl">"Impulse UI Kit"</span>
+              <span class="font-bold text-xl">"Impulse Client Kit"</span>
             </a>
             <nav class="flex items-center space-x-2">
               <ThemeToggle size=ButtonSize::Sm variant=ButtonVariant::Outline>
@@ -121,7 +121,7 @@ fn App() -> impl IntoView {
             // Title and Description
             <div class="space-y-2">
               <h1 class="text-4xl font-bold tracking-tight">"Component Showcase"</h1>
-              <p class="text-muted-foreground text-lg">"Explore Impulse UI Kit components"</p>
+              <p class="text-muted-foreground text-lg">"Explore Impulse Client Kit components"</p>
             </div>
 
             // Navigation Tabs
@@ -1098,7 +1098,7 @@ fn CombinedExamplesSection() -> impl IntoView {
 /// Sample document used by the live Markdown editor demo.
 const MARKDOWN_SAMPLE: &str = r#"# Markdown block
 
-A **block** is a small widget composed of UI Kit components. This one renders
+A **block** is a small widget composed of Client Kit components. This one renders
 *Markdown* — either inline content like this, or an `.md` file fetched from a URL.
 
 ## Features
@@ -1113,7 +1113,7 @@ fn main() {
 }
 ```
 
-> Blockquotes follow the UI Kit theme tokens out of the box.
+> Blockquotes follow the Client Kit theme tokens out of the box.
 
 ### Tasks
 
@@ -1229,7 +1229,7 @@ fn BlocksSection() -> impl IntoView {
     <div class="space-y-8">
       <SectionHeader
         title="Blocks"
-        description="Higher-level widgets composed of UI Kit components"
+        description="Higher-level widgets composed of Client Kit components"
       />
 
       // Single-series column chart.

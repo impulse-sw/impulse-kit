@@ -1,4 +1,4 @@
-//! UI Kit prelude.
+//! Client Kit prelude.
 
 pub use impulse_utils;
 pub use leptos::prelude::*;
@@ -10,6 +10,13 @@ pub use console_error_panic_hook;
 pub use console_log;
 
 pub use crate::setup_app;
+
+#[cfg(feature = "telemetry")]
+pub use crate::telemetry::{
+  ClickMonitor, EventMonitor, FocusMonitor, HoverMonitor, SubmitMonitor, TelemetryConfig, TelemetryContext,
+  TelemetryEventKind, TelemetryLevel, TelemetryMode, TelemetrySpan, ViewMonitor, provide_telemetry, track_event,
+  track_log, track_metric, track_span, use_telemetry,
+};
 
 #[cfg(feature = "ssr")]
 pub use crate::ssr::{InitialTheme, LeptosResponseOptions, RequestUrlCtx};

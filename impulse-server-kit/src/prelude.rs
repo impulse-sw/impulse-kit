@@ -18,6 +18,12 @@ pub use salvo::oapi::endpoint;
 #[cfg(feature = "otel")]
 pub use crate::otel;
 
+#[cfg(feature = "telemetry")]
+pub use crate::telemetry::{
+  TelemetryAttr, TelemetryBatch, TelemetryEvent, TelemetryEventKind, TelemetryLevel, TelemetryRequestCtx,
+  TelemetrySink, TracingTelemetrySink, collect_telemetry, default_telemetry_router, telemetry_router,
+};
+
 #[cfg(feature = "test")]
 pub use crate::test_exts::*;
 
