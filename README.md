@@ -80,22 +80,22 @@ UI Kit is just superstructure above Leptos framework. It provides:
 - simple application entrypoint
 - logging support with `log`
 - automated light/dark themes (with Tailwind support)
-- utils to perform request to the backend (`impulse_ui_kit::router::endpoint` and `impulse_ui_kit::router::redirect` functions)
+- utils to perform request to the backend (`impulse_client_kit::router::endpoint` and `impulse_client_kit::router::redirect` functions)
 - WebSocket & WebTransport bindings (with optional automatic reconnection)
 
 Startup example:
 
 ```rust
 fn main() {
-  impulse_ui_kit::setup_app(log::Level::Info, Box::new(move || { view! { <App /> }.into_any() }))
+  impulse_client_kit::setup_app(log::Level::Info, Box::new(move || { view! { <App /> }.into_any() }))
 }
 ```
 
-[UI Kit Documentation](./impulse-ui-kit/README.md)
+[UI Kit Documentation](./impulse-client-kit/README.md)
 
-[UI Kit Showcase](./impulse-ui-kit/examples/showcase/README.md)
+[UI Kit Showcase](./impulse-client-kit/examples/showcase/README.md)
 
-[Server-Side Rendered Showcase](./impulse-ui-kit/examples/ssr_showcase/README.md)
+[Server-Side Rendered Showcase](./impulse-client-kit/examples/ssr_showcase/README.md)
 
 ## Rust Toolchain
 

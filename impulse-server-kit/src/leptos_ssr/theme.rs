@@ -6,7 +6,7 @@ use salvo::http::HeaderMap;
 pub const THEME_COOKIE_KEY: &str = "impulse_theme";
 
 /// Initial theme resolved from the request, mirrored from
-/// `impulse-ui-kit::ssr::InitialTheme`. The value is provided as a Leptos
+/// `impulse-client-kit::ssr::InitialTheme`. The value is provided as a Leptos
 /// context so user components can read the current theme during SSR.
 #[derive(Clone, Debug, Default)]
 pub struct InitialTheme(pub Option<String>);

@@ -128,7 +128,7 @@ pub(super) fn build_html_prefix(ctx: &PrefixContext<'_>) -> String {
 ///
 /// Because it precedes first paint, the body is never painted with the wrong
 /// theme. The literals (`theme`, `dark`, `light`) mirror the constants in
-/// `impulse-ui-kit-components::theme`; keep them in sync.
+/// `impulse-client-kit-components::theme`; keep them in sync.
 const THEME_INIT_SCRIPT: &str = "<script>(function(){try{\
 var e=localStorage.getItem(\"theme\"),c=document.documentElement.classList;\
 if(e===\"dark\"||(e!==\"light\"&&window.matchMedia&&window.matchMedia(\"(prefers-color-scheme: dark)\").matches)){c.add(\"dark\");c.remove(\"light\")}\

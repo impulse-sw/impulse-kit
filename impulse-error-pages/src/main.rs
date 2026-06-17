@@ -6,10 +6,10 @@
 
 #![deny(warnings, clippy::todo, clippy::unimplemented)]
 
-use impulse_ui_kit_components as components;
+use impulse_client_kit_components as components;
 
-use impulse_ui_kit::prelude::*;
-use impulse_ui_kit::router::{get_path, redirect};
+use impulse_client_kit::prelude::*;
+use impulse_client_kit::router::{get_path, redirect};
 use leptos_meta::*;
 
 use components::button::Button;

@@ -15,17 +15,17 @@ printf '[2/12] Action `%bLint \`impulse-utils\` on wasm32%b`...\n' "$BLUE" "$RES
 printf 'Executing `%b{flags}cargo clippy --package {package} --target {target}{features}%b`...\n' "$GREEN" "$RESET"
 RUSTFLAGS='--cfg reqwest_unstable' cargo clippy --package impulse-utils --target wasm32-unknown-unknown --no-default-features --features=reqwest
 
-printf '[3/12] Action `%bLint \`impulse-ui-kit\`%b`...\n' "$BLUE" "$RESET"
+printf '[3/12] Action `%bLint \`impulse-client-kit\`%b`...\n' "$BLUE" "$RESET"
 printf 'Executing `%b{flags}cargo clippy --package {package} --target {target}{features}%b`...\n' "$GREEN" "$RESET"
-cargo clippy --package impulse-ui-kit --target wasm32-unknown-unknown
+cargo clippy --package impulse-client-kit --target wasm32-unknown-unknown
 
-printf '[4/12] Action `%bLint \`impulse-ui-kit\` with \`websocket\`/\`webtransport\`%b`...\n' "$BLUE" "$RESET"
+printf '[4/12] Action `%bLint \`impulse-client-kit\` with \`websocket\`/\`webtransport\`%b`...\n' "$BLUE" "$RESET"
 printf 'Executing `%b{flags}cargo clippy --package {package} --target {target}{features}%b`...\n' "$GREEN" "$RESET"
-RUSTFLAGS='--cfg web_sys_unstable_apis' cargo clippy --package impulse-ui-kit --target wasm32-unknown-unknown --features=websocket,webtransport
+RUSTFLAGS='--cfg web_sys_unstable_apis' cargo clippy --package impulse-client-kit --target wasm32-unknown-unknown --features=websocket,webtransport
 
 printf '[5/12] Action `%bLint \`showcase\`%b`...\n' "$BLUE" "$RESET"
 printf 'Executing `%b{flags}cargo clippy --package {package} --target {target}{features}%b`...\n' "$GREEN" "$RESET"
-cargo clippy --package ui-kit-showcase --target wasm32-unknown-unknown
+cargo clippy --package client-kit-showcase --target wasm32-unknown-unknown
 
 printf '[6/12] Action `%bLint \`ssr-showcase\` wasm%b`...\n' "$BLUE" "$RESET"
 printf 'Executing `%b{flags}cargo clippy --package {package} --target {target}{features}%b`...\n' "$GREEN" "$RESET"

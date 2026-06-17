@@ -1,4 +1,4 @@
-//! Result types for `ServerError` (`impulse-server-kit`) and `ClientError` (`impulse-ui-kit`) errors.
+//! Result types for `ServerError` (`impulse-server-kit`) and `ClientError` (`impulse-client-kit`) errors.
 
 #[cfg(feature = "mresult")]
 use crate::errors::ServerError;

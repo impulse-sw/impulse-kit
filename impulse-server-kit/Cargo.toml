@@ -63,8 +63,8 @@ leptos-ssr = [
   "dep:cookie",
   "dep:any_spawner",
   "dep:bytes",
-  "dep:impulse-ui-kit",
-  "impulse-ui-kit/ssr",
+  "dep:impulse-client-kit",
+  "impulse-client-kit/ssr",
 ]
 leptos-server-fn = [
   "leptos-ssr",
@@ -142,7 +142,7 @@ tachys = { version = "0.2", optional = true, default-features = false }
 futures = { version = "0.3", optional = true, default-features = false, features = ["std"] }
 cookie = { version = "0.18", optional = true }
 any_spawner = { version = "0.3", optional = true, features = ["tokio"] }
-impulse-ui-kit = { workspace = true, optional = true }
+impulse-client-kit = { workspace = true, optional = true }
 server_fn = { version = "0.8.12", optional = true, default-features = false, features = ["axum-no-default", "msgpack", "cbor"] }
 http = { version = "1", optional = true }
 axum = { version = "0.8", optional = true, default-features = false }

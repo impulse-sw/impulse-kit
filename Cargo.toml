@@ -6,12 +6,12 @@ members = [
   "impulse-server-kit",
   "impulse-server-kit-dsl",
   "impulse-static-server",
-  "impulse-ui-kit",
-  "impulse-ui-kit/components",
-  "impulse-ui-kit/blocks",
-  "impulse-ui-kit/tailwind-sources",
-  "impulse-ui-kit/examples/showcase",
-  "impulse-ui-kit/examples/ssr_showcase",
+  "impulse-client-kit",
+  "impulse-client-kit/components",
+  "impulse-client-kit/blocks",
+  "impulse-client-kit/tailwind-sources",
+  "impulse-client-kit/examples/showcase",
+  "impulse-client-kit/examples/ssr_showcase",
   "impulse-error-pages",
 ]
 resolver = "3"
@@ -28,10 +28,10 @@ impulse-server-kit = { path = "impulse-server-kit", default-features = false }
 impulse-skdsl = { path = "impulse-server-kit-dsl" }
 impulse-static-server = { path = "impulse-static-server" }
 impulse-utils = { path = "impulse-utils", default-features = false }
-impulse-ui-kit = { path = "impulse-ui-kit", default-features = false }
-impulse-ui-kit-components = { path = "impulse-ui-kit/components", default-features = false }
-impulse-ui-kit-blocks = { path = "impulse-ui-kit/blocks", default-features = false }
-impulse-tailwind-sources = { path = "impulse-ui-kit/tailwind-sources" }
+impulse-client-kit = { path = "impulse-client-kit", default-features = false }
+impulse-client-kit-components = { path = "impulse-client-kit/components", default-features = false }
+impulse-client-kit-blocks = { path = "impulse-client-kit/blocks", default-features = false }
+impulse-tailwind-sources = { path = "impulse-client-kit/tailwind-sources" }
 
 anyhow = "1"
 brotli = { version = "7", default-features = false }

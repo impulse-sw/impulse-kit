@@ -18,7 +18,7 @@ use salvo::http::StatusCode;
 use salvo::prelude::*;
 use tachys::view::RenderHtml;
 
-use impulse_ui_kit::ssr::{InitialTheme, LeptosResponseOptions, RequestUrlCtx};
+use impulse_client_kit::ssr::{InitialTheme, LeptosResponseOptions, RequestUrlCtx};
 
 use crate::static_server::NoRedirectStaticRouter;
 

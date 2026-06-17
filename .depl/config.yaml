@@ -47,7 +47,7 @@ variables:
     value:
       type: plain
       value: " --no-default-features --features=ssr"
-  featureset-ui-kit-net:
+  featureset-client-kit-net:
     value:
       type: plain
       value: " --features=websocket,webtransport"
@@ -70,11 +70,11 @@ variables:
   folder-showcase:
     value:
       type: plain
-      value: impulse-ui-kit/examples/showcase/
+      value: impulse-client-kit/examples/showcase/
   folder-ssr-showcase:
     value:
       type: plain
-      value: impulse-ui-kit/examples/ssr_showcase/
+      value: impulse-client-kit/examples/ssr_showcase/
   kit-version:
     value:
       type: from_cmd
@@ -99,22 +99,22 @@ variables:
     value:
       type: plain
       value: impulse-static-server
-  package-ui-kit:
+  package-client-kit:
     value:
       type: plain
-      value: impulse-ui-kit
-  package-ui-kit-blocks:
+      value: impulse-client-kit
+  package-client-kit-blocks:
     value:
       type: plain
-      value: impulse-ui-kit-blocks
-  package-ui-kit-components:
+      value: impulse-client-kit-blocks
+  package-client-kit-components:
     value:
       type: plain
-      value: impulse-ui-kit-components
-  package-ui-kit-showcase:
+      value: impulse-client-kit-components
+  package-client-kit-showcase:
     value:
       type: plain
-      value: ui-kit-showcase
+      value: client-kit-showcase
   package-utils:
     value:
       type: plain
@@ -126,39 +126,39 @@ variables:
   showcase-favicon:
     value:
       type: plain
-      value: ./impulse-ui-kit/examples/showcase/public/favicon.ico
+      value: ./impulse-client-kit/examples/showcase/public/favicon.ico
   showcase-tw-input:
     value:
       type: plain
-      value: ./impulse-ui-kit/examples/showcase/input.css
+      value: ./impulse-client-kit/examples/showcase/input.css
   showcase-tw-output:
     value:
       type: plain
-      value: ./impulse-ui-kit/examples/showcase/public/tailwind.css
+      value: ./impulse-client-kit/examples/showcase/public/tailwind.css
   showcase-wasm-file:
     value:
       type: plain
-      value: ./impulse-ui-kit/examples/showcase/dist/ui-kit-showcase_bg.wasm
+      value: ./impulse-client-kit/examples/showcase/dist/client-kit-showcase_bg.wasm
   ssr-showcase-dist-folder:
     value:
       type: plain
-      value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg
+      value: ./impulse-client-kit/examples/ssr_showcase/dist/pkg
   ssr-showcase-dist-pkg-folder:
     value:
       type: plain
-      value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg
+      value: ./impulse-client-kit/examples/ssr_showcase/dist/pkg
   ssr-showcase-tw-input:
     value:
       type: plain
-      value: ./impulse-ui-kit/examples/ssr_showcase/input.css
+      value: ./impulse-client-kit/examples/ssr_showcase/input.css
   ssr-showcase-tw-output:
     value:
       type: plain
-      value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg/ssr_showcase.css
+      value: ./impulse-client-kit/examples/ssr_showcase/dist/pkg/ssr_showcase.css
   ssr-showcase-wasm-bg-file:
     value:
       type: plain
-      value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg/ssr_showcase_bg.wasm
+      value: ./impulse-client-kit/examples/ssr_showcase/dist/pkg/ssr_showcase_bg.wasm
   ssr-showcase-wasm-file:
     value:
       type: plain
@@ -303,7 +303,7 @@ actions:
     action:
       type: staged
       stage: build
-      cmd: depl add content -o -c impulse-ui-kit/components/src/{component-file}.rs -p ui-kit-{component-name}@{kit-version}
+      cmd: depl add content -o -c impulse-client-kit/components/src/{component-file}.rs -p client-kit-{component-name}@{kit-version}
       placeholders:
         - "{component-name}"
         - "{component-file}"
@@ -334,7 +334,7 @@ actions:
   - info: run-showcase-static-server@0.1.0
     action:
       type: observe
-      cmd: cd impulse-ui-kit/examples/showcase && ./iks
+      cmd: cd impulse-client-kit/examples/showcase && ./iks
       ignore_fails: true
       show_success_output: true
       show_cmd: false
@@ -342,7 +342,7 @@ actions:
   - info: run-ssr-showcase-server@0.1.0
     action:
       type: observe
-      cmd: cd impulse-ui-kit/examples/ssr_showcase && ../../../target/x86_64-unknown-linux-gnu/release/ssr-showcase
+      cmd: cd impulse-client-kit/examples/ssr_showcase && ../../../target/x86_64-unknown-linux-gnu/release/ssr-showcase
       ignore_fails: true
       show_success_output: true
       show_cmd: false
@@ -355,7 +355,7 @@ actions:
     action:
       type: staged
       stage: build
-      cmd: mv iks static-server.yaml impulse-ui-kit/examples/showcase
+      cmd: mv iks static-server.yaml impulse-client-kit/examples/showcase
   - info: tailwindcss-compile@0.2.0
     tags:
       - tailwind
@@ -437,7 +437,7 @@ actions:
     action:
       type: staged
       stage: build
-      cmd: cp {tw-output} {favicon} impulse-ui-kit/examples/showcase/dist/
+      cmd: cp {tw-output} {favicon} impulse-client-kit/examples/showcase/dist/
       placeholders:
         - "{tw-output}"
         - "{favicon}"
@@ -476,40 +476,40 @@ pipelines:
           "{flags}": reqwest-unstable-flag
           "{package}": package-utils
           "{target}": target-wasm
-      - title: Lint `impulse-ui-kit`
+      - title: Lint `impulse-client-kit`
         used: cargo-lint@0.2.0
         with:
           "{features}": empty
           "{flags}": empty
-          "{package}": package-ui-kit
+          "{package}": package-client-kit
           "{target}": target-wasm
-      - title: Lint `impulse-ui-kit` with `websocket`/`webtransport`
+      - title: Lint `impulse-client-kit` with `websocket`/`webtransport`
         used: cargo-lint@0.2.0
         with:
-          "{features}": featureset-ui-kit-net
+          "{features}": featureset-client-kit-net
           "{flags}": web-sys-unstable-flag
-          "{package}": package-ui-kit
+          "{package}": package-client-kit
           "{target}": target-wasm
-      - title: Lint `impulse-ui-kit-components`
+      - title: Lint `impulse-client-kit-components`
         used: cargo-lint@0.2.0
         with:
           "{features}": empty
           "{flags}": empty
-          "{package}": package-ui-kit-components
+          "{package}": package-client-kit-components
           "{target}": target-wasm
-      - title: Lint `impulse-ui-kit-blocks`
+      - title: Lint `impulse-client-kit-blocks`
         used: cargo-lint@0.2.0
         with:
           "{features}": empty
           "{flags}": empty
-          "{package}": package-ui-kit-blocks
+          "{package}": package-client-kit-blocks
           "{target}": target-wasm
       - title: Lint `showcase`
         used: cargo-lint@0.2.0
         with:
           "{features}": empty
           "{flags}": empty
-          "{package}": package-ui-kit-showcase
+          "{package}": package-client-kit-showcase
           "{target}": target-wasm
       - title: Lint `ssr-showcase` wasm
         used: cargo-lint@0.2.0
@@ -601,40 +601,40 @@ pipelines:
           "{flags}": reqwest-unstable-flag
           "{package}": package-utils
           "{target}": target-wasm
-      - title: Lint `impulse-ui-kit`
+      - title: Lint `impulse-client-kit`
         used: cargo-lint@0.2.0
         with:
           "{features}": empty
           "{flags}": empty
-          "{package}": package-ui-kit
+          "{package}": package-client-kit
           "{target}": target-wasm
-      - title: Lint `impulse-ui-kit` with `websocket`/`webtransport`
+      - title: Lint `impulse-client-kit` with `websocket`/`webtransport`
         used: cargo-lint@0.2.0
         with:
-          "{features}": featureset-ui-kit-net
+          "{features}": featureset-client-kit-net
           "{flags}": web-sys-unstable-flag
-          "{package}": package-ui-kit
+          "{package}": package-client-kit
           "{target}": target-wasm
-      - title: Lint `impulse-ui-kit-components`
+      - title: Lint `impulse-client-kit-components`
         used: cargo-lint@0.2.0
         with:
           "{features}": empty
           "{flags}": empty
-          "{package}": package-ui-kit-components
+          "{package}": package-client-kit-components
           "{target}": target-wasm
-      - title: Lint `impulse-ui-kit-blocks`
+      - title: Lint `impulse-client-kit-blocks`
         used: cargo-lint@0.2.0
         with:
           "{features}": empty
           "{flags}": empty
-          "{package}": package-ui-kit-blocks
+          "{package}": package-client-kit-blocks
           "{target}": target-wasm
       - title: Lint `showcase`
         used: cargo-lint@0.2.0
         with:
           "{features}": empty
           "{flags}": empty
-          "{package}": package-ui-kit-showcase
+          "{package}": package-client-kit-showcase
           "{target}": target-wasm
       - title: Lint `ssr-showcase` wasm
         used: cargo-lint@0.2.0
@@ -710,11 +710,11 @@ pipelines:
         with:
           "{features}": empty
           "{package}": package-static-server
-      - title: Publish `impulse-ui-kit`
+      - title: Publish `impulse-client-kit`
         used: cargo-publish@0.2.0
         with:
           "{features}": empty
-          "{package}": package-ui-kit
+          "{package}": package-client-kit
   - title: build-error-pages
     desc: Got from `build`.
     info: impulse-error-pages-build@0.1.0
@@ -779,7 +779,7 @@ pipelines:
         to: static-server/static-server.yaml
     exclusive_exec_tag: binaries
   - title: build-showcase-no-deployer
-    info: ui-kit-example-build@0.1.0
+    info: client-kit-example-build@0.1.0
     default: false
     actions:
       - title: Lint
@@ -787,7 +787,7 @@ pipelines:
         with:
           "{features}": empty
           "{flags}": empty
-          "{package}": package-ui-kit-showcase
+          "{package}": package-client-kit-showcase
           "{target}": target-wasm
       - title: "Format #1"
         used: leptos-fmt@0.1.0
@@ -816,10 +816,10 @@ pipelines:
           "{favicon}": showcase-favicon
           "{tw-output}": showcase-tw-output
     artifacts:
-      - from: impulse-ui-kit/examples/showcase/dist
+      - from: impulse-client-kit/examples/showcase/dist
         to: showcase/dist
   - title: build-showcase
-    info: ui-kit-example-build@0.1.0
+    info: client-kit-example-build@0.1.0
     default: false
     actions:
       - title: Lint
@@ -827,7 +827,7 @@ pipelines:
         with:
           "{features}": empty
           "{flags}": empty
-          "{package}": package-ui-kit-showcase
+          "{package}": package-client-kit-showcase
           "{target}": target-wasm
       - title: "Format #1"
         used: leptos-fmt@0.1.0
@@ -856,10 +856,10 @@ pipelines:
           "{favicon}": showcase-favicon
           "{tw-output}": showcase-tw-output
     artifacts:
-      - from: impulse-ui-kit/examples/showcase/dist
+      - from: impulse-client-kit/examples/showcase/dist
         to: showcase/dist
   - title: deploy-showcase
-    info: ui-kit-example-deploy@0.1.0
+    info: client-kit-example-deploy@0.1.0
     default: false
     actions:
       - title: Lint
@@ -867,7 +867,7 @@ pipelines:
         with:
           "{features}": empty
           "{flags}": empty
-          "{package}": package-ui-kit-showcase
+          "{package}": package-client-kit-showcase
           "{target}": target-wasm
       - title: "Format #1"
         used: leptos-fmt@0.1.0
@@ -902,21 +902,21 @@ pipelines:
       - title: Run static server at `0.0.0.0:8807`
         used: run-showcase-static-server@0.1.0
     artifacts:
-      - from: impulse-ui-kit/examples/showcase/iks
+      - from: impulse-client-kit/examples/showcase/iks
         to: showcase/iks
-      - from: impulse-ui-kit/examples/showcase/static-server.yaml
+      - from: impulse-client-kit/examples/showcase/static-server.yaml
         to: showcase/static-server.yaml
-      - from: impulse-ui-kit/examples/showcase/dist
+      - from: impulse-client-kit/examples/showcase/dist
         to: showcase/dist
   - title: run-showcase
-    info: ui-kit-example-run@0.1.0
+    info: client-kit-example-run@0.1.0
     default: true
     actions:
       - title: Run static server at `0.0.0.0:8807`
         used: run-showcase-static-server@0.1.0
   - title: build-ssr-showcase
     desc: Build the server-rendered showcase binary and ship it with its YAML config.
-    info: ui-kit-ssr-example-build@0.1.0
+    info: client-kit-ssr-example-build@0.1.0
     tags:
       - cargo
       - clippy
@@ -959,14 +959,14 @@ pipelines:
     artifacts:
       - from: target/x86_64-unknown-linux-gnu/release/ssr-showcase
         to: ssr-showcase/ssr-showcase
-      - from: impulse-ui-kit/examples/ssr_showcase/server-example.yaml
+      - from: impulse-client-kit/examples/ssr_showcase/server-example.yaml
         to: ssr-showcase/server-example.yaml
-      - from: impulse-ui-kit/examples/ssr_showcase/dist
+      - from: impulse-client-kit/examples/ssr_showcase/dist
         to: ssr-showcase/dist
     exclusive_exec_tag: binaries
   - title: deploy-ssr-showcase
     desc: Build the SSR + hydration showcase (server binary, wasm bundle, CSS) and run it.
-    info: ui-kit-ssr-example-deploy@0.1.0
+    info: client-kit-ssr-example-deploy@0.1.0
     tags:
       - cargo
       - clippy
@@ -1035,9 +1035,9 @@ pipelines:
     artifacts:
       - from: target/x86_64-unknown-linux-gnu/release/ssr-showcase
         to: ssr-showcase/ssr-showcase
-      - from: impulse-ui-kit/examples/ssr_showcase/server-example.yaml
+      - from: impulse-client-kit/examples/ssr_showcase/server-example.yaml
         to: ssr-showcase/server-example.yaml
-      - from: impulse-ui-kit/examples/ssr_showcase/dist
+      - from: impulse-client-kit/examples/ssr_showcase/dist
         to: ssr-showcase/dist
     exclusive_exec_tag: binaries
   - title: build-skdsl

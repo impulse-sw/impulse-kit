@@ -2424,8 +2424,8 @@ name = "impulse-error-pages"
 version = "1.2.7"
 dependencies = [
  "icondata",
- "impulse-ui-kit",
- "impulse-ui-kit-components",
+ "impulse-client-kit",
+ "impulse-client-kit-components",
  "impulse-utils",
  "leptos",
  "leptos_meta",
@@ -2449,7 +2449,7 @@ dependencies = [
  "http",
  "http-body-util",
  "hydration_context",
- "impulse-ui-kit",
+ "impulse-client-kit",
  "impulse-utils",
  "leptos",
  "leptos_integration_utils",
@@ -2508,7 +2508,7 @@ name = "impulse-tailwind-sources"
 version = "1.2.7"
 
 [[package]]
-name = "impulse-ui-kit"
+name = "impulse-client-kit"
 version = "1.2.7"
 dependencies = [
  "console_error_panic_hook",
@@ -2525,13 +2525,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "impulse-ui-kit-blocks"
+name = "impulse-client-kit-blocks"
 version = "1.2.7"
 dependencies = [
  "gloo-net",
  "impulse-tailwind-sources",
- "impulse-ui-kit",
- "impulse-ui-kit-components",
+ "impulse-client-kit",
+ "impulse-client-kit-components",
  "leptos",
  "log",
  "pulldown-cmark",
@@ -2539,14 +2539,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "impulse-ui-kit-components"
+name = "impulse-client-kit-components"
 version = "1.2.7"
 dependencies = [
  "chrono",
  "codee",
  "icondata",
  "impulse-tailwind-sources",
- "impulse-ui-kit",
+ "impulse-client-kit",
  "leptos",
  "leptos-use",
  "uuid",
@@ -5597,8 +5597,8 @@ dependencies = [
  "console_error_panic_hook",
  "impulse-server-kit",
  "impulse-tailwind-sources",
- "impulse-ui-kit",
- "impulse-ui-kit-components",
+ "impulse-client-kit",
+ "impulse-client-kit-components",
  "leptos",
  "leptos_meta",
  "serde",
@@ -6268,16 +6268,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
-name = "ui-kit-showcase"
+name = "client-kit-showcase"
 version = "1.2.7"
 dependencies = [
  "chrono",
  "codee",
  "icondata",
  "impulse-tailwind-sources",
- "impulse-ui-kit",
- "impulse-ui-kit-blocks",
- "impulse-ui-kit-components",
+ "impulse-client-kit",
+ "impulse-client-kit-blocks",
+ "impulse-client-kit-components",
  "leptos",
  "leptos-use",
  "log",

@@ -1,0 +1,53 @@
+[package]
+name = "impulse-client-kit-components"
+description = "Generic components for UI Kit"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+build = "build.rs"
+# Lets `build.rs` publish the component sources' path to dependents via
+# `DEP_IMPULSE_UI_KIT_COMPONENTS_{STYLES,SOURCE_DIR}` so Tailwind can scan them.
+links = "impulse-client-kit-components"
+
+[build-dependencies]
+impulse-tailwind-sources = { workspace = true }
+
+[features]
+default = ["csr"]
+csr = [
+  "impulse-client-kit/csr",
+  "leptos/csr",
+  "leptos-use/storage",
+]
+hydrate = [
+  "impulse-client-kit/hydrate",
+  "leptos/hydrate",
+  "leptos-use/storage",
+]
+ssr = [
+  "impulse-client-kit/ssr",
+  "leptos/ssr",
+  "leptos-use/ssr",
+  "leptos-use/storage",
+]
+
+[dependencies]
+chrono = "0.4.42"
+codee = "0.3.3"
+icondata = { workspace = true }
+impulse-client-kit = { workspace = true }
+leptos = { version = "0.8", default-features = false }
+leptos-use = { version = "0.16", default-features = false }
+uuid = { version = "1.18.1", features = ["v4", "js"] }
+web-sys = { version = "0.3.82", features = [
+  "ClipboardEvent",
+  "DataTransfer",
+  "DomRect",
+  "Element",
+  "HtmlButtonElement",
+  "HtmlDivElement",
+  "HtmlDocument",
+  "NodeList",
+  "Clipboard",
+] }
