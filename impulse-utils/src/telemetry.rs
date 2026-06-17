@@ -14,7 +14,15 @@
 
 use serde::{Deserialize, Serialize};
 
+// `salvo::oapi::ToSchema` is derived on the wire types only on the server
+// (non-wasm, with the `salvo` feature) so that `impulse-server-kit` can document
+// the collection endpoint with OpenAPI, without pulling `salvo` into wasm builds.
+
 /// What kind of interaction a [`TelemetryEvent`] describes.
+#[cfg_attr(
+  all(feature = "salvo", not(any(target_arch = "wasm32", target_arch = "wasm64"))),
+  derive(salvo::oapi::ToSchema)
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TelemetryEventKind {
@@ -41,6 +49,10 @@ pub enum TelemetryEventKind {
 }
 
 /// Severity for [`TelemetryEventKind::Log`] events, mirroring `tracing`/`log` levels.
+#[cfg_attr(
+  all(feature = "salvo", not(any(target_arch = "wasm32", target_arch = "wasm64"))),
+  derive(salvo::oapi::ToSchema)
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TelemetryLevel {
@@ -60,6 +72,10 @@ pub enum TelemetryLevel {
 ///
 /// A `Vec` of these is used instead of a map so the wire format stays stable and
 /// trivially (de)serializable in MessagePack without relying on map ordering.
+#[cfg_attr(
+  all(feature = "salvo", not(any(target_arch = "wasm32", target_arch = "wasm64"))),
+  derive(salvo::oapi::ToSchema)
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TelemetryAttr {
   /// Attribute name.
@@ -84,6 +100,10 @@ impl TelemetryAttr {
 /// anonymous, session-scoped identifier, while [`Self::user_id`] is only present
 /// when the application has opted into identified collection. In anonymous mode
 /// the client never fills `user_id`.
+#[cfg_attr(
+  all(feature = "salvo", not(any(target_arch = "wasm32", target_arch = "wasm64"))),
+  derive(salvo::oapi::ToSchema)
+)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TelemetryEvent {
   /// The interaction kind.
@@ -165,6 +185,10 @@ impl TelemetryEvent {
 }
 
 /// A batch of telemetry events, the unit of transport for the collection endpoint.
+#[cfg_attr(
+  all(feature = "salvo", not(any(target_arch = "wasm32", target_arch = "wasm64"))),
+  derive(salvo::oapi::ToSchema)
+)]
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct TelemetryBatch {
   /// The collected events.

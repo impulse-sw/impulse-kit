@@ -171,13 +171,12 @@ async fn parse_batch(req: &mut Request) -> MResult<TelemetryBatch> {
   }
 }
 
-/// Telemetry collection endpoint.
+/// Shared body of the telemetry collection endpoint.
 ///
 /// Accepts a POSTed [`TelemetryBatch`] (MessagePack or JSON), then dispatches
 /// every event to the `Arc<dyn TelemetrySink>` injected into the depot, falling
 /// back to [`TracingTelemetrySink`] when none is present.
-#[handler]
-pub async fn collect_telemetry(req: &mut Request, depot: &mut Depot) -> MResult<OK> {
+async fn collect_telemetry_inner(req: &mut Request, depot: &mut Depot) -> MResult<OK> {
   let batch = parse_batch(req).await?;
   let ctx = TelemetryRequestCtx::from_request(req);
 
@@ -194,6 +193,34 @@ pub async fn collect_telemetry(req: &mut Request, depot: &mut Depot) -> MResult<
   }
 
   ok!()
+}
+
+/// Collect client telemetry
+///
+/// Ingests a batch of telemetry events produced by `impulse-client-kit`'s
+/// telemetry monitors and imperative helpers. Each event is dispatched to the
+/// configured [`TelemetrySink`] (defaulting to [`TracingTelemetrySink`]).
+#[cfg(feature = "oapi")]
+#[endpoint(
+  tags("Telemetry"),
+  request_body(
+    content = TelemetryBatch,
+    content_type = "application/msgpack",
+    description = "Batch of client telemetry events (MessagePack; JSON also accepted)"
+  ),
+  responses((status_code = 200, description = "Events accepted"))
+)]
+#[tracing::instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]
+pub async fn collect_telemetry(req: &mut Request, depot: &mut Depot) -> MResult<OK> {
+  collect_telemetry_inner(req, depot).await
+}
+
+/// Collect client telemetry (non-OpenAPI build).
+#[cfg(not(feature = "oapi"))]
+#[handler]
+#[tracing::instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]
+pub async fn collect_telemetry(req: &mut Request, depot: &mut Depot) -> MResult<OK> {
+  collect_telemetry_inner(req, depot).await
 }
 
 /// Build a router that collects telemetry at `path` using the provided sink.

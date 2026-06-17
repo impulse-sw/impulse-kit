@@ -21,6 +21,9 @@ use leptos::prelude::*;
 use leptos_meta::*;
 use serde::{Deserialize, Serialize};
 
+#[cfg(any(feature = "ssr", feature = "hydrate"))]
+use impulse_client_kit::prelude::{ClickMonitor, TelemetryConfig, ViewMonitor, provide_telemetry};
+
 /// Greeting payload returned by the [`greet`] server function.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Greeting {
@@ -54,8 +57,37 @@ pub async fn slow_data() -> Result<Vec<String>, server_fn::ServerFnError> {
 pub fn App() -> impl IntoView {
   provide_meta_context();
 
+  // Publish a telemetry context (anonymous by default). On the server this is a
+  // no-op; on the hydrated client the monitors below deliver events via
+  // `navigator.sendBeacon` to the `/api/telemetry` endpoint mounted in `main`.
+  #[cfg(any(feature = "ssr", feature = "hydrate"))]
+  provide_telemetry(TelemetryConfig::new("/api/telemetry"));
+
   let greeting = Resource::new(|| (), |_| async move { greet("Impulse".to_string()).await });
   let slow = Resource::new(|| (), |_| async move { slow_data().await });
+
+  // Telemetry demo card, only present when a telemetry context exists.
+  #[cfg(any(feature = "ssr", feature = "hydrate"))]
+  let telemetry_demo = view! {
+    <ViewMonitor message="showcase:telemetry-card">
+      <Card class="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>"Telemetry"</CardTitle>
+          <CardDescription>
+            "Impressions and clicks are sent to /api/telemetry."
+          </CardDescription>
+        </CardHeader>
+        <CardContent class="flex flex-wrap items-center gap-2">
+          <ClickMonitor message="showcase:cta">
+            <Button>"Track this click"</Button>
+          </ClickMonitor>
+        </CardContent>
+      </Card>
+    </ViewMonitor>
+  }
+  .into_any();
+  #[cfg(not(any(feature = "ssr", feature = "hydrate")))]
+  let telemetry_demo = ().into_any();
 
   view! {
     // Page-level overrides only. Description, canonical, OG and Twitter
@@ -86,6 +118,8 @@ pub fn App() -> impl IntoView {
           <Badge variant=BadgeVariant::Destructive>"Error"</Badge>
         </CardContent>
       </Card>
+
+      {telemetry_demo}
 
       <Suspense fallback=move || {
         view! { <p>"Loading greeting…"</p> }

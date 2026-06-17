@@ -11,7 +11,13 @@ It demonstrates:
 - `#[server]` functions dispatched through `server_fn::axum::handle_server_fn`
   bridged to Salvo,
 - client-side hydration via the `hydrate` entrypoint exported from the wasm
-  bundle.
+  bundle,
+- end-to-end telemetry: the `App` wraps a demo card in `<ViewMonitor>` /
+  `<ClickMonitor>` (from `impulse-client-kit`), and the server mounts a
+  `telemetry_router("api/telemetry", …)` backed by a `TelemetrySink` that logs
+  every received event. After hydration, scrolling the card into view and
+  clicking its button post MessagePack batches to `/api/telemetry`, which show
+  up in the server logs as `received client telemetry`.
 
 ## Build
 
