@@ -1,5 +1,5 @@
 project_name: impulse-kit
-version: 9
+version: 10
 ignore_files:
   - .*.kate-swp
   - .git
@@ -8,177 +8,134 @@ cache_files:
   - target
 variables:
   binary-dsl:
-    value:
-      type: plain
-      value: target/x86_64-unknown-linux-gnu/release/skdsl
+    type: plain
+    value: target/x86_64-unknown-linux-gnu/release/skdsl
   binary-ssr-showcase:
-    value:
-      type: plain
-      value: target/x86_64-unknown-linux-gnu/release/ssr-showcase
+    type: plain
+    value: target/x86_64-unknown-linux-gnu/release/ssr-showcase
   binary-static-server:
-    value:
-      type: plain
-      value: target/x86_64-unknown-linux-gnu/release/iks
+    type: plain
+    value: target/x86_64-unknown-linux-gnu/release/iks
   empty:
-    value:
-      type: plain
-      value: ""
+    type: plain
+    value: ""
   error-pages-tw-input:
-    value:
-      type: plain
-      value: ./impulse-error-pages/input.css
+    type: plain
+    value: ./impulse-error-pages/input.css
   error-pages-tw-output:
-    value:
-      type: plain
-      value: ./impulse-error-pages/dist/error_pages_tailwind.css
+    type: plain
+    value: ./impulse-error-pages/dist/error_pages_tailwind.css
   error-pages-wasm-file:
-    value:
-      type: plain
-      value: ./impulse-error-pages/dist/impulse-error-pages_bg.wasm
+    type: plain
+    value: ./impulse-error-pages/dist/impulse-error-pages_bg.wasm
   featureset-all:
-    value:
-      type: plain
-      value: " --all-features"
+    type: plain
+    value: " --all-features"
   featureset-ssr-showcase-hydrate:
-    value:
-      type: plain
-      value: " --no-default-features --features=hydrate"
+    type: plain
+    value: " --no-default-features --features=hydrate"
   featureset-ssr-showcase-server:
-    value:
-      type: plain
-      value: " --no-default-features --features=ssr"
-  featureset-client-kit-net:
-    value:
-      type: plain
-      value: " --features=websocket,webtransport"
+    type: plain
+    value: " --no-default-features --features=ssr"
+  featureset-ui-kit-net:
+    type: plain
+    value: " --features=websocket,webtransport"
   featureset-utils-wasm32:
-    value:
-      type: plain
-      value: " --no-default-features --features=reqwest"
+    type: plain
+    value: " --no-default-features --features=reqwest"
   file-error-pages-favicon:
-    value:
-      type: plain
-      value: impulse-error-pages/public/favicon.ico
+    type: plain
+    value: impulse-error-pages/public/favicon.ico
   folder-error-pages:
-    value:
-      type: plain
-      value: impulse-error-pages/
+    type: plain
+    value: impulse-error-pages/
   folder-error-pages-dist:
-    value:
-      type: plain
-      value: impulse-error-pages/dist/
+    type: plain
+    value: impulse-error-pages/dist/
   folder-showcase:
-    value:
-      type: plain
-      value: impulse-client-kit/examples/showcase/
+    type: plain
+    value: impulse-ui-kit/examples/showcase/
   folder-ssr-showcase:
-    value:
-      type: plain
-      value: impulse-client-kit/examples/ssr_showcase/
+    type: plain
+    value: impulse-ui-kit/examples/ssr_showcase/
   kit-version:
-    value:
-      type: from_cmd
-      cmd: python .depl/rust_crate_ver.py
+    type: from_cmd
+    cmd: python .depl/rust_crate_ver.py
   package-dsl:
-    value:
-      type: plain
-      value: impulse-skdsl
+    type: plain
+    value: impulse-skdsl
   package-error-pages:
-    value:
-      type: plain
-      value: impulse-error-pages
+    type: plain
+    value: impulse-error-pages
   package-server-kit:
-    value:
-      type: plain
-      value: impulse-server-kit
+    type: plain
+    value: impulse-server-kit
   package-ssr-showcase:
-    value:
-      type: plain
-      value: ssr-showcase
+    type: plain
+    value: ssr-showcase
   package-static-server:
-    value:
-      type: plain
-      value: impulse-static-server
-  package-client-kit:
-    value:
-      type: plain
-      value: impulse-client-kit
-  package-client-kit-blocks:
-    value:
-      type: plain
-      value: impulse-client-kit-blocks
-  package-client-kit-components:
-    value:
-      type: plain
-      value: impulse-client-kit-components
-  package-client-kit-showcase:
-    value:
-      type: plain
-      value: client-kit-showcase
+    type: plain
+    value: impulse-static-server
+  package-ui-kit:
+    type: plain
+    value: impulse-ui-kit
+  package-ui-kit-blocks:
+    type: plain
+    value: impulse-ui-kit-blocks
+  package-ui-kit-components:
+    type: plain
+    value: impulse-ui-kit-components
+  package-ui-kit-showcase:
+    type: plain
+    value: ui-kit-showcase
   package-utils:
-    value:
-      type: plain
-      value: impulse-utils
+    type: plain
+    value: impulse-utils
   reqwest-unstable-flag:
-    value:
-      type: plain
-      value: 'RUSTFLAGS=''--cfg reqwest_unstable'' '
+    type: plain
+    value: 'RUSTFLAGS=''--cfg reqwest_unstable'' '
   showcase-favicon:
-    value:
-      type: plain
-      value: ./impulse-client-kit/examples/showcase/public/favicon.ico
+    type: plain
+    value: ./impulse-ui-kit/examples/showcase/public/favicon.ico
   showcase-tw-input:
-    value:
-      type: plain
-      value: ./impulse-client-kit/examples/showcase/input.css
+    type: plain
+    value: ./impulse-ui-kit/examples/showcase/input.css
   showcase-tw-output:
-    value:
-      type: plain
-      value: ./impulse-client-kit/examples/showcase/public/tailwind.css
+    type: plain
+    value: ./impulse-ui-kit/examples/showcase/public/tailwind.css
   showcase-wasm-file:
-    value:
-      type: plain
-      value: ./impulse-client-kit/examples/showcase/dist/client-kit-showcase_bg.wasm
+    type: plain
+    value: ./impulse-ui-kit/examples/showcase/dist/ui-kit-showcase_bg.wasm
   ssr-showcase-dist-folder:
-    value:
-      type: plain
-      value: ./impulse-client-kit/examples/ssr_showcase/dist/pkg
+    type: plain
+    value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg
   ssr-showcase-dist-pkg-folder:
-    value:
-      type: plain
-      value: ./impulse-client-kit/examples/ssr_showcase/dist/pkg
+    type: plain
+    value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg
   ssr-showcase-tw-input:
-    value:
-      type: plain
-      value: ./impulse-client-kit/examples/ssr_showcase/input.css
+    type: plain
+    value: ./impulse-ui-kit/examples/ssr_showcase/input.css
   ssr-showcase-tw-output:
-    value:
-      type: plain
-      value: ./impulse-client-kit/examples/ssr_showcase/dist/pkg/ssr_showcase.css
+    type: plain
+    value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg/ssr_showcase.css
   ssr-showcase-wasm-bg-file:
-    value:
-      type: plain
-      value: ./impulse-client-kit/examples/ssr_showcase/dist/pkg/ssr_showcase_bg.wasm
+    type: plain
+    value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg/ssr_showcase_bg.wasm
   ssr-showcase-wasm-file:
-    value:
-      type: plain
-      value: ./target/wasm32-unknown-unknown/release/ssr_showcase.wasm
+    type: plain
+    value: ./target/wasm32-unknown-unknown/release/ssr_showcase.wasm
   ssr-showcase-wasm-out-name:
-    value:
-      type: plain
-      value: ssr_showcase
+    type: plain
+    value: ssr_showcase
   target-wasm:
-    value:
-      type: plain
-      value: wasm32-unknown-unknown
+    type: plain
+    value: wasm32-unknown-unknown
   target-native:
-    value:
-      type: from_cmd
-      cmd: rustc -vV | grep host | cut -d' ' -f2
+    type: from_cmd
+    cmd: rustc -vV | grep host | cut -d' ' -f2
   web-sys-unstable-flag:
-    value:
-      type: plain
-      value: 'RUSTFLAGS=''--cfg web_sys_unstable_apis'' '
+    type: plain
+    value: 'RUSTFLAGS=''--cfg web_sys_unstable_apis'' '
 actions:
   - info: add-static-server-to-storage@0.1.0
     action:
