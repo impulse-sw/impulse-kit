@@ -171,10 +171,10 @@ variables:
     value:
       type: plain
       value: wasm32-unknown-unknown
-  target-x86:
+  target-native:
     value:
-      type: plain
-      value: x86_64-unknown-linux-gnu
+      type: from_cmd
+      cmd: rustc -vV | grep host | cut -d' ' -f2
   web-sys-unstable-flag:
     value:
       type: plain
@@ -453,9 +453,10 @@ actions:
       placeholders:
         - "{file}"
 pipelines:
-  - title: lints
-    desc: Lints for Impulse Kit
-    info: impulse-kit-lints@0.1.0
+  - title: quality
+    desc: Check code quality for Impulse Kit (clippy + doc tests gate)
+    info: impulse-kit-quality@0.1.0
+    default: true
     tags:
       - cargo
       - clippy
@@ -468,7 +469,7 @@ pipelines:
           "{features}": empty
           "{flags}": reqwest-unstable-flag
           "{package}": package-utils
-          "{target}": target-x86
+          "{target}": target-native
       - title: Lint `impulse-utils` on wasm32
         used: cargo-lint@0.2.0
         with:
@@ -531,28 +532,28 @@ pipelines:
           "{features}": empty
           "{flags}": reqwest-unstable-flag
           "{package}": package-server-kit
-          "{target}": target-x86
+          "{target}": target-native
       - title: Lint `impulse-server-kit-dsl`
         used: cargo-lint@0.2.0
         with:
           "{features}": empty
           "{flags}": empty
           "{package}": package-dsl
-          "{target}": target-x86
+          "{target}": target-native
       - title: Lint `impulse-static-server`
         used: cargo-lint@0.2.0
         with:
           "{features}": empty
           "{flags}": empty
           "{package}": package-static-server
-          "{target}": target-x86
+          "{target}": target-native
       - title: Lint `ssr-showcase` server
         used: cargo-lint@0.2.0
         with:
           "{features}": featureset-ssr-showcase-server
           "{flags}": empty
           "{package}": package-ssr-showcase
-          "{target}": target-x86
+          "{target}": target-native
       - title: Test docs
         used: cargo-test-doc@0.1.0
     gh_opts:
@@ -574,116 +575,27 @@ pipelines:
             target: wasm32-unknown-unknown
             toolchain: nightly
             components: clippy
-  - title: common-ops
-    desc: Common monorepo operations
-    info: impulse-kit-common-ops@0.1.0
+  - title: ops
+    desc: Improve code quality (formatting)
+    info: impulse-kit-ops@0.1.0
     tags:
       - cargo
-      - clippy
-      - lint
-      - docs
       - fmt
     default: true
     actions:
       - title: Format
         used: cargo-fmt@0.1.0
-      - title: Lint `impulse-utils` on x86-64
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": empty
-          "{flags}": reqwest-unstable-flag
-          "{package}": package-utils
-          "{target}": target-x86
-      - title: Lint `impulse-utils` on wasm32
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": featureset-utils-wasm32
-          "{flags}": reqwest-unstable-flag
-          "{package}": package-utils
-          "{target}": target-wasm
-      - title: Lint `impulse-client-kit`
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": empty
-          "{flags}": empty
-          "{package}": package-client-kit
-          "{target}": target-wasm
-      - title: Lint `impulse-client-kit` with `websocket`/`webtransport`
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": featureset-client-kit-net
-          "{flags}": web-sys-unstable-flag
-          "{package}": package-client-kit
-          "{target}": target-wasm
-      - title: Lint `impulse-client-kit-components`
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": empty
-          "{flags}": empty
-          "{package}": package-client-kit-components
-          "{target}": target-wasm
-      - title: Lint `impulse-client-kit-blocks`
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": empty
-          "{flags}": empty
-          "{package}": package-client-kit-blocks
-          "{target}": target-wasm
-      - title: Lint `showcase`
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": empty
-          "{flags}": empty
-          "{package}": package-client-kit-showcase
-          "{target}": target-wasm
-      - title: Lint `ssr-showcase` wasm
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": featureset-ssr-showcase-hydrate
-          "{flags}": empty
-          "{package}": package-ssr-showcase
-          "{target}": target-wasm
-      - title: Lint `impulse-error-pages`
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": empty
-          "{flags}": empty
-          "{package}": package-error-pages
-          "{target}": target-wasm
-      - title: Lint `impulse-server-kit`
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": empty
-          "{flags}": reqwest-unstable-flag
-          "{package}": package-server-kit
-          "{target}": target-x86
-      - title: Lint `impulse-server-kit-dsl`
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": empty
-          "{flags}": empty
-          "{package}": package-dsl
-          "{target}": target-x86
-      - title: Lint `impulse-static-server`
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": empty
-          "{flags}": empty
-          "{package}": package-static-server
-          "{target}": target-x86
-      - title: Lint `ssr-showcase` server
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": featureset-ssr-showcase-server
-          "{flags}": empty
-          "{package}": package-ssr-showcase
-          "{target}": target-x86
-      - title: Test docs
-        used: cargo-test-doc@0.1.0
+  - title: docs
+    desc: Build workspace documentation
+    info: impulse-kit-docs@0.1.0
+    tags:
+      - cargo
+      - docs
+    actions:
       - title: Generate docs
         used: cargo-generate-doc@0.1.0
         with:
-          "{target}": target-x86
+          "{target}": target-native
     artifacts:
       - from: target/x86_64-unknown-linux-gnu/doc
         to: docs
@@ -714,7 +626,8 @@ pipelines:
         used: cargo-publish@0.2.0
         with:
           "{features}": empty
-          "{package}": package-client-kit
+          "{package}": package-ui-kit
+    run_tag: release
   - title: build-error-pages
     desc: Got from `build`.
     info: impulse-error-pages-build@0.1.0
@@ -752,6 +665,7 @@ pipelines:
     artifacts:
       - from: impulse-error-pages/dist
         to: error-pages
+    run_tag: staging
   - title: build-static-server
     info: impulse-kit-build-static-server@0.1.0
     actions:
@@ -765,7 +679,7 @@ pipelines:
           "{features}": empty
           "{flags}": empty
           "{package}": package-static-server
-          "{target}": target-x86
+          "{target}": target-native
       - title: Compress
         used: upx@0.1.0
         with:
@@ -777,6 +691,7 @@ pipelines:
         to: static-server/iks
       - from: impulse-static-server/static-server.yaml
         to: static-server/static-server.yaml
+    run_tag: staging
     exclusive_exec_tag: binaries
   - title: build-showcase-no-deployer
     info: client-kit-example-build@0.1.0
@@ -818,6 +733,7 @@ pipelines:
     artifacts:
       - from: impulse-client-kit/examples/showcase/dist
         to: showcase/dist
+    run_tag: staging
   - title: build-showcase
     info: client-kit-example-build@0.1.0
     default: false
@@ -858,6 +774,7 @@ pipelines:
     artifacts:
       - from: impulse-client-kit/examples/showcase/dist
         to: showcase/dist
+    run_tag: staging
   - title: deploy-showcase
     info: client-kit-example-deploy@0.1.0
     default: false
@@ -908,12 +825,14 @@ pipelines:
         to: showcase/static-server.yaml
       - from: impulse-client-kit/examples/showcase/dist
         to: showcase/dist
+    run_tag: production
   - title: run-showcase
     info: client-kit-example-run@0.1.0
     default: true
     actions:
       - title: Run static server at `0.0.0.0:8807`
         used: run-showcase-static-server@0.1.0
+    run_tag: production
   - title: build-ssr-showcase
     desc: Build the server-rendered showcase binary and ship it with its YAML config.
     info: client-kit-ssr-example-build@0.1.0
@@ -931,7 +850,7 @@ pipelines:
           "{features}": empty
           "{flags}": empty
           "{package}": package-ssr-showcase
-          "{target}": target-x86
+          "{target}": target-native
       - title: Format
         used: cargo-fmt@0.1.0
       - title: Patch `Cargo.toml`
@@ -942,7 +861,7 @@ pipelines:
           "{features}": empty
           "{flags}": empty
           "{package}": package-ssr-showcase
-          "{target}": target-x86
+          "{target}": target-native
       - title: Compress
         used: upx@0.1.0
         with:
@@ -963,6 +882,7 @@ pipelines:
         to: ssr-showcase/server-example.yaml
       - from: impulse-client-kit/examples/ssr_showcase/dist
         to: ssr-showcase/dist
+    run_tag: staging
     exclusive_exec_tag: binaries
   - title: deploy-ssr-showcase
     desc: Build the SSR + hydration showcase (server binary, wasm bundle, CSS) and run it.
@@ -982,7 +902,7 @@ pipelines:
           "{features}": featureset-ssr-showcase-server
           "{flags}": empty
           "{package}": package-ssr-showcase
-          "{target}": target-x86
+          "{target}": target-native
       - title: Lint wasm
         used: cargo-lint@0.2.0
         with:
@@ -1025,7 +945,7 @@ pipelines:
           "{features}": featureset-ssr-showcase-server
           "{flags}": empty
           "{package}": package-ssr-showcase
-          "{target}": target-x86
+          "{target}": target-native
       - title: Compress server binary
         used: upx@0.1.0
         with:
@@ -1039,8 +959,9 @@ pipelines:
         to: ssr-showcase/server-example.yaml
       - from: impulse-client-kit/examples/ssr_showcase/dist
         to: ssr-showcase/dist
+    run_tag: production
     exclusive_exec_tag: binaries
-  - title: build-skdsl
+  - title: install-skdsl
     desc: Build and install SKDSL
     info: impulse-kit-skdsl@0.1.0
     tags:
@@ -1054,7 +975,7 @@ pipelines:
           "{features}": empty
           "{flags}": empty
           "{package}": package-dsl
-          "{target}": target-x86
+          "{target}": target-native
       - title: Format
         used: cargo-fmt@0.1.0
       - title: Patch `Cargo.toml`
@@ -1065,7 +986,7 @@ pipelines:
           "{features}": empty
           "{flags}": empty
           "{package}": package-dsl
-          "{target}": target-x86
+          "{target}": target-native
       - title: Compress
         used: upx@0.1.0
         with:
@@ -1077,3 +998,4 @@ pipelines:
     artifacts:
       - from: target/x86_64-unknown-linux-gnu/release/skdsl
         to: skdsl
+    run_tag: production
