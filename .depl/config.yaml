@@ -31,15 +31,15 @@ variables:
   featureset-all:
     type: plain
     value: " --all-features"
+  featureset-client-kit-net:
+    type: plain
+    value: " --features=websocket,webtransport"
   featureset-ssr-showcase-hydrate:
     type: plain
     value: " --no-default-features --features=hydrate"
   featureset-ssr-showcase-server:
     type: plain
     value: " --no-default-features --features=ssr"
-  featureset-ui-kit-net:
-    type: plain
-    value: " --features=websocket,webtransport"
   featureset-utils-wasm32:
     type: plain
     value: " --no-default-features --features=reqwest"
@@ -54,13 +54,25 @@ variables:
     value: impulse-error-pages/dist/
   folder-showcase:
     type: plain
-    value: impulse-ui-kit/examples/showcase/
+    value: impulse-client-kit/examples/showcase/
   folder-ssr-showcase:
     type: plain
-    value: impulse-ui-kit/examples/ssr_showcase/
+    value: impulse-client-kit/examples/ssr_showcase/
   kit-version:
     type: from_cmd
     cmd: python .depl/rust_crate_ver.py
+  package-client-kit:
+    type: plain
+    value: impulse-client-kit
+  package-client-kit-blocks:
+    type: plain
+    value: impulse-client-kit-blocks
+  package-client-kit-components:
+    type: plain
+    value: impulse-client-kit-components
+  package-client-kit-showcase:
+    type: plain
+    value: client-kit-showcase
   package-dsl:
     type: plain
     value: impulse-skdsl
@@ -76,18 +88,6 @@ variables:
   package-static-server:
     type: plain
     value: impulse-static-server
-  package-ui-kit:
-    type: plain
-    value: impulse-ui-kit
-  package-ui-kit-blocks:
-    type: plain
-    value: impulse-ui-kit-blocks
-  package-ui-kit-components:
-    type: plain
-    value: impulse-ui-kit-components
-  package-ui-kit-showcase:
-    type: plain
-    value: ui-kit-showcase
   package-utils:
     type: plain
     value: impulse-utils
@@ -96,43 +96,43 @@ variables:
     value: 'RUSTFLAGS=''--cfg reqwest_unstable'' '
   showcase-favicon:
     type: plain
-    value: ./impulse-ui-kit/examples/showcase/public/favicon.ico
+    value: ./impulse-client-kit/examples/showcase/public/favicon.ico
   showcase-tw-input:
     type: plain
-    value: ./impulse-ui-kit/examples/showcase/input.css
+    value: ./impulse-client-kit/examples/showcase/input.css
   showcase-tw-output:
     type: plain
-    value: ./impulse-ui-kit/examples/showcase/public/tailwind.css
+    value: ./impulse-client-kit/examples/showcase/public/tailwind.css
   showcase-wasm-file:
     type: plain
-    value: ./impulse-ui-kit/examples/showcase/dist/ui-kit-showcase_bg.wasm
+    value: ./impulse-client-kit/examples/showcase/dist/client-kit-showcase_bg.wasm
   ssr-showcase-dist-folder:
     type: plain
-    value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg
+    value: ./impulse-client-kit/examples/ssr_showcase/dist/pkg
   ssr-showcase-dist-pkg-folder:
     type: plain
-    value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg
+    value: ./impulse-client-kit/examples/ssr_showcase/dist/pkg
   ssr-showcase-tw-input:
     type: plain
-    value: ./impulse-ui-kit/examples/ssr_showcase/input.css
+    value: ./impulse-client-kit/examples/ssr_showcase/input.css
   ssr-showcase-tw-output:
     type: plain
-    value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg/ssr_showcase.css
+    value: ./impulse-client-kit/examples/ssr_showcase/dist/pkg/ssr_showcase.css
   ssr-showcase-wasm-bg-file:
     type: plain
-    value: ./impulse-ui-kit/examples/ssr_showcase/dist/pkg/ssr_showcase_bg.wasm
+    value: ./impulse-client-kit/examples/ssr_showcase/dist/pkg/ssr_showcase_bg.wasm
   ssr-showcase-wasm-file:
     type: plain
     value: ./target/wasm32-unknown-unknown/release/ssr_showcase.wasm
   ssr-showcase-wasm-out-name:
     type: plain
     value: ssr_showcase
-  target-wasm:
-    type: plain
-    value: wasm32-unknown-unknown
   target-native:
     type: from_cmd
     cmd: rustc -vV | grep host | cut -d' ' -f2
+  target-wasm:
+    type: plain
+    value: wasm32-unknown-unknown
   web-sys-unstable-flag:
     type: plain
     value: 'RUSTFLAGS=''--cfg web_sys_unstable_apis'' '
@@ -321,9 +321,6 @@ actions:
       - type: in_path
         executable: tailwindcss
         desc: "Install TailwindCSS standalone client: https://github.com/tailwindlabs/tailwindcss/releases"
-      - type: exists
-        path: ./impulse-error-pages/tw-animate.css
-        desc: "Download `tw-animate` manually from: https://raw.githubusercontent.com/Wombosvideo/tw-animate-css/refs/heads/main/src/tw-animate.css"
     action:
       type: staged
       stage: build
@@ -413,12 +410,12 @@ pipelines:
   - title: quality
     desc: Check code quality for Impulse Kit (clippy + doc tests gate)
     info: impulse-kit-quality@0.1.0
-    default: true
     tags:
       - cargo
       - clippy
       - lint
       - docs
+    default: true
     actions:
       - title: Lint `impulse-utils` on x86-64
         used: cargo-lint@0.2.0
@@ -583,7 +580,7 @@ pipelines:
         used: cargo-publish@0.2.0
         with:
           "{features}": empty
-          "{package}": package-ui-kit
+          "{package}": package-client-kit
     run_tag: release
   - title: build-error-pages
     desc: Got from `build`.
@@ -649,7 +646,6 @@ pipelines:
       - from: impulse-static-server/static-server.yaml
         to: static-server/static-server.yaml
     run_tag: staging
-    exclusive_exec_tag: binaries
   - title: build-showcase-no-deployer
     info: client-kit-example-build@0.1.0
     default: false
@@ -737,15 +733,19 @@ pipelines:
     default: true
     copy_only:
       - from: artifacts/static-server/iks
-        to: impulse-ui-kit/examples/showcase/iks
+        to: impulse-client-kit/examples/showcase/iks
       - from: artifacts/static-server/static-server.yaml
-        to: impulse-ui-kit/examples/showcase/static-server.yaml
+        to: impulse-client-kit/examples/showcase/static-server.yaml
       - from: artifacts/showcase/dist
-        to: impulse-ui-kit/examples/showcase/dist
+        to: impulse-client-kit/examples/showcase/dist
     actions:
       - title: Run static server at `0.0.0.0:8807`
         used: run-showcase-static-server@0.1.0
     run_tag: production
+    systemd_opts:
+      scope: user
+      user:
+        type: current_user
   - title: build-ssr-showcase
     desc: Build the server-rendered showcase binary and ship it with its YAML config.
     info: client-kit-ssr-example-build@0.1.0
@@ -757,37 +757,60 @@ pipelines:
       - ssr
     default: false
     actions:
-      - title: Lint
+      - title: Lint server
         used: cargo-lint@0.2.0
         with:
-          "{features}": empty
+          "{features}": featureset-ssr-showcase-server
           "{flags}": empty
           "{package}": package-ssr-showcase
           "{target}": target-native
+      - title: Lint wasm
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": featureset-ssr-showcase-hydrate
+          "{flags}": empty
+          "{package}": package-ssr-showcase
+          "{target}": target-wasm
       - title: Format
         used: cargo-fmt@0.1.0
       - title: Patch `Cargo.toml`
         used: impulse-kit-patch-cargo@0.1.0
-      - title: Build (release mode)
-        used: cargo-release@0.2.0
-        with:
-          "{features}": empty
-          "{flags}": empty
-          "{package}": package-ssr-showcase
-          "{target}": target-native
-      - title: Compress
-        used: upx@0.1.0
-        with:
-          "%af%": binary-ssr-showcase
       - title: Make `dist/pkg` folder
         used: mkdir@0.1.0
         with:
           "{folder}": ssr-showcase-dist-pkg-folder
+      - title: Build wasm bundle
+        used: cargo-wasm-rel@0.1.0
+        with:
+          "{features}": featureset-ssr-showcase-hydrate
+          "{flags}": empty
+          "{package}": package-ssr-showcase
+      - title: wasm-bindgen
+        used: wasm-bindgen-cli@0.1.0
+        with:
+          "{out-dir}": ssr-showcase-dist-folder
+          "{out-name}": ssr-showcase-wasm-out-name
+          "{wasm-file}": ssr-showcase-wasm-file
+      - title: Optimize WASM
+        used: wasm-opt@0.1.0
+        with:
+          "{file}": ssr-showcase-wasm-bg-file
       - title: Compile TailwindCSS
         used: tailwindcss-compile@0.2.0
         with:
           "{tw-input}": ssr-showcase-tw-input
           "{tw-output}": ssr-showcase-tw-output
+      - title: Build server (release mode)
+        used: cargo-release@0.2.0
+        with:
+          "{features}": featureset-ssr-showcase-server
+          "{flags}": empty
+          "{package}": package-ssr-showcase
+          "{target}": target-native
+      - title: Compress server binary
+        used: upx@0.1.0
+        with:
+          "%af%": binary-ssr-showcase
     artifacts:
       - from: target/x86_64-unknown-linux-gnu/release/ssr-showcase
         to: ssr-showcase/ssr-showcase
@@ -796,10 +819,9 @@ pipelines:
       - from: impulse-client-kit/examples/ssr_showcase/dist
         to: ssr-showcase/dist
     run_tag: staging
-    exclusive_exec_tag: binaries
   - title: run-ssr-showcase
     desc: Run the SSR + hydration showcase from artifacts built by `build-ssr-showcase`.
-    info: ui-kit-ssr-example-run@0.1.0
+    info: client-kit-ssr-example-run@0.1.0
     tags:
       - leptos
       - ssr
@@ -808,13 +830,17 @@ pipelines:
       - from: artifacts/ssr-showcase/ssr-showcase
         to: target/x86_64-unknown-linux-gnu/release/ssr-showcase
       - from: artifacts/ssr-showcase/server-example.yaml
-        to: impulse-ui-kit/examples/ssr_showcase/server-example.yaml
+        to: impulse-client-kit/examples/ssr_showcase/server-example.yaml
       - from: artifacts/ssr-showcase/dist
-        to: impulse-ui-kit/examples/ssr_showcase/dist
+        to: impulse-client-kit/examples/ssr_showcase/dist
     actions:
       - title: Run SSR Showcase
         used: run-ssr-showcase-server@0.1.0
     run_tag: production
+    systemd_opts:
+      scope: user
+      user:
+        type: current_user
   - title: build-skdsl
     desc: Build SKDSL binary and save it for `install-skdsl`.
     info: impulse-kit-build-skdsl@0.1.0
@@ -850,7 +876,6 @@ pipelines:
       - from: target/x86_64-unknown-linux-gnu/release/skdsl
         to: skdsl
     run_tag: staging
-    exclusive_exec_tag: binaries
   - title: install-skdsl
     desc: Install SKDSL from the binary built by `build-skdsl`.
     info: impulse-kit-skdsl@0.1.0
