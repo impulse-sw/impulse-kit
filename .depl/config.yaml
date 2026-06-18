@@ -10,6 +10,9 @@ variables:
   binary-dsl:
     type: plain
     value: target/x86_64-unknown-linux-gnu/release/skdsl
+  binary-dsl-name:
+    type: plain
+    value: skdsl
   binary-ssr-showcase:
     type: plain
     value: target/x86_64-unknown-linux-gnu/release/ssr-showcase
@@ -169,13 +172,6 @@ actions:
       cmd: cargo doc --target {target} --workspace --no-deps
       placeholders:
         - "{target}"
-  - info: cargo-install-by-copy@0.1.0
-    action:
-      type: staged
-      stage: build
-      cmd: cp -f %bin% ~/.cargo/bin
-      placeholders:
-        - "%bin%"
   - info: cargo-lint@0.2.0
     action:
       type: staged
@@ -186,7 +182,6 @@ actions:
         - "{package}"
         - "{target}"
         - "{features}"
-      show_success_output: true
   - info: cargo-publish@0.2.0
     tags:
       - rust
@@ -269,6 +264,14 @@ actions:
     action:
       type: patch
       patch: .depl/patch-cargo-toml.json
+  - info: install@0.1.0
+    action:
+      type: staged
+      stage: build
+      cmd: install -m 0755 {binary} ~/.cargo/bin/{name}
+      placeholders:
+        - "{binary}"
+        - "{name}"
   - info: leptos-fmt@0.1.0
     tags:
       - leptos
@@ -299,7 +302,9 @@ actions:
   - info: run-ssr-showcase-server@0.1.0
     action:
       type: observe
-      cmd: cd impulse-client-kit/examples/ssr_showcase && ../../../target/x86_64-unknown-linux-gnu/release/ssr-showcase
+      cmd: cd impulse-client-kit/examples/ssr_showcase && ../../../target/{triple}/release/ssr-showcase
+      placeholders:
+        - "{triple}"
       ignore_fails: true
       show_success_output: true
       show_cmd: false
@@ -343,16 +348,18 @@ actions:
       cmd: cd {project-folder} && RUSTFLAGS="-Zlocation-detail=none -Zfmt-debug=none -Zunstable-options -Cpanic=immediate-abort" CARGO_UNSTABLE_BUILD_STD="std,panic_abort" CARGO_UNSTABLE_BUILD_STD_FEATURES="optimize_for_size" trunk build --release
       placeholders:
         - "{project-folder}"
-  - info: upx@0.1.0
+  - info: upx-compress@0.1.0
     requirements:
       - type: in_path
         executable: upx
+        desc: Install upx from your package manager
     action:
       type: staged
       stage: build
-      cmd: upx %af%
+      cmd: upx {binary}
       placeholders:
-        - "%af%"
+        - "{binary}"
+      ignore_fails: true
   - info: use-rust-package-version@0.1.0
     action:
       type: use_from_storage
@@ -407,6 +414,16 @@ actions:
       placeholders:
         - "{file}"
 pipelines:
+  - title: ops
+    desc: Improve code quality (formatting)
+    info: impulse-kit-ops@0.1.0
+    tags:
+      - cargo
+      - fmt
+    default: true
+    actions:
+      - title: Format
+        used: cargo-fmt@0.1.0
   - title: quality
     desc: Check code quality for Impulse Kit (clippy + doc tests gate)
     info: impulse-kit-quality@0.1.0
@@ -529,16 +546,6 @@ pipelines:
             target: wasm32-unknown-unknown
             toolchain: nightly
             components: clippy
-  - title: ops
-    desc: Improve code quality (formatting)
-    info: impulse-kit-ops@0.1.0
-    tags:
-      - cargo
-      - fmt
-    default: true
-    actions:
-      - title: Format
-        used: cargo-fmt@0.1.0
   - title: docs
     desc: Build workspace documentation
     info: impulse-kit-docs@0.1.0
@@ -551,8 +558,10 @@ pipelines:
         with:
           "{target}": target-native
     artifacts:
-      - from: target/x86_64-unknown-linux-gnu/doc
+      - from: target/{triple}/doc
         to: docs
+        with:
+          "{triple}": target-native
   - title: publish
     desc: Publish open-source libraries
     info: impulse-kit-publish@0.1.0
@@ -635,14 +644,16 @@ pipelines:
           "{package}": package-static-server
           "{target}": target-native
       - title: Compress
-        used: upx@0.1.0
+        used: upx-compress@0.1.0
         with:
-          "%af%": binary-static-server
+          "{binary}": binary-static-server
       - title: Auto-upload Static Server to Deployer's Storage
         used: add-static-server-to-storage@0.1.0
     artifacts:
-      - from: target/x86_64-unknown-linux-gnu/release/iks
+      - from: target/{triple}/release/iks
         to: static-server/iks
+        with:
+          "{triple}": target-native
       - from: impulse-static-server/static-server.yaml
         to: static-server/static-server.yaml
     run_tag: staging
@@ -808,12 +819,14 @@ pipelines:
           "{package}": package-ssr-showcase
           "{target}": target-native
       - title: Compress server binary
-        used: upx@0.1.0
+        used: upx-compress@0.1.0
         with:
-          "%af%": binary-ssr-showcase
+          "{binary}": binary-ssr-showcase
     artifacts:
-      - from: target/x86_64-unknown-linux-gnu/release/ssr-showcase
+      - from: target/{triple}/release/ssr-showcase
         to: ssr-showcase/ssr-showcase
+        with:
+          "{triple}": target-native
       - from: impulse-client-kit/examples/ssr_showcase/server-example.yaml
         to: ssr-showcase/server-example.yaml
       - from: impulse-client-kit/examples/ssr_showcase/dist
@@ -828,7 +841,9 @@ pipelines:
     default: false
     copy_only:
       - from: artifacts/ssr-showcase/ssr-showcase
-        to: target/x86_64-unknown-linux-gnu/release/ssr-showcase
+        to: target/{triple}/release/ssr-showcase
+        with:
+          "{triple}": target-native
       - from: artifacts/ssr-showcase/server-example.yaml
         to: impulse-client-kit/examples/ssr_showcase/server-example.yaml
       - from: artifacts/ssr-showcase/dist
@@ -836,6 +851,8 @@ pipelines:
     actions:
       - title: Run SSR Showcase
         used: run-ssr-showcase-server@0.1.0
+        with:
+          "{triple}": target-native
     run_tag: production
     systemd_opts:
       scope: user
@@ -869,12 +886,14 @@ pipelines:
           "{package}": package-dsl
           "{target}": target-native
       - title: Compress
-        used: upx@0.1.0
+        used: upx-compress@0.1.0
         with:
-          "%af%": binary-dsl
+          "{binary}": binary-dsl
     artifacts:
-      - from: target/x86_64-unknown-linux-gnu/release/skdsl
+      - from: target/{triple}/release/skdsl
         to: skdsl
+        with:
+          "{triple}": target-native
     run_tag: staging
   - title: install-skdsl
     desc: Install SKDSL from the binary built by `build-skdsl`.
@@ -883,10 +902,13 @@ pipelines:
       - cargo
     copy_only:
       - from: artifacts/skdsl
-        to: target/x86_64-unknown-linux-gnu/release/skdsl
+        to: target/{triple}/release/skdsl
+        with:
+          "{triple}": target-native
     actions:
       - title: Install
-        used: cargo-install-by-copy@0.1.0
+        used: install@0.1.0
         with:
-          "%bin%": binary-dsl
+          "{binary}": binary-dsl
+          "{name}": binary-dsl-name
     run_tag: production
