@@ -64,6 +64,7 @@ serde_pretty_yaml = "0.9.37"
 smart-patcher = { version = "0.3.0-1", default-features = false }
 sonic-rs = "0.5.1"
 tokio = { version = "1", default-features = false }
+tokio-util = { version = "0.7", default-features = false }
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-ecs = "0.5"

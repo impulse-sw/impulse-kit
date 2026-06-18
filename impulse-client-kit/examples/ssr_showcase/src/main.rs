@@ -62,7 +62,9 @@ async fn main() {
   let router = get_root_router_autoinject(&state, setup.clone())
     .push(server_fn_router(server_fn_prefix))
     // Receives telemetry posted by the client (see the monitors in `App`).
-    .push(telemetry_router("api/telemetry", Arc::new(ShowcaseTelemetrySink)))
+    // Mounted at `/telemetry` rather than under the `/api` server-function
+    // prefix, whose catch-all route would otherwise intercept it.
+    .push(telemetry_router("telemetry", Arc::new(ShowcaseTelemetrySink)))
     .push(leptos_router(opts, || ssr_showcase::App));
 
   let (server, _handle) = start(state, &setup, router).await.unwrap();

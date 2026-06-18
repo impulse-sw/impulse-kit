@@ -5,18 +5,21 @@
 //! out-of-order pipelines and emits the hydration `<script>` and resource
 //! data when `LeptosOptions::include_hydration_script` is `true`.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use bytes::Bytes;
 use futures::StreamExt;
 use futures::stream::{self, Stream};
 use leptos::IntoView;
 use leptos::prelude::*;
+use leptos::reactive::owner::Sandboxed;
 use leptos_integration_utils::{BoxedFnOnce, PinnedFuture, PinnedStream, build_response};
 use leptos_meta::ServerMetaContext;
 use salvo::http::StatusCode;
 use salvo::prelude::*;
 use tachys::view::RenderHtml;
+use tokio::sync::{mpsc, oneshot};
+use tokio_util::task::LocalPoolHandle;
 
 use impulse_client_kit::ssr::{InitialTheme, LeptosResponseOptions, RequestUrlCtx};
 
@@ -136,10 +139,71 @@ where
         SsrStreamMode::OutOfOrder => stream_out_of_order::<IV>,
       };
 
-    let (owner, app_stream) = build_response(app_fn, additional_context, stream_builder, false);
-    let app_stream = app_stream.await;
+    let prefix = build_html_prefix(&PrefixContext {
+      opts: &self.opts,
+      initial_theme: theme_value.as_deref(),
+      request_path: &request_path,
+    });
+    let suffix = build_html_suffix(&self.opts);
 
-    if let Some(target) = resp_opts.redirect() {
+    // The whole reactive lifecycle of a request — building the app, resolving its
+    // `<Suspense>` resources, and finally tearing the owner down — must run on a
+    // single OS thread. Leptos keeps some `!Send` values (e.g. `<Suspense>`
+    // children and type-erased attributes) in the request's reactive arena behind
+    // `send_wrapper::SendWrapper`, whose `Drop` aborts the process if it runs on a
+    // different thread than the one that created it. On a multi-threaded Tokio
+    // runtime an ordinary task is free to resume on a different worker after every
+    // `.await` (and Salvo drives a streamed `ResBody` on yet another task), so the
+    // render thread and the cleanup thread routinely differ. `spawn_pinned` keeps
+    // the task glued to one worker for its entire life, which is the only thing
+    // that makes the `SendWrapper` drop sound here. Rendered HTML is forwarded to
+    // Salvo over a channel so streaming (including `<Suspense>`) is preserved.
+    let (head_tx, head_rx) = oneshot::channel::<ResponseHead>();
+    let (body_tx, body_rx) = mpsc::channel::<Bytes>(32);
+
+    leptos_render_pool().spawn_pinned(move || async move {
+      let (owner, app_stream) = build_response(app_fn, additional_context, stream_builder, false);
+      let app_stream = app_stream.await;
+
+      // The synchronous render above has now populated `ResponseOptions`; snapshot
+      // status/redirect/headers and hand them back so the handler can build the
+      // response head before any body bytes flow.
+      let head = ResponseHead {
+        redirect: resp_opts.redirect(),
+        status: resp_opts.status(),
+        headers: resp_opts.take_headers(),
+      };
+      let is_redirect = head.redirect.is_some();
+      let _ = head_tx.send(head);
+
+      if !is_redirect {
+        let body_chunks = app_stream.ready_chunks(32).map(|n| n.join(""));
+        let prefixed = stream::once(async move { prefix }).chain(body_chunks);
+        let with_suffix = prefixed.chain(stream::once(async move { suffix }));
+        let injected = meta_out.inject_meta_context(Box::pin(with_suffix)).await;
+
+        // Re-bind this request's sandboxed arena on every poll: the pinned worker
+        // may interleave polls of several requests' streams, and reads of stored
+        // values during streaming must hit the right arena.
+        let mut injected = Box::pin(owner.with(|| Sandboxed::new(injected)));
+        while let Some(chunk) = injected.next().await {
+          if body_tx.send(Bytes::from(chunk)).await.is_err() {
+            break; // client (or a redirecting handler) dropped the receiver
+          }
+        }
+        drop(injected);
+      }
+
+      owner.unset_with_forced_cleanup();
+    });
+
+    let Ok(head) = head_rx.await else {
+      // The render task ended before producing a response head (e.g. it panicked).
+      res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
+      return;
+    };
+
+    if let Some(target) = head.redirect {
       res.status_code(StatusCode::SEE_OTHER);
       res.headers_mut().insert(
         salvo::http::header::LOCATION,
@@ -148,29 +212,7 @@ where
       return;
     }
 
-    let prefix = build_html_prefix(&PrefixContext {
-      opts: &self.opts,
-      initial_theme: theme_value.as_deref(),
-      request_path: &request_path,
-    });
-    let suffix = build_html_suffix(&self.opts);
-
-    let body_chunks = app_stream.ready_chunks(32).map(|n| n.join(""));
-    let prefixed = stream::once(async move { prefix }).chain(body_chunks);
-    let with_suffix = prefixed.chain(stream::once(async move { suffix }));
-
-    let injected = meta_out.inject_meta_context(Box::pin(with_suffix)).await;
-
-    let cleanup = stream::once(async move {
-      owner.unset_with_forced_cleanup();
-      String::new()
-    });
-    let final_stream = injected
-      .chain(cleanup)
-      .map(|chunk| Ok::<_, std::io::Error>(Bytes::from(chunk)));
-
-    let status = resp_opts.status().unwrap_or(200);
-    res.status_code(StatusCode::from_u16(status).unwrap_or(StatusCode::OK));
+    res.status_code(StatusCode::from_u16(head.status.unwrap_or(200)).unwrap_or(StatusCode::OK));
     res.headers_mut().insert(
       salvo::http::header::CONTENT_TYPE,
       "text/html; charset=utf-8".parse().unwrap(),
@@ -178,7 +220,7 @@ where
     res
       .headers_mut()
       .insert(salvo::http::header::VARY, "Cookie, Accept-Encoding".parse().unwrap());
-    for (name, value) in resp_opts.take_headers() {
+    for (name, value) in head.headers {
       if let (Ok(name), Ok(value)) = (
         salvo::http::header::HeaderName::from_bytes(name.as_bytes()),
         value.parse::<salvo::http::header::HeaderValue>(),
@@ -186,8 +228,41 @@ where
         res.headers_mut().insert(name, value);
       }
     }
-    res.body(salvo::http::ResBody::stream(final_stream));
+
+    let body_stream = stream::unfold(body_rx, |mut body_rx| async move {
+      body_rx
+        .recv()
+        .await
+        .map(|chunk| (Ok::<_, std::io::Error>(chunk), body_rx))
+    });
+    res.body(salvo::http::ResBody::stream(body_stream));
   }
+}
+
+/// Response status, redirect target and headers captured from `ResponseOptions`
+/// after the synchronous render, passed from the pinned render task back to the
+/// Salvo handler so it can build the response head before streaming the body.
+struct ResponseHead {
+  redirect: Option<String>,
+  status: Option<u16>,
+  headers: Vec<(String, String)>,
+}
+
+/// Shared pool of single-threaded workers used to render Leptos responses.
+///
+/// Each request's render runs to completion — including dropping the reactive
+/// owner — pinned to one worker, so the `!Send` values Leptos stores behind
+/// `SendWrapper` are always dropped on the thread that created them. Sized to the
+/// available parallelism and initialised on first use.
+fn leptos_render_pool() -> &'static LocalPoolHandle {
+  static POOL: OnceLock<LocalPoolHandle> = OnceLock::new();
+  POOL.get_or_init(|| {
+    let threads = std::thread::available_parallelism()
+      .map(|n| n.get())
+      .unwrap_or(1)
+      .max(1);
+    LocalPoolHandle::new(threads)
+  })
 }
 
 fn stream_in_order<IV>(

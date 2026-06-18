@@ -59,9 +59,11 @@ pub fn App() -> impl IntoView {
 
   // Publish a telemetry context (anonymous by default). On the server this is a
   // no-op; on the hydrated client the monitors below deliver events via
-  // `navigator.sendBeacon` to the `/api/telemetry` endpoint mounted in `main`.
+  // `navigator.sendBeacon` to the `/telemetry` endpoint mounted in `main`. Note
+  // this lives outside the `/api` server-function prefix, whose catch-all route
+  // (`/api/{**}`) would otherwise shadow it.
   #[cfg(any(feature = "ssr", feature = "hydrate"))]
-  provide_telemetry(TelemetryConfig::new("/api/telemetry"));
+  provide_telemetry(TelemetryConfig::new("/telemetry"));
 
   let greeting = Resource::new(|| (), |_| async move { greet("Impulse".to_string()).await });
   let slow = Resource::new(|| (), |_| async move { slow_data().await });
@@ -73,7 +75,7 @@ pub fn App() -> impl IntoView {
       <Card class="w-full max-w-md">
         <CardHeader>
           <CardTitle>"Telemetry"</CardTitle>
-          <CardDescription>"Impressions and clicks are sent to /api/telemetry."</CardDescription>
+          <CardDescription>"Impressions and clicks are sent to /telemetry."</CardDescription>
         </CardHeader>
         <CardContent class="flex flex-wrap items-center gap-2">
           <ClickMonitor message="showcase:cta">

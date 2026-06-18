@@ -210,7 +210,6 @@ async fn collect_telemetry_inner(req: &mut Request, depot: &mut Depot) -> MResul
   ),
   responses((status_code = 200, description = "Events accepted"))
 )]
-#[tracing::instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]
 pub async fn collect_telemetry(req: &mut Request, depot: &mut Depot) -> MResult<OK> {
   collect_telemetry_inner(req, depot).await
 }
@@ -218,7 +217,6 @@ pub async fn collect_telemetry(req: &mut Request, depot: &mut Depot) -> MResult<
 /// Collect client telemetry (non-OpenAPI build).
 #[cfg(not(feature = "oapi"))]
 #[handler]
-#[tracing::instrument(skip_all, fields(http.uri = req.uri().path(), http.method = req.method().as_str()))]
 pub async fn collect_telemetry(req: &mut Request, depot: &mut Depot) -> MResult<OK> {
   collect_telemetry_inner(req, depot).await
 }

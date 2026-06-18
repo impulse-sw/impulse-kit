@@ -2534,6 +2534,7 @@ dependencies = [
  "sonic-rs",
  "tachys",
  "tokio",
+ "tokio-util",
  "tracing",
  "tracing-appender",
  "tracing-ecs",
@@ -5976,6 +5977,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-sink",
+ "futures-util",
  "pin-project-lite",
  "tokio",
 ]

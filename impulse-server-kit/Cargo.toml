@@ -64,6 +64,8 @@ leptos-ssr = [
   "dep:cookie",
   "dep:any_spawner",
   "dep:bytes",
+  "dep:tokio-util",
+  "tokio/sync",
   "dep:impulse-client-kit",
   "impulse-client-kit/ssr",
 ]
@@ -129,6 +131,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_pretty_yaml = { workspace = true }
 sonic-rs = { optional = true, workspace = true }
 tokio = { workspace = true, features = ["signal"] }
+tokio-util = { workspace = true, optional = true, features = ["rt"] }
 tracing = { workspace = true }
 tracing-appender = { workspace = true }
 tracing-ecs = { workspace = true }
