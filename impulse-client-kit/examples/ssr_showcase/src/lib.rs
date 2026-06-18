@@ -73,9 +73,7 @@ pub fn App() -> impl IntoView {
       <Card class="w-full max-w-md">
         <CardHeader>
           <CardTitle>"Telemetry"</CardTitle>
-          <CardDescription>
-            "Impressions and clicks are sent to /api/telemetry."
-          </CardDescription>
+          <CardDescription>"Impressions and clicks are sent to /api/telemetry."</CardDescription>
         </CardHeader>
         <CardContent class="flex flex-wrap items-center gap-2">
           <ClickMonitor message="showcase:cta">
