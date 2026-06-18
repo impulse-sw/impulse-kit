@@ -732,60 +732,16 @@ pipelines:
       - from: impulse-client-kit/examples/showcase/dist
         to: showcase/dist
     run_tag: staging
-  - title: deploy-showcase
-    info: client-kit-example-deploy@0.1.0
-    default: false
-    actions:
-      - title: Lint
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": empty
-          "{flags}": empty
-          "{package}": package-client-kit-showcase
-          "{target}": target-wasm
-      - title: "Format #1"
-        used: leptos-fmt@0.1.0
-      - title: "Format #2"
-        used: cargo-fmt@0.1.0
-      - title: Build WASM
-        used: trunk-build-rel@0.1.0
-        with:
-          "{project-folder}": folder-showcase
-      - title: Strip WASM
-        used: wasm-strip@0.1.0
-        with:
-          "{file}": showcase-wasm-file
-      - title: Optimize WASM
-        used: wasm-opt@0.1.0
-        with:
-          "{file}": showcase-wasm-file
-      - title: Compile TailwindCSS
-        used: tailwindcss-compile@0.2.0
-        with:
-          "{tw-input}": showcase-tw-input
-          "{tw-output}": showcase-tw-output
-      - title: Add files to `dist`
-        used: wasm-prepare-showcase-dist-folder@0.1.0
-        with:
-          "{favicon}": showcase-favicon
-          "{tw-output}": showcase-tw-output
-      - title: Sync static server
-        used: sync-static-server@0.1.0
-      - title: Move static server to showcase directory
-        used: sync-static-server@0.1.1
-      - title: Run static server at `0.0.0.0:8807`
-        used: run-showcase-static-server@0.1.0
-    artifacts:
-      - from: impulse-client-kit/examples/showcase/iks
-        to: showcase/iks
-      - from: impulse-client-kit/examples/showcase/static-server.yaml
-        to: showcase/static-server.yaml
-      - from: impulse-client-kit/examples/showcase/dist
-        to: showcase/dist
-    run_tag: production
   - title: run-showcase
     info: client-kit-example-run@0.1.0
     default: true
+    copy_only:
+      - from: artifacts/static-server/iks
+        to: impulse-ui-kit/examples/showcase/iks
+      - from: artifacts/static-server/static-server.yaml
+        to: impulse-ui-kit/examples/showcase/static-server.yaml
+      - from: artifacts/showcase/dist
+        to: impulse-ui-kit/examples/showcase/dist
     actions:
       - title: Run static server at `0.0.0.0:8807`
         used: run-showcase-static-server@0.1.0
@@ -841,90 +797,32 @@ pipelines:
         to: ssr-showcase/dist
     run_tag: staging
     exclusive_exec_tag: binaries
-  - title: deploy-ssr-showcase
-    desc: Build the SSR + hydration showcase (server binary, wasm bundle, CSS) and run it.
-    info: client-kit-ssr-example-deploy@0.1.0
+  - title: run-ssr-showcase
+    desc: Run the SSR + hydration showcase from artifacts built by `build-ssr-showcase`.
+    info: ui-kit-ssr-example-run@0.1.0
     tags:
-      - cargo
-      - clippy
-      - lint
       - leptos
       - ssr
-      - wasm
     default: false
+    copy_only:
+      - from: artifacts/ssr-showcase/ssr-showcase
+        to: target/x86_64-unknown-linux-gnu/release/ssr-showcase
+      - from: artifacts/ssr-showcase/server-example.yaml
+        to: impulse-ui-kit/examples/ssr_showcase/server-example.yaml
+      - from: artifacts/ssr-showcase/dist
+        to: impulse-ui-kit/examples/ssr_showcase/dist
     actions:
-      - title: Lint server
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": featureset-ssr-showcase-server
-          "{flags}": empty
-          "{package}": package-ssr-showcase
-          "{target}": target-native
-      - title: Lint wasm
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": featureset-ssr-showcase-hydrate
-          "{flags}": empty
-          "{package}": package-ssr-showcase
-          "{target}": target-wasm
-      - title: Format
-        used: cargo-fmt@0.1.0
-      - title: Patch `Cargo.toml`
-        used: impulse-kit-patch-cargo@0.1.0
-      - title: Make `dist/pkg` folder
-        used: mkdir@0.1.0
-        with:
-          "{folder}": ssr-showcase-dist-pkg-folder
-      - title: Build wasm bundle
-        used: cargo-wasm-rel@0.1.0
-        with:
-          "{features}": featureset-ssr-showcase-hydrate
-          "{flags}": empty
-          "{package}": package-ssr-showcase
-      - title: wasm-bindgen
-        used: wasm-bindgen-cli@0.1.0
-        with:
-          "{out-dir}": ssr-showcase-dist-folder
-          "{out-name}": ssr-showcase-wasm-out-name
-          "{wasm-file}": ssr-showcase-wasm-file
-      - title: Optimize WASM
-        used: wasm-opt@0.1.0
-        with:
-          "{file}": ssr-showcase-wasm-bg-file
-      - title: Compile TailwindCSS
-        used: tailwindcss-compile@0.2.0
-        with:
-          "{tw-input}": ssr-showcase-tw-input
-          "{tw-output}": ssr-showcase-tw-output
-      - title: Build server (release mode)
-        used: cargo-release@0.2.0
-        with:
-          "{features}": featureset-ssr-showcase-server
-          "{flags}": empty
-          "{package}": package-ssr-showcase
-          "{target}": target-native
-      - title: Compress server binary
-        used: upx@0.1.0
-        with:
-          "%af%": binary-ssr-showcase
       - title: Run SSR Showcase
         used: run-ssr-showcase-server@0.1.0
-    artifacts:
-      - from: target/x86_64-unknown-linux-gnu/release/ssr-showcase
-        to: ssr-showcase/ssr-showcase
-      - from: impulse-client-kit/examples/ssr_showcase/server-example.yaml
-        to: ssr-showcase/server-example.yaml
-      - from: impulse-client-kit/examples/ssr_showcase/dist
-        to: ssr-showcase/dist
     run_tag: production
-    exclusive_exec_tag: binaries
-  - title: install-skdsl
-    desc: Build and install SKDSL
-    info: impulse-kit-skdsl@0.1.0
+  - title: build-skdsl
+    desc: Build SKDSL binary and save it for `install-skdsl`.
+    info: impulse-kit-build-skdsl@0.1.0
     tags:
       - cargo
       - clippy
       - lint
+    default: false
     actions:
       - title: Lint
         used: cargo-lint@0.2.0
@@ -948,11 +846,22 @@ pipelines:
         used: upx@0.1.0
         with:
           "%af%": binary-dsl
+    artifacts:
+      - from: target/x86_64-unknown-linux-gnu/release/skdsl
+        to: skdsl
+    run_tag: staging
+    exclusive_exec_tag: binaries
+  - title: install-skdsl
+    desc: Install SKDSL from the binary built by `build-skdsl`.
+    info: impulse-kit-skdsl@0.1.0
+    tags:
+      - cargo
+    copy_only:
+      - from: artifacts/skdsl
+        to: target/x86_64-unknown-linux-gnu/release/skdsl
+    actions:
       - title: Install
         used: cargo-install-by-copy@0.1.0
         with:
           "%bin%": binary-dsl
-    artifacts:
-      - from: target/x86_64-unknown-linux-gnu/release/skdsl
-        to: skdsl
     run_tag: production
