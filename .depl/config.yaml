@@ -6,6 +6,8 @@ ignore_files:
   - target
 cache_files:
   - target
+  - impulse-client-kit/examples/showcase/.tailwind-sources.css
+  - impulse-client-kit/examples/ssr_showcase/.tailwind-sources.css
 variables:
   binary-dsl:
     type: plain
