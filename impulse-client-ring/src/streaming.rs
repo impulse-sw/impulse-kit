@@ -223,10 +223,16 @@ fn spawn_frame_publisher(publisher: Publisher, mut rx: mpsc::UnboundedReceiver<R
 // opens even ids, the peer opens odd ids.
 
 /// One bidirectional WebTransport stream within a [`RingWebTransport`] session.
+///
+/// Besides the explicit [`send`](RingWtStream::send)/[`recv`](RingWtStream::recv)
+/// API it also implements [`AsyncRead`]/[`AsyncWrite`], so it can be relayed to
+/// another byte stream (e.g. a QUIC WebTransport stream at the LBRP edge) with
+/// the usual tunnel helpers.
 pub struct RingWtStream {
   stream_id: i64,
   out: mpsc::UnboundedSender<RingStreamFrame>,
   inbound: mpsc::Receiver<Bytes>,
+  read_rem: Bytes,
   closed: bool,
 }
 
@@ -272,7 +278,88 @@ impl Drop for RingWtStream {
   }
 }
 
+impl AsyncRead for RingWtStream {
+  fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+    if !self.read_rem.is_empty() {
+      let n = self.read_rem.len().min(buf.remaining());
+      buf.put_slice(&self.read_rem[..n]);
+      self.read_rem.advance(n);
+      return Poll::Ready(Ok(()));
+    }
+    match self.inbound.poll_recv(cx) {
+      Poll::Ready(Some(mut chunk)) => {
+        let n = chunk.len().min(buf.remaining());
+        buf.put_slice(&chunk[..n]);
+        chunk.advance(n);
+        self.read_rem = chunk;
+        Poll::Ready(Ok(()))
+      }
+      Poll::Ready(None) => Poll::Ready(Ok(())), // peer closed → EOF
+      Poll::Pending => Poll::Pending,
+    }
+  }
+}
+
+impl AsyncWrite for RingWtStream {
+  fn poll_write(self: Pin<&mut Self>, _cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+    match self.send(buf.to_vec()) {
+      Ok(()) => Poll::Ready(Ok(buf.len())),
+      Err(e) => Poll::Ready(Err(e)),
+    }
+  }
+
+  fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    Poll::Ready(Ok(()))
+  }
+
+  fn poll_shutdown(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    self.close();
+    Poll::Ready(Ok(()))
+  }
+}
+
 type StreamRegistry = Arc<Mutex<HashMap<i64, mpsc::Sender<Bytes>>>>;
+
+/// The cheap-clone send half of a [`RingWebTransport`] session: send datagrams
+/// and open new bidirectional streams. Obtained via [`RingWebTransport::split`].
+#[derive(Clone)]
+pub struct RingWtSender {
+  out: mpsc::UnboundedSender<RingStreamFrame>,
+  next_stream_id: Arc<AtomicI64>,
+  registry: StreamRegistry,
+}
+
+impl RingWtSender {
+  /// Send a datagram.
+  pub fn send_datagram(&self, data: impl Into<Vec<u8>>) -> io::Result<()> {
+    self
+      .out
+      .send(RingStreamFrame::datagram(data.into()))
+      .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "webtransport session closed"))
+  }
+
+  /// Open a new bidirectional stream.
+  pub fn open_bi(&self) -> io::Result<RingWtStream> {
+    let stream_id = self.next_stream_id.fetch_add(2, Ordering::Relaxed);
+    let (in_tx, in_rx) = mpsc::channel::<Bytes>(32);
+    self.registry.lock().unwrap().insert(stream_id, in_tx);
+    self
+      .out
+      .send(RingStreamFrame {
+        opcode: opcode::STREAM_OPEN,
+        stream_id,
+        payload: Vec::new(),
+      })
+      .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "webtransport session closed"))?;
+    Ok(RingWtStream {
+      stream_id,
+      out: self.out.clone(),
+      inbound: in_rx,
+      read_rem: Bytes::new(),
+      closed: false,
+    })
+  }
+}
 
 /// A WebTransport session over a Ring channel pair (datagrams + bidi streams).
 ///
@@ -282,7 +369,7 @@ pub struct RingWebTransport {
   out: mpsc::UnboundedSender<RingStreamFrame>,
   datagrams: mpsc::Receiver<Bytes>,
   incoming: mpsc::Receiver<RingWtStream>,
-  next_stream_id: AtomicI64,
+  next_stream_id: Arc<AtomicI64>,
   registry: StreamRegistry,
 }
 
@@ -306,17 +393,31 @@ impl RingWebTransport {
       out: out_tx,
       datagrams: dgram_rx,
       incoming: incoming_rx,
-      next_stream_id: AtomicI64::new(if initiator { 0 } else { 1 }),
+      next_stream_id: Arc::new(AtomicI64::new(if initiator { 0 } else { 1 })),
       registry,
     }
   }
 
+  /// A cheap-clone handle for sending datagrams and opening streams.
+  pub fn sender(&self) -> RingWtSender {
+    RingWtSender {
+      out: self.out.clone(),
+      next_stream_id: self.next_stream_id.clone(),
+      registry: self.registry.clone(),
+    }
+  }
+
+  /// Split the session into its send half and the two receive halves
+  /// (datagrams, peer-opened streams), so the directions can be driven
+  /// concurrently — used by the LBRP WebTransport relay.
+  pub fn split(self) -> (RingWtSender, mpsc::Receiver<Bytes>, mpsc::Receiver<RingWtStream>) {
+    let sender = self.sender();
+    (sender, self.datagrams, self.incoming)
+  }
+
   /// Send a datagram.
   pub fn send_datagram(&self, data: impl Into<Vec<u8>>) -> io::Result<()> {
-    self
-      .out
-      .send(RingStreamFrame::datagram(data.into()))
-      .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "webtransport session closed"))
+    self.sender().send_datagram(data)
   }
 
   /// Receive the next datagram, or `None` once the session ends.
@@ -326,23 +427,7 @@ impl RingWebTransport {
 
   /// Open a new bidirectional stream.
   pub fn open_bi(&self) -> io::Result<RingWtStream> {
-    let stream_id = self.next_stream_id.fetch_add(2, Ordering::Relaxed);
-    let (in_tx, in_rx) = mpsc::channel::<Bytes>(32);
-    self.registry.lock().unwrap().insert(stream_id, in_tx);
-    self
-      .out
-      .send(RingStreamFrame {
-        opcode: opcode::STREAM_OPEN,
-        stream_id,
-        payload: Vec::new(),
-      })
-      .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "webtransport session closed"))?;
-    Ok(RingWtStream {
-      stream_id,
-      out: self.out.clone(),
-      inbound: in_rx,
-      closed: false,
-    })
+    self.sender().open_bi()
   }
 
   /// Accept the next stream opened by the peer, or `None` once the session ends.
@@ -376,6 +461,7 @@ fn spawn_wt_demux(
               stream_id: frame.stream_id,
               out: out.clone(),
               inbound: in_rx,
+              read_rem: Bytes::new(),
               closed: false,
             };
             if incoming_tx.blocking_send(stream).is_err() {
