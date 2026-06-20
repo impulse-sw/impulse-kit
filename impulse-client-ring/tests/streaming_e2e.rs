@@ -12,8 +12,8 @@ use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use impulse_client_ring::ImpulseRingClient;
-use impulse_server_kit::salvo;
 use impulse_server_kit::prelude::*;
+use impulse_server_kit::salvo;
 use impulse_server_kit::salvo::http::header::{CONTENT_TYPE, HeaderValue};
 use impulse_server_kit::salvo::sse::{self, SseEvent};
 use impulse_server_kit::salvo::websocket::WebSocketUpgrade;
@@ -40,7 +40,10 @@ fn broker_binary() -> Option<PathBuf> {
     }
   }
   let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-  for rel in ["../../impulse-ring/target/debug/impulsed", "../impulse-ring/target/debug/impulsed"] {
+  for rel in [
+    "../../impulse-ring/target/debug/impulsed",
+    "../impulse-ring/target/debug/impulsed",
+  ] {
     let cand = manifest.join(rel);
     if cand.exists() {
       return Some(cand);

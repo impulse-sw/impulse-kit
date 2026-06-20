@@ -49,7 +49,9 @@ use impulse_utils::prelude::MResult;
 /// session API instead. The real WebTransport-over-HTTP/3 edge (e.g. LBRP)
 /// terminates the protocol and relays the session over Ring.
 pub type RingWebTransportHandler = Arc<
-  dyn Fn(impulse_client_ring::streaming::RingWebTransport) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
+  dyn Fn(
+      impulse_client_ring::streaming::RingWebTransport,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
     + Send
     + Sync,
 >;

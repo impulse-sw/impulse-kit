@@ -215,9 +215,7 @@ impl ImpulseRingClient {
     match header_value(&resp.headers, HEADER_UPGRADE).and_then(RingUpgradeKind::parse) {
       Some(RingUpgradeKind::Sse) => {}
       _ => {
-        return Err(io::Error::other(
-          "server did not upgrade the request to an SSE stream",
-        ));
+        return Err(io::Error::other("server did not upgrade the request to an SSE stream"));
       }
     }
     let down = header_value(&resp.headers, HEADER_CHAN_DOWN)
@@ -398,7 +396,9 @@ impl RequestBuilder<'_> {
   pub fn msgpack<T: Serialize>(mut self, value: &T) -> io::Result<Self> {
     let body = rmp_serde::to_vec(value).map_err(io::Error::other)?;
     self.body = body;
-    self.headers.push(RingHeader::new("content-type", "application/msgpack"));
+    self
+      .headers
+      .push(RingHeader::new("content-type", "application/msgpack"));
     Ok(self)
   }
 

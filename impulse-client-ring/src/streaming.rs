@@ -507,7 +507,10 @@ impl RingEventStream {
   pub fn new(conn: Arc<Connection>, subscriber: Subscriber) -> Self {
     let (tx, rx) = mpsc::channel::<io::Result<Bytes>>(16);
     spawn_inbound_pump(subscriber, tx);
-    RingEventStream { _conn: conn, inbound: rx }
+    RingEventStream {
+      _conn: conn,
+      inbound: rx,
+    }
   }
 
   /// Await the next chunk, or `None` at end of stream.
