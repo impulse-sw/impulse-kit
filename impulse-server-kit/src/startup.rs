@@ -6,48 +6,63 @@
 //! let (server, _) = start(app_state, app_config, router).await.unwrap();
 //! server.await
 //! ```
+//!
+//! The server listens on the *set* of protocols declared under `protocols:` in
+//! the YAML config (see [`crate::setup::ProtocolConfig`]): any mix of HTTP/1.1,
+//! HTTP/2, HTTP/3 (QUIC) and the Ring shared-memory bus, all at once.
 
 use impulse_utils::errors::ServerError;
 use impulse_utils::prelude::MResult;
 use salvo::prelude::*;
 
-use salvo::conn::rustls::{Keycert, RustlsConfig};
 use salvo::server::ServerHandle;
 use std::future::Future;
 use std::pin::Pin;
 use std::process::Command;
+use std::task::{Context, Poll};
 
+use salvo::conn::tcp::{DynTcpAcceptors, TcpCoupler};
+use salvo::conn::{Accepted, Acceptor, Holding};
+use salvo::fuse::ArcFuseFactory;
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::task::JoinSet;
+use tokio_util::sync::CancellationToken;
+
+#[cfg(feature = "http3")]
+use salvo::conn::rustls::{Keycert, RustlsConfig};
 #[cfg(feature = "http3")]
 use salvo::http::HeaderValue;
 #[cfg(feature = "http3")]
 use salvo::http::header::ALT_SVC;
 
-use crate::setup::{GenericServerState, GenericSetup, StartupVariant};
+use crate::setup::{GenericServerState, GenericSetup, ResolvedProtocol};
 
+#[cfg(feature = "http3")]
 static TLS13: &[&rustls::SupportedProtocolVersion] = &[&rustls::version::TLS13];
 
 #[cfg(feature = "http3")]
 #[handler]
 /// HTTP2-to-HTTP3 switching header.
 ///
-/// Usage is `router.hoop(h3_header)`.
+/// Installed automatically on the cleartext listeners when any `http3` protocol
+/// is configured, so clients learn they can upgrade to QUIC.
 pub async fn h3_header(depot: &mut Depot, res: &mut Response) {
-  use crate::setup::GenericValues;
-
-  let server_port = match depot.obtain::<GenericValues>() {
-    Ok(app_config) => app_config.server_port.unwrap(),
-    Err(_) => 443,
-  };
+  let port = depot
+    .obtain::<GenericServerState>()
+    .ok()
+    .and_then(|s| s.http3_port())
+    .unwrap_or(443);
 
   res
     .headers_mut()
     .insert(
       ALT_SVC,
-      HeaderValue::from_str(&format!(r##"h3=":{server_port}"; ma=2592000"##)).unwrap(),
+      HeaderValue::from_str(&format!(r##"h3=":{port}"; ma=2592000"##)).unwrap(),
     )
     .unwrap();
 }
 
+#[cfg(feature = "http3")]
 fn tlsv13(certpath: impl AsRef<str>, keypath: impl AsRef<str>) -> MResult<RustlsConfig> {
   Ok(
     RustlsConfig::new(
@@ -133,13 +148,8 @@ pub fn get_root_router_autoinject<T: GenericSetup + Send + Sync + Clone + 'stati
     router = router.hoop(crate::security_headers::SecurityHeaders::new(sec));
   }
 
-  #[cfg(all(feature = "http3", feature = "acme"))]
-  if app_state.startup_variant == StartupVariant::QuinnAcme {
-    router = router.hoop(h3_header);
-  }
-
   #[cfg(feature = "http3")]
-  if app_state.startup_variant == StartupVariant::Quinn || app_state.startup_variant == StartupVariant::QuinnOnly {
+  if app_state.uses_http3() {
     router = router.hoop(h3_header);
   }
 
@@ -153,26 +163,22 @@ pub fn get_root_router_autoinject<T: GenericSetup + Send + Sync + Clone + 'stati
 
 /// Returns preconfigured root router to use.
 ///
-/// Usually it installs application config and state in `affix_state` and installs `h3_header` for switching protocol to QUIC, if used.
+/// Usually it installs `h3_header` for switching protocol to QUIC, if any
+/// `http3` protocol is configured.
 #[allow(unused_variables)]
 pub fn get_root_router(app_state: &GenericServerState) -> Router {
   #[allow(unused_mut)]
   let mut router = Router::new();
 
-  #[cfg(all(feature = "http3", feature = "acme"))]
-  if app_state.startup_variant == StartupVariant::QuinnAcme {
-    router = router.hoop(h3_header);
-  }
-
   #[cfg(feature = "http3")]
-  if app_state.startup_variant == StartupVariant::Quinn || app_state.startup_variant == StartupVariant::QuinnOnly {
+  if app_state.uses_http3() {
     router = router.hoop(h3_header);
   }
 
   router
 }
 
-#[cfg(any(feature = "oapi", feature = "acme"))]
+#[cfg(feature = "oapi")]
 #[allow(clippy::mut_from_ref, invalid_reference_casting)]
 unsafe fn make_mut<T>(reference: &T) -> &mut T {
   let const_ptr = reference as *const T;
@@ -206,6 +212,18 @@ pub async fn start_force_https_redirect(
   let handle = server.handle();
   let server = Box::pin(server.serve(service));
   Ok((server, handle))
+}
+
+/// Clone the configured [`Service`] so several listeners can share it.
+///
+/// `Service` is not `Clone`, but all of its parts are cheap to share, so this
+/// rebuilds an equivalent service pointing at the same router/catcher/hoops.
+fn clone_service(service: &Service) -> Service {
+  let mut cloned = Service::new(service.router.clone());
+  cloned.catcher = service.catcher.clone();
+  cloned.hoops = service.hoops.clone();
+  cloned.allowed_media_types = service.allowed_media_types.clone();
+  cloned
 }
 
 /// Starts your application with provided service, if you predefined one by yourself.
@@ -312,145 +330,118 @@ pub async fn start_with_service(
     service = service.hoop(cors);
   }
 
-  let handle;
+  serve_protocols(&app_state, service).await
+}
 
-  let server = match app_state.startup_variant {
-    StartupVariant::HttpLocalhost => {
-      let acceptor = TcpListener::new(format!("127.0.0.1:{}", app_config.server_port.unwrap()))
-        .bind()
-        .await;
-      let server = Server::new(acceptor);
-      handle = server.handle();
-      Box::pin(server.serve(service)) as Pin<Box<dyn Future<Output = ()> + Send>>
-    }
-    StartupVariant::UnsafeHttp => {
-      let acceptor = TcpListener::new(format!(
-        "{}:{}",
-        app_config.server_host.as_ref().unwrap(),
-        app_config.server_port.unwrap()
-      ))
-      .bind()
-      .await;
-      let server = Server::new(acceptor);
-      handle = server.handle();
-      Box::pin(server.serve(service))
-    }
-    #[cfg(feature = "acme")]
-    StartupVariant::HttpsAcme => {
-      let acceptor = TcpListener::new(format!(
-        "{}:{}",
-        app_config.server_host.as_ref().unwrap(),
-        app_config.server_port.unwrap()
-      ))
-      .acme()
-      .cache_path("tmp/letsencrypt")
-      .add_domain(app_config.acme_domain.as_ref().unwrap())
-      .bind()
-      .await;
-      let server = Server::new(acceptor);
-      handle = server.handle();
-      Box::pin(server.serve(service))
-    }
-    StartupVariant::HttpsOnly => {
-      let rustls_config = tlsv13(
-        app_config.ssl_crt_path.as_ref().unwrap(),
-        app_config.ssl_key_path.as_ref().unwrap(),
-      )?;
-      let listener = TcpListener::new(format!(
-        "{}:{}",
-        app_config.server_host.as_ref().unwrap(),
-        app_config.server_port.unwrap()
-      ))
-      .rustls(rustls_config)
-      .bind()
-      .await;
+/// Bring up every configured protocol and return a combined future plus a
+/// control handle. Stopping the handle (e.g. on Ctrl+C) gracefully shuts every
+/// listener down.
+async fn serve_protocols(
+  app_state: &GenericServerState,
+  service: Service,
+) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)> {
+  let master = CancellationToken::new();
+  let mut real_handles: Vec<ServerHandle> = Vec::new();
+  let mut tasks: JoinSet<()> = JoinSet::new();
 
-      let server = Server::new(listener);
-      handle = server.handle();
-      Box::pin(server.serve(service))
-    }
-    #[cfg(all(feature = "http3", feature = "acme"))]
-    StartupVariant::QuinnAcme => {
-      let acceptor = TcpListener::new(format!(
-        "{}:{}",
-        app_config.server_host.as_ref().unwrap(),
-        app_config.server_port.unwrap()
-      ))
-      .acme()
-      .cache_path("tmp/letsencrypt")
-      .add_domain(app_config.acme_domain.as_ref().unwrap())
-      .quinn(format!(
-        "{}:{}",
-        app_config.server_host.as_ref().unwrap(),
-        app_config.server_port.unwrap()
-      ))
-      .bind()
-      .await;
-      let server = Server::new(acceptor);
-      handle = server.handle();
-      Box::pin(server.serve(service))
-    }
-    #[cfg(feature = "http3")]
-    StartupVariant::Quinn => {
-      let rustls_config = tlsv13(
-        app_config.ssl_crt_path.as_ref().unwrap(),
-        app_config.ssl_key_path.as_ref().unwrap(),
-      )?;
-      let listener = TcpListener::new(format!(
-        "{}:{}",
-        app_config.server_host.as_ref().unwrap(),
-        app_config.server_port.unwrap()
-      ))
-      .rustls(rustls_config.clone());
+  // HTTP/1.1 + HTTP/2 cleartext: one shared TCP server over every bound port.
+  let mut tcp_acceptors = Vec::new();
+  for proto in &app_state.protocols {
+    let (host, port) = match proto {
+      ResolvedProtocol::Http1 { host, port } | ResolvedProtocol::Http2 { host, port } => (host, *port),
+      _ => continue,
+    };
+    let acceptor = TcpListener::new(format!("{host}:{port}"))
+      .try_bind()
+      .await
+      .map_err(|e| {
+        ServerError::from_private(e)
+          .with_public("Failed to bind a TCP listener (port already in use?).")
+          .with_500()
+      })?;
+    tracing::info!("Listening for HTTP over TCP on {host}:{port}.");
+    tcp_acceptors.push(acceptor.into_boxed());
+  }
+  if !tcp_acceptors.is_empty() {
+    let server = Server::new(DynTcpAcceptors::new(tcp_acceptors));
+    real_handles.push(server.handle());
+    let svc = clone_service(&service);
+    tasks.spawn(async move {
+      server.serve(svc).await;
+    });
+  }
 
+  // HTTP/3 (QUIC), one server per configured endpoint.
+  #[cfg(feature = "http3")]
+  for proto in &app_state.protocols {
+    if let ResolvedProtocol::Http3 {
+      host,
+      port,
+      ssl_key_path,
+      ssl_crt_path,
+    } = proto
+    {
+      let rustls_config = tlsv13(ssl_crt_path, ssl_key_path)?;
       let quinn_config = rustls_config
         .build_quinn_config()
         .map_err(|e| ServerError::from_private(e).with_500())?;
-      let acceptor = QuinnListener::new(
-        quinn_config,
-        format!(
-          "{}:{}",
-          app_config.server_host.as_ref().unwrap(),
-          app_config.server_port.unwrap()
-        ),
-      )
-      .join(listener)
-      .bind()
-      .await;
-
+      let acceptor = QuinnListener::new(quinn_config, format!("{host}:{port}")).bind().await;
+      tracing::info!("Listening for HTTP/3 (QUIC) on {host}:{port}.");
       let server = Server::new(acceptor);
-      handle = server.handle();
-      Box::pin(server.serve(service))
+      real_handles.push(server.handle());
+      let svc = clone_service(&service);
+      tasks.spawn(async move {
+        server.serve(svc).await;
+      });
     }
-    #[cfg(feature = "http3")]
-    StartupVariant::QuinnOnly => {
-      let quinn_config = tlsv13(
-        app_config.ssl_crt_path.as_ref().unwrap(),
-        app_config.ssl_key_path.as_ref().unwrap(),
-      )?
-      .build_quinn_config()
-      .map_err(|e| ServerError::from_private(e).with_500())?;
-      let acceptor = QuinnListener::new(
-        quinn_config,
-        format!(
-          "{}:{}",
-          app_config.server_host.as_ref().unwrap(),
-          app_config.server_port.unwrap()
-        ),
-      )
-      .bind()
-      .await;
+  }
 
-      let server = Server::new(acceptor);
-      handle = server.handle();
-      Box::pin(server.serve(service))
+  // Ring shared-memory listeners.
+  #[cfg(feature = "impulse-ring")]
+  for proto in &app_state.protocols {
+    if let ResolvedProtocol::ImpulseRing { app_name, access_key } = proto {
+      let mut listener = crate::impulse_ring::ImpulseRingListener::new(app_name.clone());
+      if let Some(key) = access_key {
+        listener = listener.with_key(key.clone());
+      }
+      let svc = clone_service(&service);
+      let token = master.clone();
+      tasks.spawn(async move {
+        if let Err(e) = crate::impulse_ring::serve_impulse_ring(listener, svc, token.cancelled_owned()).await {
+          tracing::error!("Ring listener stopped with an error: {e:?}");
+        }
+      });
     }
-  };
+  }
 
-  Ok((server, handle))
+  // A connection-less control server: it never accepts, but it gives us a real
+  // `ServerHandle` (so Ctrl+C works even for shared-memory-only deployments) and
+  // is the single point that cascades shutdown to every other listener.
+  let control = Server::new(NoopAcceptor::new());
+  let handle = control.handle();
+  let control_svc = clone_service(&service);
+  let cascade = master.clone();
+  tasks.spawn(async move {
+    control.serve(control_svc).await;
+    cascade.cancel();
+  });
+
+  // When shutdown is requested, gracefully stop every network server.
+  let supervised = real_handles.clone();
+  let supervisor_token = master.clone();
+  tokio::spawn(async move {
+    supervisor_token.cancelled().await;
+    for h in &supervised {
+      h.stop_graceful(None);
+    }
+  });
+
+  let fut = async move { while tasks.join_next().await.is_some() {} };
+
+  Ok((Box::pin(fut), handle))
 }
 
-/// Starts the server according to the startup variant provided with the custom shutdown.
+/// Starts the server according to the configured protocols with the custom shutdown.
 pub async fn start_clean(
   app_state: GenericServerState,
   app_config: &impl GenericSetup,
@@ -459,7 +450,7 @@ pub async fn start_clean(
   start_with_service(app_state, app_config, Service::new(router)).await
 }
 
-/// Starts the server according to the startup variant provided.
+/// Starts the server according to the configured protocols.
 pub async fn start(
   app_state: GenericServerState,
   app_config: &impl GenericSetup,
@@ -492,4 +483,57 @@ pub async fn shutdown_signal(handle: ServerHandle) {
   tokio::signal::ctrl_c().await.unwrap();
   tracing::info!("Shutdown with Ctrl+C requested.");
   handle.stop_graceful(None);
+}
+
+/// A `salvo` acceptor that never yields a connection.
+///
+/// Used as the control server's acceptor: it lets us obtain a [`ServerHandle`]
+/// (and thus graceful-shutdown wiring) without binding any socket, which matters
+/// for deployments that listen only over the Ring shared-memory bus.
+struct NoopAcceptor {
+  holdings: Vec<Holding>,
+}
+
+impl NoopAcceptor {
+  fn new() -> Self {
+    NoopAcceptor { holdings: Vec::new() }
+  }
+}
+
+impl Acceptor for NoopAcceptor {
+  type Coupler = TcpCoupler<NoopStream>;
+  type Stream = NoopStream;
+
+  fn holdings(&self) -> &[Holding] {
+    &self.holdings
+  }
+
+  async fn accept(
+    &mut self,
+    _fuse_factory: Option<ArcFuseFactory>,
+  ) -> std::io::Result<Accepted<Self::Coupler, Self::Stream>> {
+    // Never produce a connection; the server stops via its graceful-stop token.
+    std::future::pending().await
+  }
+}
+
+/// The (never-instantiated) stream type backing [`NoopAcceptor`].
+struct NoopStream;
+
+impl AsyncRead for NoopStream {
+  fn poll_read(self: Pin<&mut Self>, _cx: &mut Context<'_>, _buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
+    Poll::Pending
+  }
+}
+
+impl AsyncWrite for NoopStream {
+  fn poll_write(self: Pin<&mut Self>, _cx: &mut Context<'_>, _buf: &[u8]) -> Poll<std::io::Result<usize>> {
+    Poll::Pending
+  }
+  fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+    Poll::Ready(Ok(()))
+  }
+  fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+    Poll::Ready(Ok(()))
+  }
 }

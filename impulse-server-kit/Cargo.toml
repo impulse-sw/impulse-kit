@@ -8,8 +8,11 @@ license = { workspace = true }
 authors = { workspace = true }
 
 [features]
-default = ["http3", "cors", "acme", "oapi", "otel", "telemetry", "force-https"]
+default = ["http3", "cors", "acme", "oapi", "otel", "telemetry", "force-https", "impulse-ring"]
 http3 = ["salvo/quinn"]
+# Listen for HTTP over the Ring shared-memory IPC bus instead of (or alongside)
+# TCP/QUIC. See `crate::impulse_ring` and the `impulse-client-ring` crate.
+impulse-ring = ["dep:impulse-ring-connector", "dep:impulse-ring-http", "dep:http", "dep:http-body-util", "dep:bytes"]
 acme = ["salvo/acme"]
 cors = ["salvo/cors"]
 websocket = ["salvo/websocket"]
@@ -64,7 +67,7 @@ leptos-ssr = [
   "dep:cookie",
   "dep:any_spawner",
   "dep:bytes",
-  "dep:tokio-util",
+  "tokio-util/rt",
   "tokio/sync",
   "dep:impulse-client-kit",
   "impulse-client-kit/ssr",
@@ -107,6 +110,7 @@ full = [
   "timeout",
   "trailing-slash",
   "tower-compat",
+  "impulse-ring",
 ]
 
 [dependencies]
@@ -118,6 +122,8 @@ fs-change-notifier = { optional = true, workspace = true }
 headers = { optional = true, workspace = true }
 http-body-util = { optional = true, workspace = true }
 impulse-utils = { workspace = true, features = ["salvo", "reqwest", "mresult"] }
+impulse-ring-connector = { workspace = true, optional = true }
+impulse-ring-http = { workspace = true, optional = true }
 mime = { optional = true, workspace = true }
 notify = { workspace = true }
 opentelemetry = { optional = true, workspace = true, features = ["metrics"] }
@@ -130,8 +136,8 @@ salvo = { workspace = true, features = ["affix-state", "aws-lc-rs", "compression
 serde = { workspace = true, features = ["derive"] }
 serde_pretty_yaml = { workspace = true }
 sonic-rs = { optional = true, workspace = true }
-tokio = { workspace = true, features = ["signal"] }
-tokio-util = { workspace = true, optional = true, features = ["rt"] }
+tokio = { workspace = true, features = ["signal", "rt", "sync"] }
+tokio-util = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
 tracing-appender = { workspace = true }
 tracing-ecs = { workspace = true }
@@ -153,4 +159,4 @@ http = { version = "1", optional = true }
 axum = { version = "0.8", optional = true, default-features = false }
 
 [package.metadata.cargo-all-features]
-denylist = ["flash", "cache", "compression", "csrf", "session", "jwt-auth", "basic-auth", "caching-headers", "catch-panic", "concurrency-limiter", "request-id", "size-limiter", "sse", "static-server", "timeout", "trailing-slash", "tower-compat", "reqwest-http3", "websocket", "proxy", "leptos-ssr", "leptos-server-fn"]
+denylist = ["flash", "cache", "compression", "csrf", "session", "jwt-auth", "basic-auth", "caching-headers", "catch-panic", "concurrency-limiter", "request-id", "size-limiter", "sse", "static-server", "timeout", "trailing-slash", "tower-compat", "reqwest-http3", "websocket", "proxy", "leptos-ssr", "leptos-server-fn", "impulse-ring"]

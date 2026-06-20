@@ -10,8 +10,10 @@
 //! 4. Just setup your application in 7 lines in `main`
 //!
 //! ```yaml
-//! startup_type: http_localhost
-//! server_port: 8801
+//! protocols:
+//!   - type: http1
+//!     host: 127.0.0.1
+//!     port: 8801
 //! allow_oapi_access: true
 //! oapi_frontend_type: Scalar
 //! oapi_name: Server Test OAPI
@@ -105,6 +107,9 @@ pub mod telemetry;
 
 #[cfg(feature = "static-server")]
 pub mod static_server;
+
+#[cfg(feature = "impulse-ring")]
+pub mod impulse_ring;
 
 #[cfg(feature = "leptos-ssr")]
 pub mod leptos_ssr;

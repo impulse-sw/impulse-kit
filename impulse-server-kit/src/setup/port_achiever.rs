@@ -1,8 +1,13 @@
 //! Port achiever module.
+//!
+//! A small helper for deployments that learn which port to bind from a text
+//! file written by an external orchestrator. Await [`port_file_watcher`] before
+//! building your `protocols:` list and substitute the resolved port.
 
 use impulse_utils::prelude::*;
 
-pub(crate) async fn port_file_watcher<P: AsRef<std::path::Path>>(path: P) -> MResult<u16> {
+/// Watch `path` until it contains a parseable `u16` port, then return it.
+pub async fn port_file_watcher<P: AsRef<std::path::Path>>(path: P) -> MResult<u16> {
   use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 
   let (tx, mut rx) = tokio::sync::mpsc::channel(1);

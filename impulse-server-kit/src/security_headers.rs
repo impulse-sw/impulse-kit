@@ -41,7 +41,7 @@ use salvo::http::header::{
 use salvo::prelude::*;
 use serde::Deserialize;
 
-use crate::setup::{GenericServerState, StartupVariant};
+use crate::setup::GenericServerState;
 
 /// YAML-configurable values for the security headers hoop.
 ///
@@ -149,17 +149,12 @@ impl Handler for SecurityHeaders {
   async fn handle(&self, req: &mut Request, depot: &mut Depot, res: &mut Response, ctrl: &mut FlowCtrl) {
     ctrl.call_next(req, depot, res).await;
 
-    // HSTS over plain HTTP is wrong (RFC 6797) and pinning `127.0.0.1`
-    // for a year is a footgun developers hit on first run; trust the
-    // startup variant when available.
+    // HSTS over plain HTTP is wrong (RFC 6797) and pinning a cleartext
+    // listener for a year is a footgun developers hit on first run; only
+    // advertise it when a TLS-bearing protocol (HTTP/3 over QUIC) is served.
     let hsts_allowed = depot
       .obtain::<GenericServerState>()
-      .map(|s| {
-        !matches!(
-          s.startup_variant,
-          StartupVariant::HttpLocalhost | StartupVariant::UnsafeHttp
-        )
-      })
+      .map(|s| s.uses_http3())
       .unwrap_or(true);
 
     self.apply(hsts_allowed, res.headers_mut());

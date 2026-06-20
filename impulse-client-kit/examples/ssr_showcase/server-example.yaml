@@ -1,5 +1,7 @@
-startup_type: http_localhost
-server_port: 8802
+protocols:
+  - type: http1
+    host: 127.0.0.1
+    port: 8802
 frontend_dist_path: ./dist
 leptos_output_name: ssr_showcase
 leptos_seo:

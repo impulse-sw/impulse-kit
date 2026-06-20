@@ -100,6 +100,17 @@ fn main() {
 
 [Server-Side Rendered Showcase](./impulse-client-kit/examples/ssr_showcase/README.md)
 
+### Impulse Client Ring
+
+Client Ring is a [`reqwest`](https://docs.rs/reqwest)-style HTTP client that
+talks over the **Ring** shared-memory IPC bus instead of TCP/Unix sockets. It is
+the client half of Server Kit's `impulse-ring` listener: a server registers an
+application on the bus and serves HTTP over shared memory, and Client Ring looks
+it up by name and issues ordinary requests — no ports, no kernel round-trips on
+the data path. Ships with a server example and a `curl`-like CLI example.
+
+[Client Ring Documentation](./impulse-client-ring/README.md)
+
 ## Rust Toolchain
 
 **This repository actively uses `nightly` toolchain.** While these frameworks and libraries are battle-tested anyway, consider not to choose `impulse-kit` to use if you are not aware of `nightly` toolchain.

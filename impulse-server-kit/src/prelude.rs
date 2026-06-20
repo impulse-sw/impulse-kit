@@ -41,3 +41,6 @@ pub use crate::leptos_ssr::{
 
 #[cfg(feature = "leptos-server-fn")]
 pub use crate::leptos_ssr::{ServerFnSalvoHandler, server_fn_router};
+
+#[cfg(feature = "impulse-ring")]
+pub use crate::impulse_ring::{ImpulseRingListener, serve_impulse_ring};

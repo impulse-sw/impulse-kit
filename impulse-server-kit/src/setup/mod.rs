@@ -3,6 +3,7 @@
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use std::io::Read;
+#[cfg(feature = "leptos-ssr")]
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -11,7 +12,6 @@ use impulse_utils::prelude::*;
 pub mod port_achiever;
 pub mod tracing_init;
 
-use crate::setup::port_achiever::port_file_watcher;
 use crate::setup::tracing_init::{TracingGuards, TracingOptions};
 
 /// Provides at least values needed by Server Kit to start.
@@ -22,29 +22,105 @@ pub trait GenericSetup {
   fn generic_values_mut(&mut self) -> &mut GenericValues;
 }
 
-/// Server startup variants.
+/// One listening protocol as written in YAML under `protocols:`.
 ///
-/// These are the hardcoded variants; by default, `salvo` can much more than this.
-#[derive(Clone, Eq, PartialEq)]
-pub enum StartupVariant {
-  /// Will listen `http://127.0.0.1:{port}` only.
-  HttpLocalhost,
-  /// Will listen `http://{host}:{port}`. Not recommended.
-  UnsafeHttp,
-  #[cfg(feature = "acme")]
-  /// Will listen `https://{host}:{port}` with automatic SSL certificate acquiring.
-  HttpsAcme,
-  #[cfg(all(feature = "http3", feature = "acme"))]
-  /// Will listen `https|quic://{host}:{port}` with automatic SSL certificate acquiring.
-  QuinnAcme,
-  /// Will listen `https://{host}:{port}` with your SSL cert and key.
-  HttpsOnly,
-  #[cfg(feature = "http3")]
-  /// Will listen `https|quic://{host}:{port}` with your SSL cert and key.
-  Quinn,
-  #[cfg(feature = "http3")]
-  /// Will listen `quic://{host}:{port}` only, with your SSL cert and key.
-  QuinnOnly,
+/// The server always listens on a *set* of protocols. The first three are
+/// served over the network and require a host and port; `impulse-ring` is served
+/// over the shared-memory bus and is addressed by an application name.
+///
+/// ```yaml
+/// protocols:
+///   - type: http1           # HTTP/1.1 — required for WebSockets
+///     host: 0.0.0.0
+///     port: 8080
+///   - type: http2           # HTTP/2 (cleartext h2c)
+///     host: 0.0.0.0
+///     port: 8081
+///   - type: http3           # HTTP/3 (QUIC); needs TLS key + cert
+///     host: 0.0.0.0
+///     port: 8082
+///     ssl_key_path: /etc/ssl/app.key
+///     ssl_crt_path: /etc/ssl/app.crt
+///   - type: impulse-ring    # shared-memory IPC, no host/port
+///     app_name: my-service
+/// ```
+#[derive(Clone, Deserialize)]
+#[serde(tag = "type")]
+pub enum ProtocolConfig {
+  /// HTTP/1.1 (cleartext, over TCP). Required for WebSockets.
+  #[serde(rename = "http1", alias = "http/1.1", alias = "http1.1", alias = "http_localhost")]
+  Http1 {
+    /// Bind host, e.g. `0.0.0.0` or `127.0.0.1`.
+    host: String,
+    /// Bind port.
+    port: u16,
+  },
+  /// HTTP/2 (cleartext h2c, over TCP).
+  #[serde(rename = "http2", alias = "http/2")]
+  Http2 {
+    /// Bind host.
+    host: String,
+    /// Bind port.
+    port: u16,
+  },
+  /// HTTP/3 (QUIC, over TLS). Requires a TLS key and certificate.
+  #[serde(rename = "http3", alias = "http/3", alias = "quic")]
+  Http3 {
+    /// Bind host.
+    host: String,
+    /// Bind port.
+    port: u16,
+    /// Path to the TLS private key.
+    ssl_key_path: String,
+    /// Path to the TLS certificate.
+    ssl_crt_path: String,
+  },
+  /// Impulse Ring shared-memory listener, addressed by application name.
+  #[serde(rename = "impulse-ring", alias = "impulse_ring", alias = "ring")]
+  ImpulseRing {
+    /// The application name clients connect to over the Ring bus.
+    app_name: String,
+    /// Optional access key required of callers (gated by the broker).
+    #[serde(default)]
+    access_key: Option<String>,
+  },
+}
+
+/// A validated, ready-to-serve protocol (the resolved form of [`ProtocolConfig`]).
+#[derive(Clone)]
+pub enum ResolvedProtocol {
+  /// HTTP/1.1 over TCP at `host:port`.
+  Http1 {
+    /// Bind host.
+    host: String,
+    /// Bind port.
+    port: u16,
+  },
+  /// HTTP/2 over TCP at `host:port`.
+  Http2 {
+    /// Bind host.
+    host: String,
+    /// Bind port.
+    port: u16,
+  },
+  /// HTTP/3 (QUIC) over TLS at `host:port`.
+  Http3 {
+    /// Bind host.
+    host: String,
+    /// Bind port.
+    port: u16,
+    /// Path to the TLS private key.
+    ssl_key_path: String,
+    /// Path to the TLS certificate.
+    ssl_crt_path: String,
+  },
+  /// Impulse Ring shared-memory listener.
+  ImpulseRing {
+    /// Application name on the Ring bus.
+    app_name: String,
+    /// Optional access key.
+    access_key: Option<String>,
+  },
 }
 
 /// Server generic configuration.
@@ -55,22 +131,16 @@ pub struct GenericValues {
   /// You're not needed to write it in YAML configuration, instead you should send it to `load_generic_config` function.
   #[serde(skip)]
   pub app_name: String,
-  /// Startup variant. Converts to `StartupVariant`.
-  pub startup_type: String,
-  /// Server host.
-  pub server_host: Option<String>,
-  /// Server port. For no reverse proxy and Internet usage, set to `80` for HTTP and `443` for HTTPS/QUIC.
-  pub server_port: Option<u16>,
-  /// ACME origin; see [`salvo/conn/acme` docs](https://docs.rs/salvo/latest/salvo/conn/acme/index.html).
-  pub acme_domain: Option<String>,
-  /// Path to SSL key.
-  pub ssl_key_path: Option<String>,
-  /// Path to SSL certificate.
-  pub ssl_crt_path: Option<String>,
+
+  /// The set of protocols to listen on simultaneously. Must be non-empty.
+  ///
+  /// This is the single way to choose how the server listens; see
+  /// [`ProtocolConfig`].
+  #[serde(default)]
+  pub protocols: Vec<ProtocolConfig>,
+
   /// If you want to run any migration or anything else just before server's start, set to path to binary.
   pub auto_migrate_bin: Option<String>,
-  /// Use text file to find out which port to listen to.
-  pub server_port_achiever: Option<PathBuf>,
 
   #[cfg(feature = "cors")]
   /// CORS allowed domains
@@ -127,10 +197,40 @@ pub struct GenericValues {
 /// Server state.
 #[derive(Clone)]
 pub struct GenericServerState {
-  /// Converted startup variant, ready to launch.
-  pub startup_variant: StartupVariant,
+  /// The resolved, ready-to-serve set of protocols.
+  pub protocols: Vec<ResolvedProtocol>,
   /// File log guard; needed to be handled the entire time the application is running.
   pub _guards: Arc<TracingGuards>,
+}
+
+impl GenericServerState {
+  /// `true` if any resolved protocol speaks HTTP/3 (QUIC), so the HTTP/2→HTTP/3
+  /// upgrade header should be installed.
+  pub fn uses_http3(&self) -> bool {
+    self
+      .protocols
+      .iter()
+      .any(|p| matches!(p, ResolvedProtocol::Http3 { .. }))
+  }
+
+  /// The advertised HTTP/3 port, if any protocol serves QUIC. Used to build the
+  /// `alt-svc` upgrade header on the cleartext listeners.
+  pub fn http3_port(&self) -> Option<u16> {
+    self.protocols.iter().find_map(|p| match p {
+      ResolvedProtocol::Http3 { port, .. } => Some(*port),
+      _ => None,
+    })
+  }
+
+  /// `true` if every resolved protocol is shared-memory (`impulse-ring`), i.e.
+  /// there are no network listeners at all.
+  pub fn is_shared_memory_only(&self) -> bool {
+    !self.protocols.is_empty()
+      && self
+        .protocols
+        .iter()
+        .all(|p| matches!(p, ResolvedProtocol::ImpulseRing { .. }))
+  }
 }
 
 /// Loads the config from YAML file (`{app_name}.yaml`).
@@ -179,11 +279,6 @@ pub async fn load_generic_config<T: DeserializeOwned + GenericSetup + Default>(a
     }
   }
 
-  if let Some(achiever) = &data.server_port_achiever {
-    let port = port_file_watcher(achiever.as_path()).await?;
-    data.server_port = Some(port);
-  }
-
   Ok(config)
 }
 
@@ -199,97 +294,65 @@ pub async fn load_generic_state<T: GenericSetup>(setup: &T, init_logging: bool) 
     Default::default()
   };
 
-  let state = GenericServerState {
-    startup_variant: match &*data.startup_type {
-      "http_localhost" => {
-        if data.server_host.is_some() {
-          ServerError::from_public("Server will only listen `127.0.0.1` address because of `http_localhost` startup variant. Consider to move to `https_only` or `quinn`.").with_500().bail()?;
-        }
-        StartupVariant::HttpLocalhost
-      }
-      "unsafe_http" => {
-        if data.server_host.is_none() {
-          ServerError::from_public("Choose server's host, e.g. `0.0.0.0`.")
-            .with_500()
-            .bail()?;
-        }
-        StartupVariant::UnsafeHttp
-      }
-      #[cfg(feature = "acme")]
-      "https_acme" => {
-        if data.server_host.is_none() {
-          ServerError::from_public("Choose server's host, e.g. `0.0.0.0`.")
-            .with_500()
-            .bail()?;
-        }
-        if data.acme_domain.is_none() {
-          ServerError::from_public("Choose ACME's domain!").with_500().bail()?;
-        }
-        StartupVariant::HttpsAcme
-      }
-      "https_only" => {
-        if data.server_host.is_none() {
-          ServerError::from_public("Choose server's host, e.g. `0.0.0.0`.")
-            .with_500()
-            .bail()?;
-        }
-        if data.ssl_key_path.is_none() {
-          ServerError::from_public("Choose SSL key path.").with_500().bail()?;
-        }
-        if data.ssl_crt_path.is_none() {
-          ServerError::from_public("Choose SSL cert path.").with_500().bail()?;
-        }
-        StartupVariant::HttpsOnly
-      }
-      #[cfg(all(feature = "http3", feature = "acme"))]
-      "quinn_acme" => {
-        if data.server_host.is_none() {
-          ServerError::from_public("Choose server's host, e.g. `0.0.0.0`.")
-            .with_500()
-            .bail()?;
-        }
-        if data.acme_domain.is_none() {
-          ServerError::from_public("Choose ACME's domain!").with_500().bail()?;
-        }
-        StartupVariant::QuinnAcme
-      }
-      #[cfg(feature = "http3")]
-      "quinn" => {
-        if data.server_host.is_none() {
-          ServerError::from_public("Choose server's host, e.g. `0.0.0.0`.")
-            .with_500()
-            .bail()?;
-        }
-        if data.ssl_key_path.is_none() {
-          ServerError::from_public("Choose SSL key path.").with_500().bail()?;
-        }
-        if data.ssl_crt_path.is_none() {
-          ServerError::from_public("Choose SSL cert path.").with_500().bail()?;
-        }
-        StartupVariant::Quinn
-      }
-      #[cfg(feature = "http3")]
-      "quinn_only" => {
-        if data.server_host.is_none() {
-          ServerError::from_public("Choose server's host, e.g. `0.0.0.0`.")
-            .with_500()
-            .bail()?;
-        }
-        if data.ssl_key_path.is_none() {
-          ServerError::from_public("Choose SSL key path.").with_500().bail()?;
-        }
-        if data.ssl_crt_path.is_none() {
-          ServerError::from_public("Choose SSL cert path.").with_500().bail()?;
-        }
-        StartupVariant::QuinnOnly
-      }
-      _ => ServerError::from_public(
-        "The server deployment method could not be determined. Read the documentation on the `startup_variant` field.",
-      )
-      .with_500()
-      .bail()?,
-    },
+  let protocols = resolve_protocols(&data.protocols)?;
+  if protocols.is_empty() {
+    ServerError::from_public(
+      "No listening protocols configured. Set a non-empty `protocols:` list (see the `ProtocolConfig` docs).",
+    )
+    .with_500()
+    .bail()?;
+  }
+
+  Ok(GenericServerState {
+    protocols,
     _guards: Arc::new(guards),
-  };
-  Ok(state)
+  })
+}
+
+/// Validate and lower every [`ProtocolConfig`] into a [`ResolvedProtocol`],
+/// rejecting protocols whose Cargo feature is disabled.
+fn resolve_protocols(protocols: &[ProtocolConfig]) -> MResult<Vec<ResolvedProtocol>> {
+  let mut resolved = Vec::with_capacity(protocols.len());
+  for proto in protocols {
+    let r = match proto.clone() {
+      ProtocolConfig::Http1 { host, port } => ResolvedProtocol::Http1 { host, port },
+      ProtocolConfig::Http2 { host, port } => ResolvedProtocol::Http2 { host, port },
+      ProtocolConfig::Http3 {
+        host,
+        port,
+        ssl_key_path,
+        ssl_crt_path,
+      } => {
+        #[cfg(not(feature = "http3"))]
+        {
+          let _ = (&host, &port, &ssl_key_path, &ssl_crt_path);
+          ServerError::from_public("The `http3` protocol requires the `http3` feature of `impulse-server-kit`.")
+            .with_500()
+            .bail()?
+        }
+        #[cfg(feature = "http3")]
+        ResolvedProtocol::Http3 {
+          host,
+          port,
+          ssl_key_path,
+          ssl_crt_path,
+        }
+      }
+      ProtocolConfig::ImpulseRing { app_name, access_key } => {
+        #[cfg(not(feature = "impulse-ring"))]
+        {
+          let _ = (&app_name, &access_key);
+          ServerError::from_public(
+            "The `impulse-ring` protocol requires the `impulse-ring` feature of `impulse-server-kit`.",
+          )
+          .with_500()
+          .bail()?
+        }
+        #[cfg(feature = "impulse-ring")]
+        ResolvedProtocol::ImpulseRing { app_name, access_key }
+      }
+    };
+    resolved.push(r);
+  }
+  Ok(resolved)
 }

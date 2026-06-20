@@ -1,6 +1,6 @@
 # Impulse Server Kit
 
-State-of-art simple and powerful web server based on [Salvo](https://github.com/salvo-rs/salvo). Provides extended tracing, configuration-over-YAML, HTTP/3, TLS v1.3, MessagePack + SIMD JSON ser/de support, ACME, OpenAPI and OpenTelemetry features *by default*.
+State-of-art simple and powerful web server based on [Salvo](https://github.com/salvo-rs/salvo). Provides extended tracing, configuration-over-YAML, a multi-protocol listener (HTTP/1.1, HTTP/2, HTTP/3 and the **Ring shared-memory bus**), TLS v1.3, MessagePack + SIMD JSON ser/de support, OpenAPI and OpenTelemetry features *by default*.
 
 Table of contents:
 
@@ -55,8 +55,10 @@ Read more: [`impulse-utils`](./../impulse-utils/README.md).
 YAML configuration example:
 
 ```yaml
-startup_type: http_localhost
-server_port: 8801
+protocols:
+  - type: http1
+    host: 127.0.0.1
+    port: 8801
 allow_oapi_access: true
 oapi_frontend_type: Scalar
 oapi_name: Server Test OAPI
@@ -281,77 +283,68 @@ let (server, handler) = start_force_https_redirect(80, 443).await.unwrap();
 > [!NOTE]
 > To setup these features, you have no need to edit code, just `{your-app}.yaml`.
 
-### Startup types
+### Protocols
 
-There are several startup types:
+The server listens on a **set** of protocols declared under the `protocols:`
+key — any mix of the four below, all at once. The list must be non-empty.
 
-1. `http_localhost` - will listen `http://127.0.0.1:{port}` only
-2. `unsafe_http` - will listen `http://0.0.0.0:{port}`
-3. `https_acme` (requires `acme` feature) - will listen `https://{host}:{port}` with [ACME] support
-4. `quinn_acme` (requires both `acme` and `http3` features) - will listen `https://` and `quic://` with [ACME]
-5. `https_only` - will listen `https://{host}:{port}`
-6. `quinn` (requires `http3` feature) - will listen `https://` and `quic://`
-7. `quinn_only` (requires `http3` feature) - will listen `quic://{host}:{port}`
-
-Any HTTPS connection will use TLS v1.3 only.
-
-Example:
+| `type` | Transport | Required fields | Feature |
+| --- | --- | --- | --- |
+| `http1` | HTTP/1.1 over TCP (cleartext). Required for WebSockets. | `host`, `port` | — |
+| `http2` | HTTP/2 over TCP (cleartext h2c). | `host`, `port` | — |
+| `http3` | HTTP/3 over QUIC (TLS v1.3). | `host`, `port`, `ssl_key_path`, `ssl_crt_path` | `http3` |
+| `impulse-ring` | HTTP over the Ring shared-memory bus — no socket. | `app_name` (+ optional `access_key`) | `impulse-ring` |
 
 ```yaml
-startup_type: quinn
+protocols:
+  - type: http1            # needed for WebSockets
+    host: 0.0.0.0
+    port: 8080
+  - type: http2
+    host: 0.0.0.0
+    port: 8081
+  - type: http3            # QUIC, TLS v1.3 only
+    host: 0.0.0.0
+    port: 8082
+    ssl_key_path: certs/privkey.pem
+    ssl_crt_path: certs/fullchain.pem
+  - type: impulse-ring     # shared-memory IPC, addressed by name
+    app_name: my-service
 ```
 
-#### ACME domain
+When any `http3` protocol is present, the cleartext listeners automatically
+advertise the QUIC upgrade via an `alt-svc` header.
 
-Specify `acme_domain` to use [ACME] (TLS ALPN-01).
+#### Listening over the Ring shared-memory bus
 
-Example:
+The `impulse-ring` protocol (feature `impulse-ring`, **on by default**) serves
+HTTP over the [Ring](https://github.com/impulse-sw/impulse-ring) shared-memory
+IPC bus instead of a socket. It is the server-side counterpart of the
+[`impulse-client-ring`](../impulse-client-ring) client (a `reqwest`-style API).
+
+- The `impulsed` broker must be running; it owns the shared-memory control
+  segment.
+- Clients address the server by `app_name` — there is no host/port.
+- Each request runs the **full salvo pipeline** (routing, middleware, OpenAPI,
+  catcher), so handlers behave exactly as over TCP. Request/response only:
+  streaming bodies and WebSockets are not modelled over Ring.
 
 ```yaml
-startup_type: quinn_acme
-server_host: 0.0.0.0
-server_port: 443
-acme_domain: tls-alpn-01.domain.com
+protocols:
+  - type: impulse-ring
+    app_name: my-service
+    # access_key: optional-shared-secret
 ```
 
-#### Server host & server port
+You can also drive the listener by hand without YAML:
 
-Specify `server_host` as IP address to listen with server (except `http_localhost` and `unsafe_http` startup types).
+```rust
+use impulse_server_kit::prelude::*;
 
-Specify `server_port` to listen with server. If you use your app with Server Kit as internal service, specify any port; if you want to expose your ports to the Internet, use `80` to HTTP and `443` for HTTPS or QUIC.
-
-Also, if you want to specify your listening port after application start, you can use `server_port_achiever` field (see below).
-
-Example:
-
-```yaml
-startup_type: quinn
-server_host: 0.0.0.0
-server_port: 443
-```
-
-#### SSL key & certs
-
-Example:
-
-```yaml
-startup_type: quinn
-server_host: 0.0.0.0
-server_port: 443
-ssl_crt_path: certs/fullchain.pem
-ssl_key_path: certs/privkey.pem
-```
-
-#### Server port achieveing
-
-You can specify `server_port_achiever` field to any filepath to make server wait for file creation and writing actual server port to listen to it.
-
-Example:
-
-```yaml
-startup_type: quinn
-server_host: 0.0.0.0
-server_port_achiever: write/port/to/me.txt
+let listener = ImpulseRingListener::new("my-service");
+let service = salvo::Service::new(router);
+// Serves until `shutdown` resolves; unregisters from the bus on completion.
+serve_impulse_ring(listener, service, shutdown_future).await?;
 ```
 
 ### Auto-migrate binary
