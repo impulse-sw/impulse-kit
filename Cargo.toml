@@ -35,8 +35,8 @@ impulse-client-kit-blocks = { path = "impulse-client-kit/blocks", default-featur
 impulse-tailwind-sources = { path = "impulse-client-kit/tailwind-sources" }
 impulse-client-ring = { path = "impulse-client-ring", default-features = false }
 
-impulse-ring-connector = { git = "ssh://git@31.31.65.38:20995/impulse-sw/impulse-ring.git", tag = "0.2.0" }
-impulse-ring-http = { git = "ssh://git@31.31.65.38:20995/impulse-sw/impulse-ring.git", tag = "0.2.0" }
+impulse-ring-connector = { git = "https://github.com/impulse-sw/impulse-ring.git", tag = "0.2.0" }
+impulse-ring-http = { git = "https://github.com/impulse-sw/impulse-ring.git", tag = "0.2.0" }
 
 anyhow = "1"
 apache-avro = "0.17"
