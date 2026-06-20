@@ -29,6 +29,14 @@
 
 #![deny(warnings, clippy::todo, clippy::unimplemented)]
 
+#[cfg(feature = "async")]
+pub mod streaming;
+
+/// Re-export of the HTTP-over-Ring wire protocol, so consumers (e.g. the LBRP
+/// `impring://` connector) can read the upgrade headers / kinds without taking a
+/// direct dependency on `impulse-ring-http`.
+pub use impulse_ring_http;
+
 use std::io;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -44,6 +52,18 @@ use serde::de::DeserializeOwned;
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 
 static CLIENT_SEQ: AtomicU64 = AtomicU64::new(0);
+static SESSION_SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// Mint a process-unique session id for a streaming upgrade.
+#[cfg(feature = "async")]
+fn next_session_id() -> u64 {
+  let seq = SESSION_SEQ.fetch_add(1, Ordering::Relaxed);
+  let nanos = std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .map(|d| d.as_nanos() as u64)
+    .unwrap_or(0);
+  (nanos << 16) ^ ((std::process::id() as u64) << 8) ^ seq
+}
 
 /// A connected client addressing a single Ring HTTP application by name.
 ///
@@ -155,6 +175,170 @@ impl ImpulseRingClient {
       timeout,
     )
   }
+
+  /// The underlying bus connection (shared; cloneable).
+  ///
+  /// Exposed so the streaming layer (and the LBRP connector) can publish and
+  /// subscribe to the channels that carry SSE/WebSocket/WebTransport data.
+  pub fn connection(&self) -> &Arc<Connection> {
+    &self.conn
+  }
+
+  /// Open a Server-Sent Events stream against `uri`.
+  ///
+  /// Sends an ordinary RPC handshake carrying `Accept: text/event-stream`; the
+  /// listener answers with the upgrade headers (naming a Ring channel) and
+  /// streams the response body onto that channel. The returned
+  /// [`streaming::RingEventStream`] yields the raw event bytes.
+  #[cfg(feature = "async")]
+  pub async fn sse(&self, uri: impl Into<String>) -> io::Result<streaming::RingEventStream> {
+    let this = self.clone();
+    let uri = uri.into();
+    tokio::task::spawn_blocking(move || this.open_sse_blocking(&uri))
+      .await
+      .map_err(io::Error::other)?
+  }
+
+  /// Blocking variant of [`ImpulseRingClient::sse`].
+  #[cfg(feature = "async")]
+  pub fn open_sse_blocking(&self, uri: &str) -> io::Result<streaming::RingEventStream> {
+    use impulse_ring_http::{HEADER_CHAN_DOWN, HEADER_UPGRADE, RingUpgradeKind};
+
+    let req = RingHttpRequest {
+      method: "GET".to_string(),
+      uri: uri.to_string(),
+      headers: vec![RingHeader::new("accept", "text/event-stream")],
+      body: Vec::new(),
+    };
+    let resp = self.call_blocking(req, self.timeout)?;
+
+    match header_value(&resp.headers, HEADER_UPGRADE).and_then(RingUpgradeKind::parse) {
+      Some(RingUpgradeKind::Sse) => {}
+      _ => {
+        return Err(io::Error::other(
+          "server did not upgrade the request to an SSE stream",
+        ));
+      }
+    }
+    let down = header_value(&resp.headers, HEADER_CHAN_DOWN)
+      .ok_or_else(|| io::Error::other("SSE upgrade is missing the down-channel header"))?;
+    let subscriber = streaming::subscribe_by_name(&self.conn, down, self.key.as_deref())?;
+    Ok(streaming::RingEventStream::new(self.conn.clone(), subscriber))
+  }
+
+  /// Open a WebSocket virtual connection against `uri`.
+  ///
+  /// Publishes the client→server channel, hands the listener its name via an
+  /// `Upgrade: websocket` handshake, then returns a [`streaming::RingDuplex`]
+  /// virtual socket. The caller drives a normal WebSocket client codec over it
+  /// (salvo terminates the upgrade on the server side — Ring only relays bytes).
+  #[cfg(feature = "async")]
+  pub async fn websocket(&self, uri: impl Into<String>) -> io::Result<streaming::RingDuplex> {
+    let this = self.clone();
+    let uri = uri.into();
+    tokio::task::spawn_blocking(move || this.open_websocket_blocking(&uri))
+      .await
+      .map_err(io::Error::other)?
+  }
+
+  /// Blocking variant of [`ImpulseRingClient::websocket`].
+  #[cfg(feature = "async")]
+  pub fn open_websocket_blocking(&self, uri: &str) -> io::Result<streaming::RingDuplex> {
+    use impulse_ring_http::{
+      HEADER_CHAN_DOWN, HEADER_CHAN_UP, HEADER_SESSION, HEADER_UPGRADE, RingUpgradeKind, stream_channel_name,
+    };
+
+    let session = next_session_id();
+    let up_name = stream_channel_name(&self.app_name, session, "up");
+    // Publish our outbound channel before the listener tries to subscribe to it.
+    let up_pub = streaming::publish_stream_channel(&self.conn, &up_name, self.key.as_deref())?;
+
+    let req = RingHttpRequest {
+      method: "GET".to_string(),
+      uri: uri.to_string(),
+      headers: vec![
+        RingHeader::new("connection", "Upgrade"),
+        RingHeader::new("upgrade", "websocket"),
+        RingHeader::new(HEADER_UPGRADE, RingUpgradeKind::WebSocket.as_str()),
+        RingHeader::new(HEADER_CHAN_UP, up_name.clone()),
+        RingHeader::new(HEADER_SESSION, format!("{session:016x}")),
+      ],
+      body: Vec::new(),
+    };
+    let resp = self.call_blocking(req, self.timeout)?;
+
+    match header_value(&resp.headers, HEADER_UPGRADE).and_then(RingUpgradeKind::parse) {
+      Some(RingUpgradeKind::WebSocket) => {}
+      _ => return Err(io::Error::other("server did not accept the WebSocket upgrade")),
+    }
+    let down = header_value(&resp.headers, HEADER_CHAN_DOWN)
+      .ok_or_else(|| io::Error::other("WebSocket upgrade is missing the down-channel header"))?;
+    let down_sub = streaming::subscribe_by_name(&self.conn, down, self.key.as_deref())?;
+    Ok(streaming::RingDuplex::new(self.conn.clone(), up_pub, down_sub))
+  }
+
+  /// Open a WebTransport session against `uri`.
+  ///
+  /// Establishes the session channel pair via an `Upgrade: webtransport`
+  /// handshake and returns a [`streaming::RingWebTransport`] supporting datagrams
+  /// and bidirectional streams. (Real WebTransport-over-HTTP/3 is terminated by
+  /// salvo at the edge, e.g. LBRP; this is the Ring-side session.)
+  #[cfg(feature = "async")]
+  pub async fn webtransport(&self, uri: impl Into<String>) -> io::Result<streaming::RingWebTransport> {
+    let this = self.clone();
+    let uri = uri.into();
+    tokio::task::spawn_blocking(move || this.open_webtransport_blocking(&uri))
+      .await
+      .map_err(io::Error::other)?
+  }
+
+  /// Blocking variant of [`ImpulseRingClient::webtransport`].
+  #[cfg(feature = "async")]
+  pub fn open_webtransport_blocking(&self, uri: &str) -> io::Result<streaming::RingWebTransport> {
+    use impulse_ring_http::{
+      HEADER_CHAN_DOWN, HEADER_CHAN_UP, HEADER_SESSION, HEADER_UPGRADE, RingUpgradeKind, stream_channel_name,
+    };
+
+    let session = next_session_id();
+    let up_name = stream_channel_name(&self.app_name, session, "up");
+    let up_pub = streaming::publish_stream_channel(&self.conn, &up_name, self.key.as_deref())?;
+
+    let req = RingHttpRequest {
+      method: "CONNECT".to_string(),
+      uri: uri.to_string(),
+      headers: vec![
+        RingHeader::new("connection", "Upgrade"),
+        RingHeader::new("upgrade", "webtransport"),
+        RingHeader::new(HEADER_UPGRADE, RingUpgradeKind::WebTransport.as_str()),
+        RingHeader::new(HEADER_CHAN_UP, up_name.clone()),
+        RingHeader::new(HEADER_SESSION, format!("{session:016x}")),
+      ],
+      body: Vec::new(),
+    };
+    let resp = self.call_blocking(req, self.timeout)?;
+
+    match header_value(&resp.headers, HEADER_UPGRADE).and_then(RingUpgradeKind::parse) {
+      Some(RingUpgradeKind::WebTransport) => {}
+      _ => return Err(io::Error::other("server did not accept the WebTransport session")),
+    }
+    let down = header_value(&resp.headers, HEADER_CHAN_DOWN)
+      .ok_or_else(|| io::Error::other("WebTransport upgrade is missing the down-channel header"))?;
+    let down_sub = streaming::subscribe_by_name(&self.conn, down, self.key.as_deref())?;
+    Ok(streaming::RingWebTransport::new(
+      self.conn.clone(),
+      up_pub,
+      down_sub,
+      true, // client is the initiator (even stream ids)
+    ))
+  }
+}
+
+/// Case-insensitive lookup of a header value in a wire header list.
+fn header_value<'a>(headers: &'a [RingHeader], name: &str) -> Option<&'a str> {
+  headers
+    .iter()
+    .find(|h| h.name.eq_ignore_ascii_case(name))
+    .map(|h| h.value.as_str())
 }
 
 /// A request under construction. Finished with [`RequestBuilder::send_blocking`]
@@ -203,6 +387,18 @@ impl RequestBuilder<'_> {
     let body = serde_json::to_vec(value).map_err(io::Error::other)?;
     self.body = body;
     self.headers.push(RingHeader::new("content-type", "application/json"));
+    Ok(self)
+  }
+
+  /// Serialize `value` as MessagePack, set it as the body and add a
+  /// `Content-Type: application/msgpack` header.
+  ///
+  /// MsgPack is impulse-kit's first-class wire format (see `impulse-utils`'
+  /// `MsgPackRequest`/`MsgPackResponse`); this is the Ring-transport counterpart.
+  pub fn msgpack<T: Serialize>(mut self, value: &T) -> io::Result<Self> {
+    let body = rmp_serde::to_vec(value).map_err(io::Error::other)?;
+    self.body = body;
+    self.headers.push(RingHeader::new("content-type", "application/msgpack"));
     Ok(self)
   }
 
@@ -308,6 +504,11 @@ impl RingResponse {
     serde_json::from_slice(&self.body).map_err(io::Error::other)
   }
 
+  /// Deserialize the body as MessagePack.
+  pub fn msgpack<T: DeserializeOwned>(&self) -> io::Result<T> {
+    rmp_serde::from_slice(&self.body).map_err(io::Error::other)
+  }
+
   /// Return an error if the status code is not a success (2xx).
   pub fn error_for_status(self) -> io::Result<Self> {
     if self.status.is_success() {
@@ -315,5 +516,37 @@ impl RingResponse {
     } else {
       Err(io::Error::other(format!("server returned status {}", self.status)))
     }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[derive(Serialize, serde::Deserialize, PartialEq, Debug)]
+  struct Hello {
+    text: String,
+    n: u32,
+  }
+
+  #[test]
+  fn msgpack_round_trips_through_the_wire_body() {
+    // A request body encoded as msgpack must decode back from a response that
+    // simply echoes the bytes — mirrors the JSON path but with `rmp_serde`.
+    let value = Hello {
+      text: "hi".into(),
+      n: 7,
+    };
+    let body = rmp_serde::to_vec(&value).unwrap();
+
+    let resp = RingResponse::from_wire(RingHttpResponse {
+      status: 200,
+      headers: vec![RingHeader::new("content-type", "application/msgpack")],
+      body,
+    })
+    .unwrap();
+
+    let decoded: Hello = resp.msgpack().unwrap();
+    assert_eq!(decoded, value);
   }
 }

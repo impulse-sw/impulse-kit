@@ -12,7 +12,7 @@ default = ["http3", "cors", "acme", "oapi", "otel", "telemetry", "force-https", 
 http3 = ["salvo/quinn"]
 # Listen for HTTP over the Ring shared-memory IPC bus instead of (or alongside)
 # TCP/QUIC. See `crate::impulse_ring` and the `impulse-client-ring` crate.
-impulse-ring = ["dep:impulse-ring-connector", "dep:impulse-ring-http", "dep:http", "dep:http-body-util", "dep:bytes"]
+impulse-ring = ["dep:impulse-ring-connector", "dep:impulse-ring-http", "dep:impulse-client-ring", "dep:http", "dep:http-body-util", "dep:bytes"]
 acme = ["salvo/acme"]
 cors = ["salvo/cors"]
 websocket = ["salvo/websocket"]
@@ -124,6 +124,7 @@ http-body-util = { optional = true, workspace = true }
 impulse-utils = { workspace = true, features = ["salvo", "reqwest", "mresult"] }
 impulse-ring-connector = { workspace = true, optional = true }
 impulse-ring-http = { workspace = true, optional = true }
+impulse-client-ring = { workspace = true, optional = true, features = ["async"] }
 mime = { optional = true, workspace = true }
 notify = { workspace = true }
 opentelemetry = { optional = true, workspace = true, features = ["metrics"] }
