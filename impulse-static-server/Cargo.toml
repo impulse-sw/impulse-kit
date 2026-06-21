@@ -12,6 +12,6 @@ name = "iks"
 path = "src/main.rs"
 
 [dependencies]
-impulse-server-kit = { workspace = true, features = ["http3", "cors", "acme", "oapi", "otel", "force-https", "static-server"] }
+impulse-server-kit = { workspace = true, features = ["http3", "impulse-ring", "cors", "acme", "oapi", "otel", "force-https", "static-server"] }
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["macros", "sync"] }

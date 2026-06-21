@@ -659,47 +659,6 @@ pipelines:
       - from: impulse-static-server/static-server.yaml
         to: static-server/static-server.yaml
     run_tag: staging
-  - title: build-showcase-no-deployer
-    info: client-kit-example-build@0.1.0
-    default: false
-    actions:
-      - title: Lint
-        used: cargo-lint@0.2.0
-        with:
-          "{features}": empty
-          "{flags}": empty
-          "{package}": package-client-kit-showcase
-          "{target}": target-wasm
-      - title: "Format #1"
-        used: leptos-fmt@0.1.0
-      - title: "Format #2"
-        used: cargo-fmt@0.1.0
-      - title: Build WASM
-        used: trunk-build-rel@0.1.0
-        with:
-          "{project-folder}": folder-showcase
-      - title: Strip WASM
-        used: wasm-strip@0.1.0
-        with:
-          "{file}": showcase-wasm-file
-      - title: Optimize WASM
-        used: wasm-opt@0.1.0
-        with:
-          "{file}": showcase-wasm-file
-      - title: Compile TailwindCSS
-        used: tailwindcss-compile@0.2.0
-        with:
-          "{tw-input}": showcase-tw-input
-          "{tw-output}": showcase-tw-output
-      - title: Add files to `dist`
-        used: wasm-prepare-showcase-dist-folder@0.1.0
-        with:
-          "{favicon}": showcase-favicon
-          "{tw-output}": showcase-tw-output
-    artifacts:
-      - from: impulse-client-kit/examples/showcase/dist
-        to: showcase/dist
-    run_tag: staging
   - title: build-showcase
     info: client-kit-example-build@0.1.0
     default: false
@@ -740,21 +699,37 @@ pipelines:
     artifacts:
       - from: impulse-client-kit/examples/showcase/dist
         to: showcase/dist
-    run_tag: staging
+    run_tag: staging-csr
   - title: run-showcase
     info: client-kit-example-run@0.1.0
-    default: true
     copy_only:
       - from: artifacts/static-server/iks
         to: impulse-client-kit/examples/showcase/iks
-      - from: artifacts/static-server/static-server.yaml
+      - from: impulse-client-kit/examples/showcase/static-server.http.yaml
         to: impulse-client-kit/examples/showcase/static-server.yaml
       - from: artifacts/showcase/dist
         to: impulse-client-kit/examples/showcase/dist
     actions:
       - title: Run static server at `0.0.0.0:8807`
         used: run-showcase-static-server@0.1.0
-    run_tag: production
+    run_tag: production-csr
+    systemd_opts:
+      scope: user
+      user:
+        type: current_user
+  - title: run-showcase-impring
+    info: client-kit-example-run-impring@0.1.0
+    copy_only:
+      - from: artifacts/static-server/iks
+        to: impulse-client-kit/examples/showcase/iks
+      - from: impulse-client-kit/examples/showcase/static-server.impring.yaml
+        to: impulse-client-kit/examples/showcase/static-server.yaml
+      - from: artifacts/showcase/dist
+        to: impulse-client-kit/examples/showcase/dist
+    actions:
+      - title: Run static server at `impring://clientkit-showcase`
+        used: run-showcase-static-server@0.1.0
+    run_tag: production-csr
     systemd_opts:
       scope: user
       user:
@@ -833,7 +808,7 @@ pipelines:
         to: ssr-showcase/server-example.yaml
       - from: impulse-client-kit/examples/ssr_showcase/dist
         to: ssr-showcase/dist
-    run_tag: staging
+    run_tag: staging-ssr
   - title: run-ssr-showcase
     desc: Run the SSR + hydration showcase from artifacts built by `build-ssr-showcase`.
     info: client-kit-ssr-example-run@0.1.0
@@ -855,7 +830,7 @@ pipelines:
         used: run-ssr-showcase-server@0.1.0
         with:
           "{triple}": target-native
-    run_tag: production
+    run_tag: production-ssr
     systemd_opts:
       scope: user
       user:
