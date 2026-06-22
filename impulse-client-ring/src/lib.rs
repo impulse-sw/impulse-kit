@@ -210,7 +210,9 @@ impl ImpulseRingClient {
         None => return Err(io::Error::new(io::ErrorKind::TimedOut, "ring body stream stalled")),
       }
     }
-    resp.headers.retain(|h| !h.name.eq_ignore_ascii_case(HEADER_BODY_CHANNEL));
+    resp
+      .headers
+      .retain(|h| !h.name.eq_ignore_ascii_case(HEADER_BODY_CHANNEL));
     resp.body = body;
     Ok(())
   }
