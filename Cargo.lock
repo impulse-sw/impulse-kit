@@ -877,7 +877,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "client-kit-showcase"
-version = "1.4.0-rc.3"
+version = "1.4.0-rc.4"
 dependencies = [
  "chrono",
  "codee",
@@ -2489,7 +2489,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit"
-version = "1.4.0-rc.3"
+version = "1.4.0-rc.4"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -2507,7 +2507,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-blocks"
-version = "1.4.0-rc.3"
+version = "1.4.0-rc.4"
 dependencies = [
  "gloo-net",
  "impulse-client-kit",
@@ -2521,7 +2521,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-components"
-version = "1.4.0-rc.3"
+version = "1.4.0-rc.4"
 dependencies = [
  "chrono",
  "codee",
@@ -2536,7 +2536,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-ring"
-version = "1.4.0-rc.3"
+version = "1.4.0-rc.4"
 dependencies = [
  "bytes",
  "clap",
@@ -2556,7 +2556,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-error-pages"
-version = "1.4.0-rc.3"
+version = "1.4.0-rc.4"
 dependencies = [
  "icondata",
  "impulse-client-kit",
@@ -2569,8 +2569,8 @@ dependencies = [
 
 [[package]]
 name = "impulse-ring-connector"
-version = "0.5.2"
-source = "git+https://github.com/impulse-sw/impulse-ring.git?tag=0.5.2#3d1a30b0a2f4795f81f1f5cb46ebbd1e6c1dbc35"
+version = "0.6.0"
+source = "git+https://github.com/impulse-sw/impulse-ring.git?tag=0.6.0#592e83656969112d33721c920418d14f8884d5df"
 dependencies = [
  "apache-avro",
  "getrandom 0.2.17",
@@ -2582,8 +2582,8 @@ dependencies = [
 
 [[package]]
 name = "impulse-ring-core"
-version = "0.5.2"
-source = "git+https://github.com/impulse-sw/impulse-ring.git?tag=0.5.2#3d1a30b0a2f4795f81f1f5cb46ebbd1e6c1dbc35"
+version = "0.6.0"
+source = "git+https://github.com/impulse-sw/impulse-ring.git?tag=0.6.0#592e83656969112d33721c920418d14f8884d5df"
 dependencies = [
  "apache-avro",
  "getrandom 0.2.17",
@@ -2596,8 +2596,8 @@ dependencies = [
 
 [[package]]
 name = "impulse-ring-http"
-version = "0.5.2"
-source = "git+https://github.com/impulse-sw/impulse-ring.git?tag=0.5.2#3d1a30b0a2f4795f81f1f5cb46ebbd1e6c1dbc35"
+version = "0.6.0"
+source = "git+https://github.com/impulse-sw/impulse-ring.git?tag=0.6.0#592e83656969112d33721c920418d14f8884d5df"
 dependencies = [
  "serde",
  "serde_bytes",
@@ -2605,7 +2605,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-server-kit"
-version = "1.4.0-rc.3"
+version = "1.4.0-rc.4"
 dependencies = [
  "any_spawner",
  "axum",
@@ -2655,7 +2655,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-skdsl"
-version = "1.4.0-rc.3"
+version = "1.4.0-rc.4"
 dependencies = [
  "clap",
  "impulse-server-kit",
@@ -2671,7 +2671,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-static-server"
-version = "1.4.0-rc.3"
+version = "1.4.0-rc.4"
 dependencies = [
  "impulse-server-kit",
  "serde",
@@ -2680,11 +2680,11 @@ dependencies = [
 
 [[package]]
 name = "impulse-tailwind-sources"
-version = "1.4.0-rc.3"
+version = "1.4.0-rc.4"
 
 [[package]]
 name = "impulse-utils"
-version = "1.4.0-rc.3"
+version = "1.4.0-rc.4"
 dependencies = [
  "anyhow",
  "http",
@@ -4831,9 +4831,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.40"
+version = "0.23.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef86cd5876211988985292b91c96a8f2d298df24e75989a43a3c73f2d4d8168b"
+checksum = "6b92b125634d9b795e7beca796cc790df15a7fb38323bf3196fda83292d06b1f"
 dependencies = [
  "aws-lc-rs",
  "log",
@@ -5777,7 +5777,7 @@ dependencies = [
 
 [[package]]
 name = "ssr-showcase"
-version = "1.4.0-rc.3"
+version = "1.4.0-rc.4"
 dependencies = [
  "console_error_panic_hook",
  "impulse-client-kit",
