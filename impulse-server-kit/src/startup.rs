@@ -528,9 +528,38 @@ pub async fn start(
 ///
 /// Graceful coroutine starts automatically with `start` function.
 pub async fn shutdown_signal(handle: ServerHandle) {
-  tokio::signal::ctrl_c().await.unwrap();
-  tracing::info!("Shutdown with Ctrl+C requested.");
+  wait_for_shutdown_signal().await;
   handle.stop_graceful(None);
+}
+
+/// Resolve on the first received shutdown signal.
+///
+/// Handles both `Ctrl+C` (SIGINT) and, on Unix, SIGTERM — the signal `systemd`
+/// (and most process managers) send on `stop`/`restart`. Catching SIGTERM is
+/// what lets destructors run on shutdown: e.g. the Ring listener's connection is
+/// dropped, which unregisters the application from the `impulsed` broker so a
+/// restart can re-expose the same function instead of failing with
+/// `function exists`.
+async fn wait_for_shutdown_signal() {
+  let ctrl_c = async {
+    tokio::signal::ctrl_c().await.expect("failed to install Ctrl+C handler");
+  };
+
+  #[cfg(unix)]
+  {
+    let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+      .expect("failed to install SIGTERM handler");
+    tokio::select! {
+      _ = ctrl_c => tracing::info!("Shutdown with Ctrl+C (SIGINT) requested."),
+      _ = term.recv() => tracing::info!("Shutdown with SIGTERM requested."),
+    }
+  }
+
+  #[cfg(not(unix))]
+  {
+    ctrl_c.await;
+    tracing::info!("Shutdown with Ctrl+C requested.");
+  }
 }
 
 /// A `salvo` acceptor that never yields a connection.
