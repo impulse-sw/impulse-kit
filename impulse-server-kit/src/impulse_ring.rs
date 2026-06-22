@@ -30,8 +30,9 @@ use std::sync::{Arc, Weak};
 use http_body_util::BodyExt;
 use impulse_ring_connector::Connection;
 use impulse_ring_http::{
-  HEADER_CHAN_DOWN, HEADER_UPGRADE, REQUEST_SCHEMA, RESPONSE_SCHEMA, RingHeader, RingHttpRequest, RingHttpResponse,
-  RingStreamFrame, RingUpgradeKind, STREAM_SCHEMA, http_fn_name, stream_channel_name,
+  HEADER_BODY_CHANNEL, HEADER_CHAN_DOWN, HEADER_UPGRADE, MAX_INLINE_RESPONSE_BODY, REQUEST_SCHEMA, RESPONSE_BODY_CHUNK,
+  RESPONSE_SCHEMA, RingHeader, RingHttpRequest, RingHttpResponse, RingStreamFrame, RingUpgradeKind, STREAM_SCHEMA,
+  http_fn_name, stream_channel_name,
 };
 use salvo::Service;
 use salvo::conn::SocketAddr;
@@ -239,7 +240,39 @@ impl RingHttpHandler {
   /// Plain one-shot HTTP: run the pipeline and collect the whole response body.
   async fn handle_plain(&self, req: RingHttpRequest) -> io::Result<RingHttpResponse> {
     let mut res = self.run_pipeline(req).await?;
-    response_to_wire(&mut res).await
+    let wire = response_to_wire(&mut res).await?;
+    self.chunk_large_body(wire)
+  }
+
+  /// A unary RPC response is a single reply-ring record, so a body larger than
+  /// the reply ring cannot be returned inline. When that happens, publish a Ring
+  /// channel, stream the body onto it as `DATA` chunks (terminated by `CLOSE`)
+  /// and hand the caller the channel name via [`HEADER_BODY_CHANNEL`]; the client
+  /// reassembles it transparently. Mirrors the SSE down-channel handshake, but
+  /// for a finite body.
+  fn chunk_large_body(&self, mut wire: RingHttpResponse) -> io::Result<RingHttpResponse> {
+    if wire.body.len() <= MAX_INLINE_RESPONSE_BODY {
+      return Ok(wire);
+    }
+    let conn = self.conn()?;
+    let session = next_session_id();
+    let chan = stream_channel_name(&self.app_name, session, "body");
+    let publisher = conn.publish_channel(&chan, STREAM_SCHEMA, self.key())?;
+
+    // Hand the body to a background thread that drains it onto the channel; the
+    // server connection keeps the channel alive until the client has drained it.
+    let body = std::mem::take(&mut wire.body);
+    std::thread::spawn(move || {
+      for chunk in body.chunks(RESPONSE_BODY_CHUNK) {
+        if publisher.publish(&RingStreamFrame::data(chunk.to_vec())).is_err() {
+          return; // subscriber gone
+        }
+      }
+      let _ = publisher.publish(&RingStreamFrame::close());
+    });
+
+    wire.headers.push(RingHeader::new(HEADER_BODY_CHANNEL, chan));
+    Ok(wire)
   }
 
   /// Server-Sent Events: run the pipeline, and if the handler produced an
@@ -251,7 +284,8 @@ impl RingHttpHandler {
     // Only treat genuine event-stream responses as SSE; otherwise fall back to a
     // normal collected response (e.g. the route returned an error page).
     if !response_is_event_stream(&res) {
-      return response_to_wire(&mut res).await;
+      let wire = response_to_wire(&mut res).await?;
+      return self.chunk_large_body(wire);
     }
 
     let conn = self.conn()?;

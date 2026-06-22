@@ -43,10 +43,19 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
-use impulse_ring_connector::Connection;
-use impulse_ring_http::{REQUEST_SCHEMA, RESPONSE_SCHEMA, RingHeader, RingHttpRequest, RingHttpResponse, http_fn_name};
+use impulse_ring_connector::{Connection, Subscriber};
+use impulse_ring_http::{
+  HEADER_BODY_CHANNEL, REQUEST_SCHEMA, RESPONSE_SCHEMA, RingHeader, RingHttpRequest, RingHttpResponse, RingStreamFrame,
+  STREAM_SCHEMA, http_fn_name, opcode,
+};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+
+/// How long to wait for the next body chunk before declaring the stream stalled.
+const BODY_CHUNK_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// How long to wait for a freshly published body channel to appear on the broker.
+const BODY_CHANNEL_WAIT: Duration = Duration::from_secs(5);
 
 /// Default per-request timeout if the caller does not set one.
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -165,15 +174,45 @@ impl ImpulseRingClient {
   }
 
   /// Issue a raw [`RingHttpRequest`] and block for the [`RingHttpResponse`].
+  ///
+  /// If the server returned the body out-of-band over a channel (because it was
+  /// too large to fit the reply ring), the chunks are reassembled here, so the
+  /// returned response always carries a complete inline body.
   pub fn call_blocking(&self, req: RingHttpRequest, timeout: Duration) -> io::Result<RingHttpResponse> {
-    self.conn.call_blocking::<RingHttpRequest, RingHttpResponse>(
+    let mut resp = self.conn.call_blocking::<RingHttpRequest, RingHttpResponse>(
       &self.fn_name,
       self.key.as_deref(),
       &req,
       REQUEST_SCHEMA,
       RESPONSE_SCHEMA,
       timeout,
-    )
+    )?;
+    self.reassemble_chunked_body(&mut resp)?;
+    Ok(resp)
+  }
+
+  /// If `resp` was delivered with a chunked body (see [`HEADER_BODY_CHANNEL`]),
+  /// subscribe to the named channel, reassemble the body and strip the marker
+  /// header — leaving an ordinary inline response. A no-op otherwise.
+  fn reassemble_chunked_body(&self, resp: &mut RingHttpResponse) -> io::Result<()> {
+    let Some(chan) = header_value(&resp.headers, HEADER_BODY_CHANNEL).map(str::to_owned) else {
+      return Ok(());
+    };
+    let sub = subscribe_body_channel(&self.conn, &chan, self.key.as_deref())?;
+    let mut body = Vec::new();
+    loop {
+      match sub.recv::<RingStreamFrame>(BODY_CHUNK_TIMEOUT)? {
+        Some(frame) => match frame.opcode {
+          opcode::DATA | opcode::STREAM_DATA => body.extend_from_slice(&frame.payload),
+          opcode::CLOSE | opcode::STREAM_CLOSE => break,
+          _ => {}
+        },
+        None => return Err(io::Error::new(io::ErrorKind::TimedOut, "ring body stream stalled")),
+      }
+    }
+    resp.headers.retain(|h| !h.name.eq_ignore_ascii_case(HEADER_BODY_CHANNEL));
+    resp.body = body;
+    Ok(())
   }
 
   /// The underlying bus connection (shared; cloneable).
@@ -328,6 +367,29 @@ impl ImpulseRingClient {
       down_sub,
       true, // client is the initiator (even stream ids)
     ))
+  }
+}
+
+/// Resolve a freshly published body channel by name and subscribe to it.
+///
+/// The publisher (server) registers the channel just before answering the RPC,
+/// so this retries briefly while it propagates to the broker. Sync sibling of
+/// `streaming::subscribe_by_name`, usable without the `async` feature.
+fn subscribe_body_channel(conn: &Connection, name: &str, key: Option<&str>) -> io::Result<Subscriber> {
+  let deadline = std::time::Instant::now() + BODY_CHANNEL_WAIT;
+  loop {
+    for ci in conn.list_channels()? {
+      if ci.name == name {
+        return conn.subscribe(ci.channel_id, key, STREAM_SCHEMA);
+      }
+    }
+    if std::time::Instant::now() >= deadline {
+      return Err(io::Error::new(
+        io::ErrorKind::NotFound,
+        format!("ring body channel '{name}' did not appear"),
+      ));
+    }
+    std::thread::sleep(Duration::from_millis(25));
   }
 }
 
