@@ -1,0 +1,5 @@
+protocols:
+  - type: impulse-ring
+    app_name: clientkit-showcase
+enable_io_logs: true
+io_log_level: info
