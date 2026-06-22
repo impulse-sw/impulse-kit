@@ -54,13 +54,10 @@ pub async fn h3_header(depot: &mut Depot, res: &mut Response) {
     .and_then(|s| s.http3_port())
     .unwrap_or(443);
 
-  res
-    .headers_mut()
-    .insert(
-      ALT_SVC,
-      HeaderValue::from_str(&format!(r##"h3=":{port}"; ma=2592000"##)).unwrap(),
-    )
-    .unwrap();
+  res.headers_mut().insert(
+    ALT_SVC,
+    HeaderValue::from_str(&format!(r##"h3=":{port}"; ma=2592000"##)).unwrap(),
+  );
 }
 
 /// Build a `RustlsConfig` from cert/key file paths.
