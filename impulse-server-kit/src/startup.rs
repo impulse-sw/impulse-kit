@@ -237,9 +237,10 @@ pub async fn start_with_service(
 ) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)> {
   tracing::info!("Server is starting...");
 
-  rustls::crypto::aws_lc_rs::default_provider()
-    .install_default()
-    .map_err(|_| ServerError::from_private_str("Can't install default crypto provider!").with_500())?;
+  // Идемпотентно: повторная установка дефолтного crypto-провайдера (например, при
+  // reload-конфига, когда `start_with_service` входит снова) возвращает `Err`, потому
+  // что провайдер уже установлен. Это не ошибка — игнорируем результат.
+  let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
   let app_config = app_config.generic_values();
 
   if let Some(bin) = app_config.auto_migrate_bin.as_ref() {
