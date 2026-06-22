@@ -36,7 +36,12 @@ pub trait GenericSetup {
 ///   - type: http2           # HTTP/2 (cleartext h2c)
 ///     host: 0.0.0.0
 ///     port: 8081
-///   - type: http3           # HTTP/3 (QUIC); needs TLS key + cert
+///   - type: http1           # HTTP/1.1 over TLS (HTTPS); cert + key make it TLS
+///     host: 0.0.0.0
+///     port: 8443
+///     ssl_key_path: /etc/ssl/app.key
+///     ssl_crt_path: /etc/ssl/app.crt
+///   - type: http3           # HTTP/3 (QUIC); always needs TLS key + cert
 ///     host: 0.0.0.0
 ///     port: 8082
 ///     ssl_key_path: /etc/ssl/app.key
@@ -44,24 +49,42 @@ pub trait GenericSetup {
 ///   - type: impulse-ring    # shared-memory IPC, no host/port
 ///     app_name: my-service
 /// ```
+///
+/// TLS for `http1`/`http2` is optional: supply **both** `ssl_key_path` and
+/// `ssl_crt_path` to terminate HTTPS over TCP, or omit both for cleartext. Only
+/// `http3` requires them unconditionally (QUIC mandates TLS 1.3).
 #[derive(Clone, Deserialize)]
 #[serde(tag = "type")]
 pub enum ProtocolConfig {
-  /// HTTP/1.1 (cleartext, over TCP). Required for WebSockets.
+  /// HTTP/1.1 over TCP. Required for WebSockets. Cleartext by default; supply
+  /// both `ssl_key_path` and `ssl_crt_path` to terminate HTTPS over TCP.
   #[serde(rename = "http1", alias = "http/1.1", alias = "http1.1", alias = "http_localhost")]
   Http1 {
     /// Bind host, e.g. `0.0.0.0` or `127.0.0.1`.
     host: String,
     /// Bind port.
     port: u16,
+    /// Path to the TLS private key. Set together with `ssl_crt_path` to enable HTTPS.
+    #[serde(default)]
+    ssl_key_path: Option<String>,
+    /// Path to the TLS certificate. Set together with `ssl_key_path` to enable HTTPS.
+    #[serde(default)]
+    ssl_crt_path: Option<String>,
   },
-  /// HTTP/2 (cleartext h2c, over TCP).
+  /// HTTP/2 over TCP. Cleartext h2c by default; supply both `ssl_key_path` and
+  /// `ssl_crt_path` to terminate HTTPS (h2 over TLS) over TCP.
   #[serde(rename = "http2", alias = "http/2")]
   Http2 {
     /// Bind host.
     host: String,
     /// Bind port.
     port: u16,
+    /// Path to the TLS private key. Set together with `ssl_crt_path` to enable HTTPS.
+    #[serde(default)]
+    ssl_key_path: Option<String>,
+    /// Path to the TLS certificate. Set together with `ssl_key_path` to enable HTTPS.
+    #[serde(default)]
+    ssl_crt_path: Option<String>,
   },
   /// HTTP/3 (QUIC, over TLS). Requires a TLS key and certificate.
   #[serde(rename = "http3", alias = "http/3", alias = "quic")]
@@ -89,19 +112,27 @@ pub enum ProtocolConfig {
 /// A validated, ready-to-serve protocol (the resolved form of [`ProtocolConfig`]).
 #[derive(Clone)]
 pub enum ResolvedProtocol {
-  /// HTTP/1.1 over TCP at `host:port`.
+  /// HTTP/1.1 over TCP at `host:port`. HTTPS when `ssl_*_path` are set, else cleartext.
   Http1 {
     /// Bind host.
     host: String,
     /// Bind port.
     port: u16,
+    /// Path to the TLS private key (HTTPS when set together with `ssl_crt_path`).
+    ssl_key_path: Option<String>,
+    /// Path to the TLS certificate (HTTPS when set together with `ssl_key_path`).
+    ssl_crt_path: Option<String>,
   },
-  /// HTTP/2 over TCP at `host:port`.
+  /// HTTP/2 over TCP at `host:port`. HTTPS when `ssl_*_path` are set, else cleartext h2c.
   Http2 {
     /// Bind host.
     host: String,
     /// Bind port.
     port: u16,
+    /// Path to the TLS private key (HTTPS when set together with `ssl_crt_path`).
+    ssl_key_path: Option<String>,
+    /// Path to the TLS certificate (HTTPS when set together with `ssl_key_path`).
+    ssl_crt_path: Option<String>,
   },
   /// HTTP/3 (QUIC) over TLS at `host:port`.
   Http3 {
@@ -309,14 +340,55 @@ pub async fn load_generic_state<T: GenericSetup>(setup: &T, init_logging: bool) 
   })
 }
 
+/// TLS for `http1`/`http2` is all-or-nothing: both the key and the certificate
+/// must be present to terminate HTTPS, or both absent for cleartext. Reject the
+/// half-configured case early with a clear message instead of silently falling
+/// back to cleartext.
+fn check_tls_pair(proto: &str, key: &Option<String>, crt: &Option<String>) -> MResult<()> {
+  if key.is_some() != crt.is_some() {
+    ServerError::from_public(format!(
+      "The `{proto}` protocol needs both `ssl_key_path` and `ssl_crt_path` for HTTPS, or neither for cleartext."
+    ))
+    .with_500()
+    .bail()?;
+  }
+  Ok(())
+}
+
 /// Validate and lower every [`ProtocolConfig`] into a [`ResolvedProtocol`],
 /// rejecting protocols whose Cargo feature is disabled.
 fn resolve_protocols(protocols: &[ProtocolConfig]) -> MResult<Vec<ResolvedProtocol>> {
   let mut resolved = Vec::with_capacity(protocols.len());
   for proto in protocols {
     let r = match proto.clone() {
-      ProtocolConfig::Http1 { host, port } => ResolvedProtocol::Http1 { host, port },
-      ProtocolConfig::Http2 { host, port } => ResolvedProtocol::Http2 { host, port },
+      ProtocolConfig::Http1 {
+        host,
+        port,
+        ssl_key_path,
+        ssl_crt_path,
+      } => {
+        check_tls_pair("http1", &ssl_key_path, &ssl_crt_path)?;
+        ResolvedProtocol::Http1 {
+          host,
+          port,
+          ssl_key_path,
+          ssl_crt_path,
+        }
+      }
+      ProtocolConfig::Http2 {
+        host,
+        port,
+        ssl_key_path,
+        ssl_crt_path,
+      } => {
+        check_tls_pair("http2", &ssl_key_path, &ssl_crt_path)?;
+        ResolvedProtocol::Http2 {
+          host,
+          port,
+          ssl_key_path,
+          ssl_crt_path,
+        }
+      }
       ProtocolConfig::Http3 {
         host,
         port,

@@ -290,10 +290,15 @@ key — any mix of the four below, all at once. The list must be non-empty.
 
 | `type` | Transport | Required fields | Feature |
 | --- | --- | --- | --- |
-| `http1` | HTTP/1.1 over TCP (cleartext). Required for WebSockets. | `host`, `port` | — |
-| `http2` | HTTP/2 over TCP (cleartext h2c). | `host`, `port` | — |
+| `http1` | HTTP/1.1 over TCP. Cleartext, or HTTPS with TLS. Required for WebSockets. | `host`, `port` (+ optional `ssl_key_path`, `ssl_crt_path`) | — |
+| `http2` | HTTP/2 over TCP. Cleartext h2c, or HTTPS (h2 over TLS). | `host`, `port` (+ optional `ssl_key_path`, `ssl_crt_path`) | — |
 | `http3` | HTTP/3 over QUIC (TLS v1.3). | `host`, `port`, `ssl_key_path`, `ssl_crt_path` | `http3` |
 | `impulse-ring` | HTTP over the Ring shared-memory bus — no socket. | `app_name` (+ optional `access_key`) | `impulse-ring` |
+
+For `http1`/`http2`, TLS is **all-or-nothing**: provide both `ssl_key_path` and
+`ssl_crt_path` to terminate HTTPS over TCP (TLS 1.2 + 1.3, for broad client
+compatibility), or omit both for cleartext. `http3` always requires them (QUIC
+mandates TLS 1.3).
 
 ```yaml
 protocols:
@@ -303,6 +308,11 @@ protocols:
   - type: http2
     host: 0.0.0.0
     port: 8081
+  - type: http2            # HTTPS over TCP (h2 + http/1.1 via ALPN)
+    host: 0.0.0.0
+    port: 8443
+    ssl_key_path: certs/privkey.pem
+    ssl_crt_path: certs/fullchain.pem
   - type: http3            # QUIC, TLS v1.3 only
     host: 0.0.0.0
     port: 8082

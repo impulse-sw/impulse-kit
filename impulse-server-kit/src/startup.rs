@@ -28,7 +28,8 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
-#[cfg(feature = "http3")]
+// `rustls` is always enabled for `salvo`, so the TLS config types are available
+// regardless of the `http3` feature — TLS-over-TCP (HTTPS) needs them too.
 use salvo::conn::rustls::{Keycert, RustlsConfig};
 #[cfg(feature = "http3")]
 use salvo::http::HeaderValue;
@@ -62,18 +63,24 @@ pub async fn h3_header(depot: &mut Depot, res: &mut Response) {
     .unwrap();
 }
 
+/// Build a `RustlsConfig` from cert/key file paths.
+///
+/// Used for TLS-over-TCP (HTTPS on `http1`/`http2`) where the default TLS
+/// version set (1.2 + 1.3) maximises client compatibility. QUIC narrows this to
+/// TLS 1.3 via [`tlsv13`].
+fn rustls_config_from_paths(certpath: impl AsRef<str>, keypath: impl AsRef<str>) -> MResult<RustlsConfig> {
+  Ok(RustlsConfig::new(
+    Keycert::new()
+      .cert_from_path(certpath.as_ref())
+      .map_err(|e| ServerError::from_private(e).with_500())?
+      .key_from_path(keypath.as_ref())
+      .map_err(|e| ServerError::from_private(e).with_500())?,
+  ))
+}
+
 #[cfg(feature = "http3")]
 fn tlsv13(certpath: impl AsRef<str>, keypath: impl AsRef<str>) -> MResult<RustlsConfig> {
-  Ok(
-    RustlsConfig::new(
-      Keycert::new()
-        .cert_from_path(certpath.as_ref())
-        .map_err(|e| ServerError::from_private(e).with_500())?
-        .key_from_path(keypath.as_ref())
-        .map_err(|e| ServerError::from_private(e).with_500())?,
-    )
-    .tls_versions(TLS13),
-  )
+  Ok(rustls_config_from_paths(certpath, keypath)?.tls_versions(TLS13))
 }
 
 #[cfg(feature = "otel")]
@@ -345,23 +352,63 @@ async fn serve_protocols(
   let mut real_handles: Vec<ServerHandle> = Vec::new();
   let mut tasks: JoinSet<()> = JoinSet::new();
 
-  // HTTP/1.1 + HTTP/2 cleartext: one shared TCP server over every bound port.
+  // HTTP/1.1 + HTTP/2 over TCP. Cleartext listeners share one TCP server (their
+  // plain streams are type-compatible); each TLS-terminating listener gets its
+  // own server, since a TLS stream isn't compatible with the cleartext acceptor
+  // set in `DynTcpAcceptors`.
   let mut tcp_acceptors = Vec::new();
   for proto in &app_state.protocols {
-    let (host, port) = match proto {
-      ResolvedProtocol::Http1 { host, port } | ResolvedProtocol::Http2 { host, port } => (host, *port),
+    let (host, port, tls) = match proto {
+      ResolvedProtocol::Http1 {
+        host,
+        port,
+        ssl_key_path,
+        ssl_crt_path,
+      }
+      | ResolvedProtocol::Http2 {
+        host,
+        port,
+        ssl_key_path,
+        ssl_crt_path,
+      } => (host, *port, ssl_crt_path.as_ref().zip(ssl_key_path.as_ref())),
       _ => continue,
     };
-    let acceptor = TcpListener::new(format!("{host}:{port}"))
-      .try_bind()
-      .await
-      .map_err(|e| {
-        ServerError::from_private(e)
-          .with_public("Failed to bind a TCP listener (port already in use?).")
-          .with_500()
-      })?;
-    tracing::info!("Listening for HTTP over TCP on {host}:{port}.");
-    tcp_acceptors.push(acceptor.into_boxed());
+
+    match tls {
+      // HTTPS over TCP: terminate TLS on a dedicated server for this endpoint.
+      Some((crt, key)) => {
+        let rustls_config = rustls_config_from_paths(crt, key)?;
+        let acceptor = TcpListener::new(format!("{host}:{port}"))
+          .rustls(rustls_config)
+          .try_bind()
+          .await
+          .map_err(|e| {
+            ServerError::from_private(e)
+              .with_public("Failed to bind a TLS (HTTPS) listener (port already in use?).")
+              .with_500()
+          })?;
+        tracing::info!("Listening for HTTPS (TLS over TCP) on {host}:{port}.");
+        let server = Server::new(acceptor);
+        real_handles.push(server.handle());
+        let svc = clone_service(&service);
+        tasks.spawn(async move {
+          server.serve(svc).await;
+        });
+      }
+      // Cleartext: collect into the shared TCP server below.
+      None => {
+        let acceptor = TcpListener::new(format!("{host}:{port}"))
+          .try_bind()
+          .await
+          .map_err(|e| {
+            ServerError::from_private(e)
+              .with_public("Failed to bind a TCP listener (port already in use?).")
+              .with_500()
+          })?;
+        tracing::info!("Listening for HTTP (cleartext) over TCP on {host}:{port}.");
+        tcp_acceptors.push(acceptor.into_boxed());
+      }
+    }
   }
   if !tcp_acceptors.is_empty() {
     let server = Server::new(DynTcpAcceptors::new(tcp_acceptors));
