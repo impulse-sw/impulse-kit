@@ -186,6 +186,14 @@ async fn plain_msgpack_sse_websocket_and_webtransport_over_ring() {
   let got: Msg = resp.msgpack().unwrap();
   assert_eq!(got, msg);
 
+  // Large request body: bigger than `MAX_INLINE_REQUEST_BODY` (192 KiB), so the
+  // client streams it over a Ring channel instead of shipping it inline through
+  // the function request ring. `/mp` echoes the raw body straight back.
+  let big: Vec<u8> = (0..300 * 1024).map(|i| (i % 251) as u8).collect();
+  let resp = client.post("/mp").body(big.clone()).send().await.unwrap();
+  assert_eq!(resp.status().as_u16(), 200);
+  assert_eq!(resp.bytes(), big, "large streamed request body did not round-trip");
+
   // SSE: collect three events
   let mut stream = client.sse("/sse").await.unwrap();
   let mut collected = String::new();

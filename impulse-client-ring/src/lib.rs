@@ -45,8 +45,8 @@ use std::time::Duration;
 use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
 use impulse_ring_connector::{Connection, Subscriber};
 use impulse_ring_http::{
-  HEADER_BODY_CHANNEL, REQUEST_SCHEMA, RESPONSE_SCHEMA, RingHeader, RingHttpRequest, RingHttpResponse, RingStreamFrame,
-  STREAM_SCHEMA, http_fn_name, opcode,
+  HEADER_BODY_CHANNEL, HEADER_REQUEST_BODY_CHANNEL, MAX_INLINE_REQUEST_BODY, REQUEST_BODY_CHUNK, REQUEST_SCHEMA,
+  RESPONSE_SCHEMA, RingHeader, RingHttpRequest, RingHttpResponse, RingStreamFrame, STREAM_SCHEMA, http_fn_name, opcode,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -63,8 +63,8 @@ pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 static CLIENT_SEQ: AtomicU64 = AtomicU64::new(0);
 static SESSION_SEQ: AtomicU64 = AtomicU64::new(0);
 
-/// Mint a process-unique session id for a streaming upgrade.
-#[cfg(feature = "async")]
+/// Mint a process-unique session id for a streaming upgrade or a streamed
+/// request body.
 fn next_session_id() -> u64 {
   let seq = SESSION_SEQ.fetch_add(1, Ordering::Relaxed);
   let nanos = std::time::SystemTime::now()
@@ -178,7 +178,10 @@ impl ImpulseRingClient {
   /// If the server returned the body out-of-band over a channel (because it was
   /// too large to fit the reply ring), the chunks are reassembled here, so the
   /// returned response always carries a complete inline body.
-  pub fn call_blocking(&self, req: RingHttpRequest, timeout: Duration) -> io::Result<RingHttpResponse> {
+  pub fn call_blocking(&self, mut req: RingHttpRequest, timeout: Duration) -> io::Result<RingHttpResponse> {
+    // A request body too large for the function request ring is streamed over a
+    // Ring channel instead of being shipped inline (see `stream_large_request_body`).
+    self.stream_large_request_body(&mut req)?;
     let mut resp = self.conn.call_blocking::<RingHttpRequest, RingHttpResponse>(
       &self.fn_name,
       self.key.as_deref(),
@@ -189,6 +192,39 @@ impl ImpulseRingClient {
     )?;
     self.reassemble_chunked_body(&mut resp)?;
     Ok(resp)
+  }
+
+  /// If `req`'s body is too large to ship inline through the function request ring
+  /// (`> MAX_INLINE_REQUEST_BODY`), move it out of the inline record and stream it
+  /// over a freshly published Ring channel, tagging the request with
+  /// [`HEADER_REQUEST_BODY_CHANNEL`] so the listener reassembles it transparently.
+  /// A no-op for small bodies.
+  ///
+  /// The body is drained onto the channel by a detached thread that outlives this
+  /// call; it holds the [`Publisher`](impulse_ring_connector::Publisher) (and thus
+  /// keeps the channel alive) until the listener has consumed every chunk. This is
+  /// the request-side mirror of the server's `chunk_large_body` for responses.
+  fn stream_large_request_body(&self, req: &mut RingHttpRequest) -> io::Result<()> {
+    if req.body.len() <= MAX_INLINE_REQUEST_BODY {
+      return Ok(());
+    }
+    use impulse_ring_http::stream_channel_name;
+    let session = next_session_id();
+    let chan = stream_channel_name(&self.app_name, session, "reqbody");
+    let publisher = self.conn.publish_channel(&chan, STREAM_SCHEMA, self.key.as_deref())?;
+
+    let body = std::mem::take(&mut req.body);
+    std::thread::spawn(move || {
+      for chunk in body.chunks(REQUEST_BODY_CHUNK) {
+        if publisher.publish(&RingStreamFrame::data(chunk.to_vec())).is_err() {
+          return; // listener gone
+        }
+      }
+      let _ = publisher.publish(&RingStreamFrame::close());
+    });
+
+    req.headers.push(RingHeader::new(HEADER_REQUEST_BODY_CHANNEL, chan));
+    Ok(())
   }
 
   /// If `resp` was delivered with a chunked body (see [`HEADER_BODY_CHANNEL`]),

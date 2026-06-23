@@ -30,9 +30,9 @@ use std::sync::{Arc, Weak};
 use http_body_util::BodyExt;
 use impulse_ring_connector::Connection;
 use impulse_ring_http::{
-  HEADER_BODY_CHANNEL, HEADER_CHAN_DOWN, HEADER_UPGRADE, MAX_INLINE_RESPONSE_BODY, REQUEST_SCHEMA, RESPONSE_BODY_CHUNK,
-  RESPONSE_SCHEMA, RingHeader, RingHttpRequest, RingHttpResponse, RingStreamFrame, RingUpgradeKind, STREAM_SCHEMA,
-  http_fn_name, stream_channel_name,
+  HEADER_BODY_CHANNEL, HEADER_CHAN_DOWN, HEADER_REQUEST_BODY_CHANNEL, HEADER_UPGRADE, MAX_INLINE_RESPONSE_BODY,
+  REQUEST_SCHEMA, RESPONSE_BODY_CHUNK, RESPONSE_SCHEMA, RingHeader, RingHttpRequest, RingHttpResponse, RingStreamFrame,
+  RingUpgradeKind, STREAM_SCHEMA, http_fn_name, opcode, stream_channel_name,
 };
 use salvo::Service;
 use salvo::conn::SocketAddr;
@@ -204,9 +204,23 @@ struct RingHttpHandler {
   wt_handler: Option<RingWebTransportHandler>,
 }
 
+/// How long the listener waits for the next request-body chunk before declaring
+/// the inbound stream stalled. Mirrors the client's `BODY_CHUNK_TIMEOUT`.
+const REQUEST_BODY_CHUNK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 impl RingHttpHandler {
   /// Convert a wire request into a salvo response (or a streaming handshake).
-  async fn handle(&self, req: RingHttpRequest) -> RingHttpResponse {
+  async fn handle(&self, mut req: RingHttpRequest) -> RingHttpResponse {
+    // A request whose body was too large to ship inline arrives with an empty
+    // `body` and a channel name in `HEADER_REQUEST_BODY_CHANNEL`; pull the body
+    // off that channel before the salvo pipeline (or any upgrade) sees the request.
+    if let Err(e) = self.reassemble_request_body(&mut req).await {
+      return RingHttpResponse {
+        status: StatusCode::BAD_GATEWAY.as_u16() as i32,
+        headers: vec![RingHeader::new("content-type", "text/plain; charset=utf-8")],
+        body: format!("ring listener could not read the streamed request body: {e}").into_bytes(),
+      };
+    }
     let result = match upgrade_intent(&req) {
       Some(RingUpgradeKind::Sse) => self.handle_sse(req).await,
       Some(RingUpgradeKind::WebSocket) => self.handle_websocket(req).await,
@@ -241,6 +255,44 @@ impl RingHttpHandler {
     // cookies, so the browser keeps sending stale ones and re-login never sticks.
     serialize_cookies_into_headers(&mut res);
     Ok(res)
+  }
+
+  /// If `req` was sent with a streamed body (see [`HEADER_REQUEST_BODY_CHANNEL`]),
+  /// subscribe to the named channel, reassemble the body and strip the marker
+  /// header — leaving an ordinary inline request. A no-op otherwise.
+  ///
+  /// This is the request-side mirror of the client's `reassemble_chunked_body`
+  /// for responses. The draining is blocking, so it runs on a blocking thread.
+  async fn reassemble_request_body(&self, req: &mut RingHttpRequest) -> io::Result<()> {
+    let Some(chan) = req_header(req, HEADER_REQUEST_BODY_CHANNEL).map(str::to_owned) else {
+      return Ok(());
+    };
+    let conn = self.conn()?;
+    let key = self.key.as_ref().map(|k| k.to_string());
+    let body = tokio::task::spawn_blocking(move || -> io::Result<Vec<u8>> {
+      use impulse_client_ring::streaming::subscribe_by_name;
+      let sub = subscribe_by_name(&conn, &chan, key.as_deref())?;
+      let mut body = Vec::new();
+      loop {
+        match sub.recv::<RingStreamFrame>(REQUEST_BODY_CHUNK_TIMEOUT)? {
+          Some(frame) => match frame.opcode {
+            opcode::DATA | opcode::STREAM_DATA => body.extend_from_slice(&frame.payload),
+            opcode::CLOSE | opcode::STREAM_CLOSE => break,
+            _ => {}
+          },
+          None => return Err(io::Error::new(io::ErrorKind::TimedOut, "ring request body stream stalled")),
+        }
+      }
+      Ok(body)
+    })
+    .await
+    .map_err(io::Error::other)??;
+
+    req
+      .headers
+      .retain(|h| !h.name.eq_ignore_ascii_case(HEADER_REQUEST_BODY_CHANNEL));
+    req.body = body;
+    Ok(())
   }
 
   /// Plain one-shot HTTP: run the pipeline and collect the whole response body.
