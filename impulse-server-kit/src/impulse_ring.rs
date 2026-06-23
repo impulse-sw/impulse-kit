@@ -22,6 +22,9 @@
 //! protocols:
 //!   - type: impulse-ring
 //!     app_name: my-service
+//!     # optional: per-service request-arena size in KiB (default 512 KiB,
+//!     # clamped to [256 KiB, 128 MiB] and rounded up to a power of two).
+//!     arena_size_kib: 4096
 //! ```
 
 use std::io;
@@ -67,6 +70,7 @@ pub struct ImpulseRingListener {
   app_name: String,
   access_key: Option<String>,
   wt_handler: Option<RingWebTransportHandler>,
+  req_arena_cap: usize,
 }
 
 impl std::fmt::Debug for ImpulseRingListener {
@@ -88,6 +92,7 @@ impl ImpulseRingListener {
       app_name: app_name.into(),
       access_key: None,
       wt_handler: None,
+      req_arena_cap: 0,
     }
   }
 
@@ -95,6 +100,19 @@ impl ImpulseRingListener {
   #[must_use]
   pub fn with_key(mut self, key: impl Into<String>) -> Self {
     self.access_key = Some(key.into());
+    self
+  }
+
+  /// Request a request-arena capacity of `bytes` for this application's bus
+  /// function (`0` = broker default, 512 KiB).
+  ///
+  /// The broker clamps the value to `[256 KiB, 128 MiB]` and rounds it up to a
+  /// power of two. A larger arena lets a high-throughput application buffer more
+  /// in-flight requests before callers hit backpressure; it does not raise the
+  /// max inline body (large bodies stream over a channel regardless).
+  #[must_use]
+  pub fn with_arena_cap(mut self, bytes: usize) -> Self {
+    self.req_arena_cap = bytes;
     self
   }
 
@@ -144,6 +162,7 @@ where
   let fn_name = listener.fn_name();
   let key = listener.access_key.clone();
   let wt_handler = listener.wt_handler.clone();
+  let req_arena_cap = listener.req_arena_cap;
   let rt = tokio::runtime::Handle::current();
 
   // The connector is blocking and thread-based; set it up off the async
@@ -163,11 +182,12 @@ where
       rt: rt.clone(),
       wt_handler,
     };
-    conn.expose_function::<RingHttpRequest, RingHttpResponse, _>(
+    conn.expose_function_with_arena::<RingHttpRequest, RingHttpResponse, _>(
       &fn_name,
       REQUEST_SCHEMA,
       RESPONSE_SCHEMA,
       key.as_deref(),
+      req_arena_cap,
       move |req| handler.rt.clone().block_on(handler.handle(req)),
     )?;
     Ok(conn)

@@ -106,6 +106,14 @@ pub enum ProtocolConfig {
     /// Optional access key required of callers (gated by the broker).
     #[serde(default)]
     access_key: Option<String>,
+    /// Optional request-arena size **in KiB** for this application's bus function.
+    ///
+    /// Omitted (or `0`) uses the broker default (512 KiB). The broker clamps the
+    /// value to `[256 KiB, 128 MiB]` and rounds it up to a power of two. Raise it
+    /// for high-throughput services that need to buffer more in-flight requests;
+    /// it does not change the max inline body (large bodies stream over a channel).
+    #[serde(default)]
+    arena_size_kib: Option<usize>,
   },
 }
 
@@ -151,6 +159,8 @@ pub enum ResolvedProtocol {
     app_name: String,
     /// Optional access key.
     access_key: Option<String>,
+    /// Requested request-arena capacity in bytes (`0` = broker default).
+    req_arena_cap: usize,
   },
 }
 
@@ -410,10 +420,14 @@ fn resolve_protocols(protocols: &[ProtocolConfig]) -> MResult<Vec<ResolvedProtoc
           ssl_crt_path,
         }
       }
-      ProtocolConfig::ImpulseRing { app_name, access_key } => {
+      ProtocolConfig::ImpulseRing {
+        app_name,
+        access_key,
+        arena_size_kib,
+      } => {
         #[cfg(not(feature = "impulse-ring"))]
         {
-          let _ = (&app_name, &access_key);
+          let _ = (&app_name, &access_key, &arena_size_kib);
           ServerError::from_public(
             "The `impulse-ring` protocol requires the `impulse-ring` feature of `impulse-server-kit`.",
           )
@@ -421,7 +435,12 @@ fn resolve_protocols(protocols: &[ProtocolConfig]) -> MResult<Vec<ResolvedProtoc
           .bail()?
         }
         #[cfg(feature = "impulse-ring")]
-        ResolvedProtocol::ImpulseRing { app_name, access_key }
+        ResolvedProtocol::ImpulseRing {
+          app_name,
+          access_key,
+          // KiB → bytes; `None`/`0` stays 0 (broker default).
+          req_arena_cap: arena_size_kib.unwrap_or(0).saturating_mul(1024),
+        }
       }
     };
     resolved.push(r);

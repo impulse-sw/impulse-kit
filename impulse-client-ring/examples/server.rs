@@ -67,6 +67,7 @@ async fn main() {
   setup.generic_values.protocols = vec![ProtocolConfig::ImpulseRing {
     app_name: "hello-ring".to_string(),
     access_key: None,
+    arena_size_kib: None,
   }];
   setup.generic_values.tracing_options.enable_io_logs = Some(true);
   setup.generic_values.tracing_options.io_log_level = Some("info".to_string());

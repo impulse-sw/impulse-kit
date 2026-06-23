@@ -444,10 +444,18 @@ async fn serve_protocols(
   // Ring shared-memory listeners.
   #[cfg(feature = "impulse-ring")]
   for proto in &app_state.protocols {
-    if let ResolvedProtocol::ImpulseRing { app_name, access_key } = proto {
+    if let ResolvedProtocol::ImpulseRing {
+      app_name,
+      access_key,
+      req_arena_cap,
+    } = proto
+    {
       let mut listener = crate::impulse_ring::ImpulseRingListener::new(app_name.clone());
       if let Some(key) = access_key {
         listener = listener.with_key(key.clone());
+      }
+      if *req_arena_cap > 0 {
+        listener = listener.with_arena_cap(*req_arena_cap);
       }
       let svc = clone_service(&service);
       let token = master.clone();

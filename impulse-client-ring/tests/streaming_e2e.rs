@@ -103,8 +103,13 @@ async fn hello() -> &'static str {
 
 #[handler]
 async fn mp_echo(req: &mut Request, res: &mut Response) {
-  // Echo the raw (MsgPack) request body straight back.
-  let body = req.payload().await.map(|b| b.to_vec()).unwrap_or_default();
+  // Echo the raw request body straight back. Use a generous size limit so the
+  // large-body (streamed-request) case is not capped by salvo's 64 KiB default.
+  let body = req
+    .payload_with_max_size(8 * 1024 * 1024)
+    .await
+    .map(|b| b.to_vec())
+    .unwrap_or_default();
   res
     .headers_mut()
     .insert(CONTENT_TYPE, HeaderValue::from_static("application/msgpack"));
@@ -159,6 +164,8 @@ async fn plain_msgpack_sse_websocket_and_webtransport_over_ring() {
   setup.generic_values.protocols = vec![ProtocolConfig::ImpulseRing {
     app_name: APP.to_string(),
     access_key: None,
+    // Exercise the per-service arena knob (1 MiB request arena).
+    arena_size_kib: Some(1024),
   }];
   let state = load_generic_state(&setup, false).await.unwrap();
   let router = get_root_router_autoinject(&state, setup.clone())
@@ -172,8 +179,21 @@ async fn plain_msgpack_sse_websocket_and_webtransport_over_ring() {
   // ---- client ----
   let client = connect_with_retry(APP).await;
 
+  // Connecting only reaches the broker; the server may not have exposed its
+  // function yet. Retry the first call until the listener has registered.
+  let mut r = None;
+  for _ in 0..100 {
+    match client.get("/hello").send().await {
+      Ok(resp) => {
+        r = Some(resp);
+        break;
+      }
+      Err(_) => tokio::time::sleep(Duration::from_millis(50)).await,
+    }
+  }
+
   // plain HTTP
-  let r = client.get("/hello").send().await.unwrap();
+  let r = r.expect("listener never exposed its function");
   assert_eq!(r.status().as_u16(), 200);
   assert_eq!(r.text().unwrap(), "hi");
 
