@@ -228,13 +228,19 @@ impl RingHttpHandler {
     let salvo_req = build_salvo_request(req)?;
     // Build the hyper handler per request (cheap: it just clones `Arc`s) and run
     // the full routing / middleware / catcher pipeline.
-    Ok(
-      self
-        .service
-        .hyper_handler(SocketAddr::Unknown, SocketAddr::Unknown, Scheme::HTTP, None, None)
-        .handle(salvo_req)
-        .await,
-    )
+    let mut res = self
+      .service
+      .hyper_handler(SocketAddr::Unknown, SocketAddr::Unknown, Scheme::HTTP, None, None)
+      .handle(salvo_req)
+      .await;
+    // salvo materializes its cookie jar into `Set-Cookie` headers only in
+    // `Response::into_hyper`, which the plain-HTTP / SSE Ring path bypasses (it
+    // reads `res.headers()` and the body directly). Do it here so cookies added
+    // via `res.add_cookie(...)` survive — without this, every auth response served
+    // over Ring (sign-in / refresh deploying the session triple) silently loses its
+    // cookies, so the browser keeps sending stale ones and re-login never sticks.
+    serialize_cookies_into_headers(&mut res);
+    Ok(res)
   }
 
   /// Plain one-shot HTTP: run the pipeline and collect the whole response body.
@@ -452,6 +458,22 @@ fn response_is_event_stream(res: &Response) -> bool {
     .is_some_and(|ct| ct.to_ascii_lowercase().contains("text/event-stream"))
 }
 
+/// Serialize salvo's cookie jar into `Set-Cookie` response headers.
+///
+/// salvo keeps cookies set via [`Response::add_cookie`] in a separate jar and only
+/// flushes them into `Set-Cookie` headers inside [`Response::into_hyper`]. The Ring
+/// transport never calls `into_hyper` for plain/SSE responses (it lifts headers and
+/// body off the [`Response`] by hand), so those cookies would otherwise never reach
+/// the client. Mirrors salvo's own `into_hyper` logic.
+fn serialize_cookies_into_headers(res: &mut Response) {
+  let encoded: Vec<_> = res.cookies().delta().map(|c| c.encoded().to_string()).collect();
+  for cookie in encoded {
+    if let Ok(value) = cookie.parse() {
+      res.headers_mut().append(salvo::http::header::SET_COOKIE, value);
+    }
+  }
+}
+
 /// Collect a salvo response's headers into the wire representation.
 fn wire_headers(res: &Response) -> Vec<RingHeader> {
   res
@@ -531,4 +553,38 @@ async fn response_to_wire(res: &mut Response) -> io::Result<RingHttpResponse> {
     .to_vec();
 
   Ok(RingHttpResponse { status, headers, body })
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use salvo::http::cookie::Cookie;
+
+  /// Cookies added to a salvo response via the cookie jar must surface as
+  /// `Set-Cookie` headers on the Ring wire — otherwise auth session cookies
+  /// (deployed on sign-in / refresh) are silently dropped over Ring, and the
+  /// browser keeps replaying stale credentials.
+  #[tokio::test]
+  async fn cookie_jar_is_serialized_into_set_cookie_headers() {
+    let mut res = Response::new();
+    res.add_cookie(Cookie::new("session", "abc123"));
+
+    // Before serialization the jar holds the cookie but no header exists.
+    assert!(res.headers().get(salvo::http::header::SET_COOKIE).is_none());
+
+    serialize_cookies_into_headers(&mut res);
+
+    let wire = response_to_wire(&mut res).await.unwrap();
+    let set_cookie: Vec<_> = wire
+      .headers
+      .iter()
+      .filter(|h| h.name.eq_ignore_ascii_case("set-cookie"))
+      .collect();
+    assert_eq!(set_cookie.len(), 1, "expected exactly one Set-Cookie header");
+    assert!(
+      set_cookie[0].value.starts_with("session=abc123"),
+      "unexpected Set-Cookie value: {}",
+      set_cookie[0].value
+    );
+  }
 }
