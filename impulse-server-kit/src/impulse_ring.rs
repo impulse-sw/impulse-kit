@@ -300,7 +300,12 @@ impl RingHttpHandler {
             opcode::CLOSE | opcode::STREAM_CLOSE => break,
             _ => {}
           },
-          None => return Err(io::Error::new(io::ErrorKind::TimedOut, "ring request body stream stalled")),
+          None => {
+            return Err(io::Error::new(
+              io::ErrorKind::TimedOut,
+              "ring request body stream stalled",
+            ));
+          }
         }
       }
       Ok(body)

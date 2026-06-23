@@ -18,7 +18,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "1.4.0"
+version = "1.4.1"
 edition = "2024"
 rust-version = "1.96"
 license = "MIT"
@@ -35,8 +35,8 @@ impulse-client-kit-blocks = { path = "impulse-client-kit/blocks", default-featur
 impulse-tailwind-sources = { path = "impulse-client-kit/tailwind-sources" }
 impulse-client-ring = { path = "impulse-client-ring", default-features = false }
 
-impulse-ring-connector = { git = "https://github.com/impulse-sw/impulse-ring.git", tag = "0.6.0" }
-impulse-ring-http = { git = "https://github.com/impulse-sw/impulse-ring.git", tag = "0.6.0" }
+impulse-ring-connector = { git = "https://github.com/impulse-sw/impulse-ring.git", tag = "0.7.0" }
+impulse-ring-http = { git = "https://github.com/impulse-sw/impulse-ring.git", tag = "0.7.0" }
 
 anyhow = "1"
 apache-avro = "0.17"
