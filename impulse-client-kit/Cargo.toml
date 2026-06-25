@@ -58,6 +58,7 @@ ssr = [
 websocket = [
   "dep:js-sys",
   "dep:wasm-bindgen",
+  "dep:wasm-bindgen-futures",
   "dep:web-sys",
   "web-sys/BinaryType",
   "web-sys/CloseEvent",
