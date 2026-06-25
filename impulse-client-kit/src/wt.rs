@@ -57,6 +57,8 @@
 //! ```
 
 use std::cell::{Cell, RefCell};
+use std::future::Future;
+use std::pin::Pin;
 use std::rc::{Rc, Weak};
 use std::time::Duration;
 
@@ -72,6 +74,15 @@ use web_sys::{
 };
 
 use crate::reconnect::ReconnectOptions;
+
+/// Future returned by a [`WtUrlProvider`], yielding the URL to connect to.
+pub type WtUrlFuture = Pin<Box<dyn Future<Output = CResult<String>>>>;
+
+/// Produces the connect URL for each (re)connect of a WebTransport session.
+///
+/// Invoked once per attempt, so it can mint a fresh single-use token and embed
+/// it in the URL. A static URL is just a provider that clones a constant.
+pub type WtUrlProvider = Rc<dyn Fn() -> WtUrlFuture>;
 
 /// Lifecycle state of a [`WebTransportHandle`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -89,7 +100,7 @@ pub enum WebTransportState {
 
 /// How to (re)build a [`WebTransport`] session.
 struct WebTransportConfig {
-  url: String,
+  url_provider: WtUrlProvider,
   options: Option<WebTransportOptions>,
   reconnect: ReconnectOptions,
 }
@@ -97,8 +108,9 @@ struct WebTransportConfig {
 struct WebTransportInner {
   config: WebTransportConfig,
   set_state: WriteSignal<WebTransportState>,
-  /// Current session. Swapped in place on each reconnect.
-  transport: RefCell<WebTransport>,
+  /// Current session. `None` until the first session is built; swapped in place
+  /// on each reconnect.
+  transport: RefCell<Option<WebTransport>>,
   /// Set when the application requested a close, suppressing reconnection.
   manual_close: Cell<bool>,
   /// Sink installed by [`WebTransportHandle::datagram_signal`], re-attached to
@@ -110,7 +122,9 @@ struct WebTransportInner {
 
 impl Drop for WebTransportInner {
   fn drop(&mut self) {
-    self.transport.borrow().close();
+    if let Some(transport) = self.transport.borrow().as_ref() {
+      transport.close();
+    }
   }
 }
 
@@ -125,10 +139,19 @@ pub struct WebTransportHandle {
   inner: Rc<WebTransportInner>,
 }
 
+/// Build a [`WtUrlProvider`] that always yields the same constant URL.
+fn constant_provider(url: impl AsRef<str>) -> WtUrlProvider {
+  let url = url.as_ref().to_string();
+  Rc::new(move || {
+    let url = url.clone();
+    Box::pin(async move { Ok(url) })
+  })
+}
+
 /// Open a WebTransport session to `url` (must be `https://`).
 pub fn use_webtransport(url: impl AsRef<str>) -> CResult<WebTransportHandle> {
   build_handle(WebTransportConfig {
-    url: url.as_ref().to_string(),
+    url_provider: constant_provider(url),
     options: None,
     reconnect: ReconnectOptions::default(),
   })
@@ -140,7 +163,7 @@ pub fn use_webtransport_with_options(
   options: &WebTransportOptions,
 ) -> CResult<WebTransportHandle> {
   build_handle(WebTransportConfig {
-    url: url.as_ref().to_string(),
+    url_provider: constant_provider(url),
     options: Some(options.clone()),
     reconnect: ReconnectOptions::default(),
   })
@@ -152,7 +175,7 @@ pub fn use_webtransport_with_reconnect(
   reconnect: ReconnectOptions,
 ) -> CResult<WebTransportHandle> {
   build_handle(WebTransportConfig {
-    url: url.as_ref().to_string(),
+    url_provider: constant_provider(url),
     options: None,
     reconnect,
   })
@@ -166,20 +189,48 @@ pub fn use_webtransport_with_options_and_reconnect(
   reconnect: ReconnectOptions,
 ) -> CResult<WebTransportHandle> {
   build_handle(WebTransportConfig {
-    url: url.as_ref().to_string(),
+    url_provider: constant_provider(url),
     options: Some(options.clone()),
     reconnect,
   })
 }
 
+/// Open a WebTransport session whose URL is produced by `provider` on every
+/// (re)connect, so each attempt can mint a fresh single-use token.
+pub fn use_webtransport_with_provider(
+  provider: WtUrlProvider,
+  options: Option<WebTransportOptions>,
+  reconnect: ReconnectOptions,
+) -> CResult<WebTransportHandle> {
+  build_handle(WebTransportConfig {
+    url_provider: provider,
+    options,
+    reconnect,
+  })
+}
+
+/// Ergonomic wrapper over [`use_webtransport_with_provider`] accepting an async
+/// closure that yields the URL.
+pub fn use_webtransport_with_url_fn<F, Fut>(
+  provider: F,
+  options: Option<WebTransportOptions>,
+  reconnect: ReconnectOptions,
+) -> CResult<WebTransportHandle>
+where
+  F: Fn() -> Fut + 'static,
+  Fut: Future<Output = CResult<String>> + 'static,
+{
+  let provider: WtUrlProvider = Rc::new(move || Box::pin(provider()));
+  use_webtransport_with_provider(provider, options, reconnect)
+}
+
 fn build_handle(config: WebTransportConfig) -> CResult<WebTransportHandle> {
-  let transport = build_transport(&config)?;
   let (state, set_state) = signal(WebTransportState::Connecting);
 
   let inner = Rc::new(WebTransportInner {
     config,
     set_state,
-    transport: RefCell::new(transport),
+    transport: RefCell::new(None),
     manual_close: Cell::new(false),
     datagram_sink: RefCell::new(None),
     reader_running: Cell::new(false),
@@ -190,12 +241,12 @@ fn build_handle(config: WebTransportConfig) -> CResult<WebTransportHandle> {
   Ok(WebTransportHandle { state, inner })
 }
 
-fn build_transport(config: &WebTransportConfig) -> CResult<WebTransport> {
-  match &config.options {
-    Some(options) => WebTransport::new_with_options(&config.url, options),
-    None => WebTransport::new(&config.url),
+fn build_transport(url: &str, options: &Option<WebTransportOptions>) -> CResult<WebTransport> {
+  match options {
+    Some(options) => WebTransport::new_with_options(url, options),
+    None => WebTransport::new(url),
   }
-  .map_err(|e| ClientError::from_str(format!("Failed to construct WebTransport for {}: {e:?}", config.url)))
+  .map_err(|e| ClientError::from_str(format!("Failed to construct WebTransport for {url}: {e:?}")))
 }
 
 /// Drive a single session through its `ready`/`closed` lifecycle, reconnecting
@@ -205,17 +256,52 @@ async fn supervise(weak: Weak<WebTransportInner>) {
   let mut failures: u32 = 0;
 
   loop {
-    // Snapshot the current session and reset the visible state.
+    // Await the URL provider for this attempt (may mint a fresh token).
+    let url = match weak.upgrade() {
+      Some(inner) => {
+        if inner.manual_close.get() {
+          return;
+        }
+        inner.set_state.set(WebTransportState::Connecting);
+        let provider = inner.config.url_provider.clone();
+        drop(inner);
+        match provider().await {
+          Ok(url) => url,
+          Err(e) => {
+            log::error!("WebTransport URL provider failed: {e}");
+            if backoff(&weak, &mut failures).await {
+              continue;
+            }
+            return;
+          }
+        }
+      }
+      None => return,
+    };
+
+    // Build a fresh session and install it.
     let (ready, closed, transport) = match weak.upgrade() {
       Some(inner) => {
         if inner.manual_close.get() {
           return;
         }
-        let transport = inner.transport.borrow().clone();
-        inner.set_state.set(WebTransportState::Connecting);
-        let ready: js_sys::Promise = transport.ready().unchecked_into();
-        let closed: js_sys::Promise = transport.closed().unchecked_into();
-        (ready, closed, transport)
+        match build_transport(&url, &inner.config.options) {
+          Ok(transport) => {
+            *inner.transport.borrow_mut() = Some(transport.clone());
+            let ready: js_sys::Promise = transport.ready().unchecked_into();
+            let closed: js_sys::Promise = transport.closed().unchecked_into();
+            (ready, closed, transport)
+          }
+          Err(e) => {
+            log::error!("WebTransport construction failed: {e}");
+            inner.set_state.set(WebTransportState::Failed);
+            drop(inner);
+            if backoff(&weak, &mut failures).await {
+              continue;
+            }
+            return;
+          }
+        }
       }
       None => return,
     };
@@ -229,7 +315,7 @@ async fn supervise(weak: Weak<WebTransportInner>) {
         }
         _ => return,
       }
-      if reconnect(&weak, &mut failures).await {
+      if backoff(&weak, &mut failures).await {
         continue;
       }
       return;
@@ -268,16 +354,16 @@ async fn supervise(weak: Weak<WebTransportInner>) {
       None => return,
     }
 
-    if reconnect(&weak, &mut failures).await {
+    if backoff(&weak, &mut failures).await {
       continue;
     }
     return;
   }
 }
 
-/// If the policy permits another attempt, wait the backoff delay, build a fresh
-/// session, and install it. Returns whether the supervisor should loop again.
-async fn reconnect(weak: &Weak<WebTransportInner>, failures: &mut u32) -> bool {
+/// If the policy permits another attempt, wait the backoff delay. Returns
+/// whether the supervisor should loop again (and build a fresh session).
+async fn backoff(weak: &Weak<WebTransportInner>, failures: &mut u32) -> bool {
   let delay = match weak.upgrade() {
     Some(inner) if !inner.manual_close.get() && inner.config.reconnect.should_retry(*failures) => {
       inner.config.reconnect.delay_for_attempt(*failures)
@@ -288,20 +374,7 @@ async fn reconnect(weak: &Weak<WebTransportInner>, failures: &mut u32) -> bool {
 
   sleep(delay).await;
 
-  match weak.upgrade() {
-    Some(inner) if !inner.manual_close.get() => match build_transport(&inner.config) {
-      Ok(transport) => {
-        *inner.transport.borrow_mut() = transport;
-        true
-      }
-      Err(e) => {
-        log::error!("WebTransport reconnect construction failed: {e}");
-        inner.set_state.set(WebTransportState::Failed);
-        false
-      }
-    },
-    _ => false,
-  }
+  matches!(weak.upgrade(), Some(inner) if !inner.manual_close.get())
 }
 
 /// Start a datagram reader for `transport` if a sink is registered and one is
@@ -375,9 +448,10 @@ async fn sleep(duration: Duration) {
 impl WebTransportHandle {
   /// Clone the current underlying [`WebTransport`] for advanced use cases.
   ///
-  /// The returned object refers to the session in use at call time; after a
-  /// reconnect the handle points at a different session.
-  pub fn raw(&self) -> WebTransport {
+  /// Returns `None` before the first session is established. The returned object
+  /// refers to the session in use at call time; after a reconnect the handle
+  /// points at a different session.
+  pub fn raw(&self) -> Option<WebTransport> {
     self.inner.transport.borrow().clone()
   }
 
@@ -385,20 +459,30 @@ impl WebTransportHandle {
   /// suppressed.
   pub fn close(&self) {
     self.inner.manual_close.set(true);
-    self.inner.transport.borrow().close();
+    if let Some(transport) = self.inner.transport.borrow().as_ref() {
+      transport.close();
+    }
   }
 
   /// Close the session with an explicit close code and reason. Like
   /// [`Self::close`], this suppresses reconnection.
   pub fn close_with_info(&self, info: &WebTransportCloseInfo) {
     self.inner.manual_close.set(true);
-    self.inner.transport.borrow().close_with_close_info(info);
+    if let Some(transport) = self.inner.transport.borrow().as_ref() {
+      transport.close_with_close_info(info);
+    }
   }
 
   /// Send a single datagram. Acquires the duplex writer for the call and
   /// releases it before returning.
   pub async fn send_datagram(&self, data: &[u8]) -> CResult<()> {
-    let writable: WritableStream = self.inner.transport.borrow().datagrams().writable();
+    let transport = self
+      .inner
+      .transport
+      .borrow()
+      .clone()
+      .ok_or_else(|| ClientError::from_str("WebTransport session is not connected"))?;
+    let writable: WritableStream = transport.datagrams().writable();
     let writer: WritableStreamDefaultWriter = writable
       .get_writer()
       .map_err(|e| ClientError::from_str(format!("Failed to acquire datagram writer: {e:?}")))?;
@@ -413,12 +497,13 @@ impl WebTransportHandle {
 
   /// Open a new bidirectional stream for application framing.
   pub async fn open_bidirectional_stream(&self) -> CResult<WebTransportBidirectionalStream> {
-    let promise: js_sys::Promise = self
+    let transport = self
       .inner
       .transport
       .borrow()
-      .create_bidirectional_stream()
-      .unchecked_into();
+      .clone()
+      .ok_or_else(|| ClientError::from_str("WebTransport session is not connected"))?;
+    let promise: js_sys::Promise = transport.create_bidirectional_stream().unchecked_into();
     let val = JsFuture::from(promise)
       .await
       .map_err(|e| ClientError::from_str(format!("Failed to open bidirectional stream: {e:?}")))?;
@@ -429,12 +514,13 @@ impl WebTransportHandle {
 
   /// Open a new outbound unidirectional stream.
   pub async fn open_unidirectional_stream(&self) -> CResult<WebTransportSendStream> {
-    let promise: js_sys::Promise = self
+    let transport = self
       .inner
       .transport
       .borrow()
-      .create_unidirectional_stream()
-      .unchecked_into();
+      .clone()
+      .ok_or_else(|| ClientError::from_str("WebTransport session is not connected"))?;
+    let promise: js_sys::Promise = transport.create_unidirectional_stream().unchecked_into();
     let val = JsFuture::from(promise)
       .await
       .map_err(|e| ClientError::from_str(format!("Failed to open unidirectional stream: {e:?}")))?;
@@ -462,8 +548,9 @@ impl WebTransportHandle {
     // If the session is already open the supervisor has passed the point where
     // it would have started a reader, so start one now. Otherwise the
     // supervisor will start it when the session opens.
-    if self.state.get_untracked() == WebTransportState::Open {
-      let transport = self.inner.transport.borrow().clone();
+    if self.state.get_untracked() == WebTransportState::Open
+      && let Some(transport) = self.inner.transport.borrow().clone()
+    {
       ensure_reader(&self.inner, &transport);
     }
     Ok(sig)

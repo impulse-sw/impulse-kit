@@ -47,15 +47,28 @@
 //! last [`WebSocketHandle`] clone is dropped.
 
 use std::cell::{Cell, RefCell};
+use std::future::Future;
+use std::pin::Pin;
 use std::rc::Rc;
 
 use impulse_utils::prelude::*;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::spawn_local;
 use web_sys::{BinaryType, CloseEvent, Event, MessageEvent, WebSocket};
 
 use crate::reconnect::ReconnectOptions;
+
+/// Future returned by a [`WsUrlProvider`], yielding the URL to connect to.
+pub type WsUrlFuture = Pin<Box<dyn Future<Output = CResult<String>>>>;
+
+/// Produces the connect URL for each (re)connect attempt.
+///
+/// Called once per attempt, so it can mint a fresh single-use token and embed
+/// it in the URL — the handle never caches the URL across reconnects. A static
+/// URL is just a provider that clones a constant (see [`use_websocket`]).
+pub type WsUrlProvider = Rc<dyn Fn() -> WsUrlFuture>;
 
 /// Connection lifecycle state mirroring `WebSocket.readyState`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -123,7 +136,7 @@ impl Drop for SocketSlot {
 }
 
 struct WebSocketInner {
-  url: String,
+  url_provider: WsUrlProvider,
   protocols: Vec<String>,
   reconnect: ReconnectOptions,
   set_state: WriteSignal<WebSocketReadyState>,
@@ -134,6 +147,9 @@ struct WebSocketInner {
   failures: Cell<u32>,
   /// Set when the application requested a close, suppressing reconnection.
   manual_close: Cell<bool>,
+  /// Set while a connect task is awaiting the URL provider, so overlapping
+  /// attempts are never spawned.
+  connecting: Cell<bool>,
   /// Handle for a scheduled reconnect, so it can be cancelled.
   pending: Cell<Option<TimeoutHandle>>,
 }
@@ -149,9 +165,47 @@ impl Drop for WebSocketInner {
 }
 
 impl WebSocketInner {
+  /// Kick off a (re)connect: await the URL provider, then open a socket.
+  ///
+  /// Asynchronous because the provider may need a network round-trip (e.g. to
+  /// mint a fresh single-use token). A provider error or a failed open is
+  /// funnelled through [`handle_close`](Self::handle_close) so backoff and the
+  /// attempt cap keep applying.
+  fn spawn_connect(self: &Rc<Self>) {
+    if self.connecting.get() || self.manual_close.get() {
+      return;
+    }
+    self.connecting.set(true);
+    self.set_state.set(WebSocketReadyState::Connecting);
+
+    let provider = self.url_provider.clone();
+    let weak = Rc::downgrade(self);
+    spawn_local(async move {
+      let url_res = provider().await;
+      let Some(inner) = weak.upgrade() else { return };
+      inner.connecting.set(false);
+      if inner.manual_close.get() {
+        return;
+      }
+      match url_res {
+        Ok(url) => {
+          if let Err(e) = inner.install_socket(&url) {
+            log::error!("WebSocket failed to open: {e}");
+            inner.handle_close();
+          }
+        }
+        Err(e) => {
+          log::error!("WebSocket URL provider failed: {e}");
+          inner.handle_close();
+        }
+      }
+    });
+  }
+
   /// Open a fresh socket, wire up listeners, and install it as the current slot.
-  fn connect(inner: &Rc<Self>) -> CResult<()> {
-    let socket = build_socket(&inner.url, &inner.protocols)?;
+  fn install_socket(self: &Rc<Self>, url: &str) -> CResult<()> {
+    let inner = self;
+    let socket = build_socket(url, &inner.protocols)?;
     socket.set_binary_type(BinaryType::Arraybuffer);
 
     let set_state = inner.set_state;
@@ -230,12 +284,9 @@ impl WebSocketInner {
           if inner.manual_close.get() {
             return;
           }
-          if let Err(e) = WebSocketInner::connect(&inner) {
-            log::error!("WebSocket reconnect failed to open: {e}");
-            // Treat a failed re-open like another disconnect so backoff and the
-            // attempt cap keep applying.
-            inner.handle_close();
-          }
+          // `spawn_connect` awaits the URL provider; a provider error or failed
+          // open re-enters `handle_close`, so backoff and the cap keep applying.
+          inner.spawn_connect();
         }
       },
       delay,
@@ -345,6 +396,15 @@ impl WebSocketHandle {
   }
 }
 
+/// Build a [`WsUrlProvider`] that always yields the same constant URL.
+fn constant_provider(url: impl AsRef<str>) -> WsUrlProvider {
+  let url = url.as_ref().to_string();
+  Rc::new(move || {
+    let url = url.clone();
+    Box::pin(async move { Ok(url) })
+  })
+}
+
 /// Open a WebSocket to `url` (`ws://` or `wss://`).
 pub fn use_websocket(url: impl AsRef<str>) -> CResult<WebSocketHandle> {
   use_websocket_with_options(url, WebSocketOptions::default())
@@ -361,11 +421,23 @@ pub fn use_websocket_with_protocols(url: impl AsRef<str>, protocols: &[&str]) ->
 /// Open a WebSocket with full [`WebSocketOptions`], including an optional
 /// automatic reconnection policy.
 pub fn use_websocket_with_options(url: impl AsRef<str>, options: WebSocketOptions) -> CResult<WebSocketHandle> {
+  use_websocket_with_provider(constant_provider(url), options)
+}
+
+/// Open a WebSocket whose URL is produced by `provider` on every (re)connect.
+///
+/// Unlike the static-URL constructors, `provider` is invoked once per attempt,
+/// so each reconnect can mint a fresh single-use token and bake it into the
+/// URL. For an ergonomic closure form see [`use_websocket_with_url_fn`].
+pub fn use_websocket_with_provider(
+  provider: WsUrlProvider,
+  options: WebSocketOptions,
+) -> CResult<WebSocketHandle> {
   let (state, set_state) = signal(WebSocketReadyState::Connecting);
   let (message, set_message) = signal::<Option<WebSocketMessage>>(None);
 
   let inner = Rc::new(WebSocketInner {
-    url: url.as_ref().to_string(),
+    url_provider: provider,
     protocols: options.protocols,
     reconnect: options.reconnect,
     set_state,
@@ -373,12 +445,31 @@ pub fn use_websocket_with_options(url: impl AsRef<str>, options: WebSocketOption
     slot: RefCell::new(None),
     failures: Cell::new(0),
     manual_close: Cell::new(false),
+    connecting: Cell::new(false),
     pending: Cell::new(None),
   });
 
-  WebSocketInner::connect(&inner)?;
+  inner.spawn_connect();
 
   Ok(WebSocketHandle { state, message, inner })
+}
+
+/// Ergonomic wrapper over [`use_websocket_with_provider`] accepting an async
+/// closure that yields the URL.
+///
+/// ```rust,ignore
+/// let ws = use_websocket_with_url_fn(
+///   || async move { Ok(format!("wss://host/ws?ticket={}", fetch_ticket().await?)) },
+///   WebSocketOptions::default().with_reconnect(ReconnectOptions::enabled()),
+/// )?;
+/// ```
+pub fn use_websocket_with_url_fn<F, Fut>(provider: F, options: WebSocketOptions) -> CResult<WebSocketHandle>
+where
+  F: Fn() -> Fut + 'static,
+  Fut: Future<Output = CResult<String>> + 'static,
+{
+  let provider: WsUrlProvider = Rc::new(move || Box::pin(provider()));
+  use_websocket_with_provider(provider, options)
 }
 
 fn build_socket(url: &str, protocols: &[String]) -> CResult<WebSocket> {

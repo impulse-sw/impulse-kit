@@ -27,11 +27,12 @@ pub use leptos_meta;
 pub use crate::reconnect::ReconnectOptions;
 #[cfg(feature = "websocket")]
 pub use crate::ws::{
-  WebSocketHandle, WebSocketMessage, WebSocketOptions, WebSocketReadyState, use_websocket, use_websocket_with_options,
-  use_websocket_with_protocols,
+  WebSocketHandle, WebSocketMessage, WebSocketOptions, WebSocketReadyState, WsUrlFuture, WsUrlProvider, use_websocket,
+  use_websocket_with_options, use_websocket_with_protocols, use_websocket_with_provider, use_websocket_with_url_fn,
 };
 #[cfg(feature = "webtransport")]
 pub use crate::wt::{
-  WebTransportHandle, WebTransportState, use_webtransport, use_webtransport_with_options,
-  use_webtransport_with_options_and_reconnect, use_webtransport_with_reconnect,
+  WebTransportHandle, WebTransportState, WtUrlFuture, WtUrlProvider, use_webtransport, use_webtransport_with_options,
+  use_webtransport_with_options_and_reconnect, use_webtransport_with_provider, use_webtransport_with_reconnect,
+  use_webtransport_with_url_fn,
 };
