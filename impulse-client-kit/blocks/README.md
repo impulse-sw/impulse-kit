@@ -78,7 +78,7 @@ explanation of the pattern.
 
 Render a Markdown document — given either inline text or a URL to fetch an
 `.md` file from — into styled HTML. GFM extensions are enabled: tables,
-strikethrough, task lists and smart punctuation.
+strikethrough, task lists, smart punctuation and GitHub-style alerts.
 
 Every Markdown element is rendered with a sensible default set of Tailwind
 classes that follow the Client Kit theme tokens, and every one of them can be
@@ -129,10 +129,38 @@ let classes = MarkdownClasses {
 Fields: `h1`–`h6`, `paragraph`, `link`, `emphasis`, `strong`, `strikethrough`,
 `inline_code`, `code_block`, `blockquote`, `unordered_list`, `ordered_list`,
 `list_item`, `image`, `horizontal_rule`, `table`, `table_head`, `table_row`,
-`table_header_cell`, `table_cell`.
+`table_header_cell`, `table_cell`, plus one `AlertClasses` per alert kind:
+`alert_note`, `alert_tip`, `alert_important`, `alert_warning`, `alert_caution`
+(each with a `container` and `title` field).
 
 `render_markdown(input: &str, classes: &MarkdownClasses) -> String` is also
 exposed if you want the HTML string without the component wrapper.
+
+### GitHub-style alerts
+
+Blockquotes whose first line is an alert marker render as titled callouts —
+exactly like on GitHub:
+
+```markdown
+> [!NOTE]
+> Useful information that users should know, even when skimming.
+
+> [!TIP]
+> Helpful advice for doing things better or more easily.
+
+> [!IMPORTANT]
+> Key information users need to know to achieve their goal.
+
+> [!WARNING]
+> Urgent info that needs immediate user attention to avoid problems.
+
+> [!CAUTION]
+> Advises about risks or negative outcomes of certain actions.
+```
+
+Each kind is a `<div>` callout with a colored border, tinted background and an
+icon + label title row, styled via the matching `alert_*` field of
+`MarkdownClasses`.
 
 > **Security:** the output is injected via `inner_html`, and raw HTML embedded in
 > the source is passed through as-is. Only render Markdown you trust, or sanitize

@@ -14,6 +14,11 @@
 //! assert!(html.contains("<strong"));
 //! // Headings get GitHub-style slug ids, so in-page `#anchor` links resolve.
 //! assert!(html.contains("id=\"hello-world\""));
+//!
+//! // GitHub-style alerts are rendered as titled callouts.
+//! let alert = render_markdown("> [!NOTE]\n> Heads up.", &MarkdownClasses::default());
+//! assert!(alert.contains(">Note</div>"));
+//! assert!(alert.contains("Heads up."));
 //! ```
 //!
 //! > **Security note:** like any Markdown renderer, the output is injected via
@@ -25,7 +30,7 @@ use std::collections::HashMap;
 use impulse_client_kit::utils::cn;
 use impulse_client_kit_components::spinner::{Spinner, SpinnerSize};
 use leptos::prelude::*;
-use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{BlockQuoteKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
 /// Where a [`Markdown`] block reads its source document from.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -46,6 +51,19 @@ impl MarkdownSource {
   pub fn url(url: impl Into<String>) -> Self {
     Self::Url(url.into())
   }
+}
+
+/// Tailwind classes for one kind of GitHub-style alert (`> [!NOTE]`, …).
+///
+/// An alert is rendered as a `<div>` callout whose first child is a colored
+/// title row (icon + label); the remaining blockquote content follows as normal
+/// paragraphs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AlertClasses {
+  /// The outer `<div>` callout container (border, background, padding).
+  pub container: String,
+  /// The title row (`<div>` holding the icon and the alert label).
+  pub title: String,
 }
 
 /// Per-element Tailwind classes applied while rendering Markdown.
@@ -92,6 +110,16 @@ pub struct MarkdownClasses {
   pub code_block: String,
   /// `<blockquote>`.
   pub blockquote: String,
+  /// `> [!NOTE]` alert callout.
+  pub alert_note: AlertClasses,
+  /// `> [!TIP]` alert callout.
+  pub alert_tip: AlertClasses,
+  /// `> [!IMPORTANT]` alert callout.
+  pub alert_important: AlertClasses,
+  /// `> [!WARNING]` alert callout.
+  pub alert_warning: AlertClasses,
+  /// `> [!CAUTION]` alert callout.
+  pub alert_caution: AlertClasses,
   /// `<ul>` unordered list.
   pub unordered_list: String,
   /// `<ol>` ordered list.
@@ -134,6 +162,26 @@ impl Default for MarkdownClasses {
         "my-4 overflow-x-auto rounded-lg border border-border/60 bg-muted/40 p-4 text-sm leading-relaxed font-mono text-foreground/90"
           .into(),
       blockquote: "my-4 border-l-4 border-border pl-4 italic text-muted-foreground".into(),
+      alert_note: AlertClasses {
+        container: "my-4 space-y-2 rounded-md border-l-4 border-blue-500 bg-blue-500/10 px-4 py-3 [&>p]:my-0".into(),
+        title: "flex items-center gap-2 font-semibold text-blue-600 dark:text-blue-400".into(),
+      },
+      alert_tip: AlertClasses {
+        container: "my-4 space-y-2 rounded-md border-l-4 border-emerald-500 bg-emerald-500/10 px-4 py-3 [&>p]:my-0".into(),
+        title: "flex items-center gap-2 font-semibold text-emerald-600 dark:text-emerald-400".into(),
+      },
+      alert_important: AlertClasses {
+        container: "my-4 space-y-2 rounded-md border-l-4 border-violet-500 bg-violet-500/10 px-4 py-3 [&>p]:my-0".into(),
+        title: "flex items-center gap-2 font-semibold text-violet-600 dark:text-violet-400".into(),
+      },
+      alert_warning: AlertClasses {
+        container: "my-4 space-y-2 rounded-md border-l-4 border-amber-500 bg-amber-500/10 px-4 py-3 [&>p]:my-0".into(),
+        title: "flex items-center gap-2 font-semibold text-amber-600 dark:text-amber-400".into(),
+      },
+      alert_caution: AlertClasses {
+        container: "my-4 space-y-2 rounded-md border-l-4 border-red-500 bg-red-500/10 px-4 py-3 [&>p]:my-0".into(),
+        title: "flex items-center gap-2 font-semibold text-red-600 dark:text-red-400".into(),
+      },
       unordered_list: "my-4 ml-6 list-disc space-y-2 marker:text-muted-foreground".into(),
       ordered_list: "my-4 ml-6 list-decimal space-y-2 marker:text-muted-foreground".into(),
       list_item: "leading-7 text-foreground/90".into(),
@@ -153,15 +201,20 @@ const CONTAINER_BASE: &str = "impulse-markdown w-full max-w-none break-words";
 /// Render a Markdown document into an HTML string, injecting the per-element
 /// Tailwind classes from `classes`.
 ///
-/// GFM extensions — tables, strikethrough, task lists and smart punctuation —
-/// are enabled. This is the same renderer the [`Markdown`] component uses; it is
-/// exposed so callers can pre-render or test the output independently.
+/// GFM extensions — tables, strikethrough, task lists, smart punctuation and
+/// GitHub-style alerts (`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`,
+/// `> [!WARNING]`, `> [!CAUTION]`) — are enabled. This is the same renderer the
+/// [`Markdown`] component uses; it is exposed so callers can pre-render or test
+/// the output independently.
 pub fn render_markdown(input: &str, classes: &MarkdownClasses) -> String {
   let mut options = Options::empty();
   options.insert(Options::ENABLE_TABLES);
   options.insert(Options::ENABLE_STRIKETHROUGH);
   options.insert(Options::ENABLE_TASKLISTS);
   options.insert(Options::ENABLE_SMART_PUNCTUATION);
+  // Parse GitHub-style alerts: `> [!NOTE]`, `> [!TIP]`, `> [!WARNING]`, … —
+  // pulldown-cmark surfaces these as `BlockQuote(Some(BlockQuoteKind))`.
+  options.insert(Options::ENABLE_GFM);
 
   let parser = Parser::new_ext(input, options);
 
@@ -324,7 +377,15 @@ fn start_tag(
       let (name, class) = heading(level, classes);
       out.push_str(&open(name, class));
     }
-    Tag::BlockQuote(_) => out.push_str(&open("blockquote", &classes.blockquote)),
+    Tag::BlockQuote(Some(kind)) => {
+      let (cls, label, icon) = alert(kind, classes);
+      out.push_str(&open("div", &cls.container));
+      out.push_str(&open("div", &cls.title));
+      out.push_str(icon);
+      out.push_str(label);
+      out.push_str("</div>");
+    }
+    Tag::BlockQuote(None) => out.push_str(&open("blockquote", &classes.blockquote)),
     Tag::CodeBlock(_) => {
       out.push_str(&open("pre", &classes.code_block));
       out.push_str("<code>");
@@ -390,7 +451,9 @@ fn end_tag(out: &mut String, tag: TagEnd, _classes: &MarkdownClasses, in_table_h
       out.push_str(heading_name(level));
       out.push_str(">\n");
     }
-    TagEnd::BlockQuote(_) => out.push_str("</blockquote>\n"),
+    // An alert blockquote was opened as a `<div>` callout; close it as one.
+    TagEnd::BlockQuote(Some(_)) => out.push_str("</div>\n"),
+    TagEnd::BlockQuote(None) => out.push_str("</blockquote>\n"),
     TagEnd::CodeBlock => out.push_str("</code></pre>\n"),
     TagEnd::List(true) => out.push_str("</ol>\n"),
     TagEnd::List(false) => out.push_str("</ul>\n"),
@@ -428,6 +491,25 @@ fn push_image(out: &mut String, ctx: &ImageCtx, class: &str) {
   }
   out.push_str(" />");
 }
+
+/// Map an alert kind to its configured classes, display label and icon SVG.
+fn alert(kind: BlockQuoteKind, classes: &MarkdownClasses) -> (&AlertClasses, &'static str, &'static str) {
+  match kind {
+    BlockQuoteKind::Note => (&classes.alert_note, "Note", ICON_NOTE),
+    BlockQuoteKind::Tip => (&classes.alert_tip, "Tip", ICON_TIP),
+    BlockQuoteKind::Important => (&classes.alert_important, "Important", ICON_IMPORTANT),
+    BlockQuoteKind::Warning => (&classes.alert_warning, "Warning", ICON_WARNING),
+    BlockQuoteKind::Caution => (&classes.alert_caution, "Caution", ICON_CAUTION),
+  }
+}
+
+/// GitHub Octicon SVGs used as alert title icons. `fill-current` makes them
+/// inherit the title row's text color.
+const ICON_NOTE: &str = "<svg viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" aria-hidden=\"true\" class=\"h-4 w-4 shrink-0 fill-current\"><path d=\"M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z\"></path></svg>";
+const ICON_TIP: &str = "<svg viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" aria-hidden=\"true\" class=\"h-4 w-4 shrink-0 fill-current\"><path d=\"M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z\"></path></svg>";
+const ICON_IMPORTANT: &str = "<svg viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" aria-hidden=\"true\" class=\"h-4 w-4 shrink-0 fill-current\"><path d=\"M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z\"></path></svg>";
+const ICON_WARNING: &str = "<svg viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" aria-hidden=\"true\" class=\"h-4 w-4 shrink-0 fill-current\"><path d=\"M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z\"></path></svg>";
+const ICON_CAUTION: &str = "<svg viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" aria-hidden=\"true\" class=\"h-4 w-4 shrink-0 fill-current\"><path d=\"M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.141.22.331.22.53v6a.749.749 0 0 1-.22.53l-4.25 4.25A.749.749 0 0 1 11 16H5a.749.749 0 0 1-.53-.22L.22 11.53A.749.749 0 0 1 0 11V5c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z\"></path></svg>";
 
 /// Map a heading level to its tag name and configured class.
 fn heading(level: HeadingLevel, classes: &MarkdownClasses) -> (&'static str, &str) {
@@ -545,5 +627,46 @@ pub fn Markdown(
 
       view! { <div class=cn(&[CONTAINER_BASE, class.as_str()])>{rendered}</div> }.into_any()
     }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn renders_github_alert_as_callout() {
+    let html = render_markdown("> [!WARNING]\n> Be careful here.", &MarkdownClasses::default());
+    // Alerts become a `<div>` callout, not a `<blockquote>`.
+    assert!(!html.contains("<blockquote"));
+    assert!(html.contains("border-amber-500"));
+    // Title row carries the icon and the kind label.
+    assert!(html.contains("<svg"));
+    assert!(html.contains(">Warning</div>"));
+    // The blockquote body is rendered as normal content.
+    assert!(html.contains("Be careful here."));
+  }
+
+  #[test]
+  fn renders_each_alert_kind() {
+    for (marker, label, border) in [
+      ("NOTE", "Note", "border-blue-500"),
+      ("TIP", "Tip", "border-emerald-500"),
+      ("IMPORTANT", "Important", "border-violet-500"),
+      ("WARNING", "Warning", "border-amber-500"),
+      ("CAUTION", "Caution", "border-red-500"),
+    ] {
+      let src = format!("> [!{marker}]\n> Body.");
+      let html = render_markdown(&src, &MarkdownClasses::default());
+      assert!(html.contains(border), "{marker} should use {border}");
+      assert!(html.contains(&format!(">{label}</div>")), "{marker} should show {label}");
+    }
+  }
+
+  #[test]
+  fn plain_blockquote_is_unchanged() {
+    let html = render_markdown("> Just a quote.", &MarkdownClasses::default());
+    assert!(html.contains("<blockquote"));
+    assert!(!html.contains("<svg"));
   }
 }
