@@ -429,10 +429,7 @@ pub fn use_websocket_with_options(url: impl AsRef<str>, options: WebSocketOption
 /// Unlike the static-URL constructors, `provider` is invoked once per attempt,
 /// so each reconnect can mint a fresh single-use token and bake it into the
 /// URL. For an ergonomic closure form see [`use_websocket_with_url_fn`].
-pub fn use_websocket_with_provider(
-  provider: WsUrlProvider,
-  options: WebSocketOptions,
-) -> CResult<WebSocketHandle> {
+pub fn use_websocket_with_provider(provider: WsUrlProvider, options: WebSocketOptions) -> CResult<WebSocketHandle> {
   let (state, set_state) = signal(WebSocketReadyState::Connecting);
   let (message, set_message) = signal::<Option<WebSocketMessage>>(None);
 

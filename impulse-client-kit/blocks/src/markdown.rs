@@ -659,7 +659,10 @@ mod tests {
       let src = format!("> [!{marker}]\n> Body.");
       let html = render_markdown(&src, &MarkdownClasses::default());
       assert!(html.contains(border), "{marker} should use {border}");
-      assert!(html.contains(&format!(">{label}</div>")), "{marker} should show {label}");
+      assert!(
+        html.contains(&format!(">{label}</div>")),
+        "{marker} should show {label}"
+      );
     }
   }
 
