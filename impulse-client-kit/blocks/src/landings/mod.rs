@@ -189,9 +189,16 @@ pub fn GridBackdrop(
   #[prop(optional, default = true)]
   glow: bool,
 ) -> impl IntoView {
+  // A single root with a constant node structure (the layers are always
+  // present; toggling only swaps their inline style). Bare `Option` fragments
+  // here would change the node count and trip hydration's marker matching.
+  let grid_style = if grid { GRID_STYLE } else { "" };
+  let glow_style = if glow { GLOW_STYLE } else { "" };
   view! {
-    {grid.then(|| view! { <div class="absolute inset-0 pointer-events-none" style=GRID_STYLE /> })}
-    {glow.then(|| view! { <div class="absolute inset-0 pointer-events-none" style=GLOW_STYLE /> })}
+    <div class="pointer-events-none absolute inset-0" aria-hidden="true">
+      <div class="absolute inset-0" style=grid_style />
+      <div class="absolute inset-0" style=glow_style />
+    </div>
   }
 }
 

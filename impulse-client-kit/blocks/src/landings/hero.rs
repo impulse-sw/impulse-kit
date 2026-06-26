@@ -2,7 +2,6 @@
 
 use leptos::prelude::*;
 
-use impulse_client_kit_components::badge::{Badge, BadgeVariant};
 use impulse_client_kit_components::button::{Button, ButtonSize, ButtonVariant};
 
 use super::icons::{ArrowRight, Spark};
@@ -68,14 +67,14 @@ pub fn Hero(
   backdrop: bool,
 ) -> impl IntoView {
   let eyebrow = eyebrow.filter(|s| !s.is_empty()).map(|e| {
-    // `Badge`'s children are a `Fn`-callable fragment, so the (owned) label is
-    // stashed in a `Copy` `StoredValue`.
-    let e = StoredValue::new(e);
+    // A plain, statically-rendered outline pill (rather than `<Badge>` with a
+    // reactive child): keeping the label a static text node avoids a
+    // hydration marker mismatch.
     view! {
-      <Badge variant=BadgeVariant::Outline class="px-3 py-1 text-xs">
+      <span class="inline-flex items-center justify-center gap-1 w-fit rounded-full border px-3 py-1 text-xs font-medium text-foreground [&>svg]:size-3">
         <Spark class="h-3 w-3" />
-        <span>{move || e.get_value()}</span>
-      </Badge>
+        {e}
+      </span>
     }
   });
   let highlight = highlight.filter(|s| !s.is_empty()).map(|h| {
