@@ -4,7 +4,7 @@ use leptos::prelude::*;
 
 use impulse_client_kit_components::card::{Card, CardContent, CardDescription, CardHeader, CardTitle};
 
-use super::{HeadingAlign, SectionHeading};
+use super::{HeadingAlign, SectionHeading, rich};
 
 /// One feature card: an optional icon, a title and a description.
 pub struct Feature {
@@ -86,11 +86,11 @@ pub fn FeatureGrid(
                           </span>
                         }
                       })}
-                    <CardTitle class="mt-3 text-base">{f.title}</CardTitle>
+                    <CardTitle class="mt-3 text-base">{rich(&f.title)}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <CardDescription class="text-sm leading-relaxed">
-                      {f.description}
+                      {rich(&f.description)}
                     </CardDescription>
                   </CardContent>
                 </Card>

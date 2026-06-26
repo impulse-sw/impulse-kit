@@ -613,6 +613,11 @@ optional `id` anchor for in-page navigation. Several also take `muted=true` to
 sit on the alternating muted background. `Hero` and `CallToAction` take
 `backdrop` / `grid` flags to toggle the grid + glow.
 
+Prose fields (feature titles/descriptions, step and checklist bodies, FAQ
+answers) render inline `` `code` `` spans — text wrapped in backticks becomes a
+styled `<Raw>` chip, exactly like the kit's `rich` helper. Text without
+backticks is unaffected.
+
 > Like every block in this crate, the landing blocks' **default** classes are
 > string literals scanned by Tailwind, so they just work. Classes **you** pass
 > as data (e.g. text inside a `Feature` icon you build yourself) must live in

@@ -2,8 +2,10 @@
 
 use leptos::prelude::*;
 
+use impulse_client_kit_components::badge::{Badge, BadgeVariant};
 use impulse_client_kit_components::button::{Button, ButtonSize, ButtonVariant};
 
+use super::icons::{ArrowRight, Spark};
 use super::{CtaAction, GridBackdrop};
 
 /// The headline section at the top of a landing page.
@@ -66,10 +68,14 @@ pub fn Hero(
   backdrop: bool,
 ) -> impl IntoView {
   let eyebrow = eyebrow.filter(|s| !s.is_empty()).map(|e| {
+    // `Badge`'s children are a `Fn`-callable fragment, so the (owned) label is
+    // stashed in a `Copy` `StoredValue`.
+    let e = StoredValue::new(e);
     view! {
-      <span class="inline-flex items-center rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground">
-        {e}
-      </span>
+      <Badge variant=BadgeVariant::Outline class="px-3 py-1 text-xs">
+        <Spark class="h-3 w-3" />
+        <span>{move || e.get_value()}</span>
+      </Badge>
     }
   });
   let highlight = highlight.filter(|s| !s.is_empty()).map(|h| {
@@ -92,10 +98,14 @@ pub fn Hero(
           .into_iter()
           .map(|a| {
             let variant = if a.primary { ButtonVariant::Default } else { ButtonVariant::Outline };
+            // The primary call-to-action carries a trailing arrow, as on both
+            // source landings.
+            let arrow = a.primary.then(|| view! { <ArrowRight class="h-4 w-4" /> });
             view! {
               <a href=a.href>
                 <Button size=ButtonSize::Lg variant=variant class="gap-2">
                   {a.label}
+                  {arrow}
                 </Button>
               </a>
             }

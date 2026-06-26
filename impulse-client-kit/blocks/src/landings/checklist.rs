@@ -3,7 +3,7 @@
 use leptos::prelude::*;
 
 use super::icons::Check;
-use super::{HeadingAlign, SectionHeading};
+use super::{HeadingAlign, SectionHeading, rich};
 
 /// One entry in a [`ChecklistSection`]: a bold lead and a muted explanation.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -85,8 +85,8 @@ pub fn ChecklistSection(
                     <Check class="h-4 w-4" />
                   </span>
                   <div class="space-y-1">
-                    <div class="font-semibold">{item.title}</div>
-                    <div class="text-sm text-muted-foreground leading-relaxed">{item.body}</div>
+                    <div class="font-semibold">{rich(&item.title)}</div>
+                    <div class="text-sm text-muted-foreground leading-relaxed">{rich(&item.body)}</div>
                   </div>
                 </li>
               }

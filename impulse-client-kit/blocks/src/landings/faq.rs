@@ -4,7 +4,7 @@ use leptos::prelude::*;
 
 use impulse_client_kit_components::accordion::{Accordion, AccordionContent, AccordionItem, AccordionTrigger, AccordionType};
 
-use super::{HeadingAlign, SectionHeading};
+use super::{HeadingAlign, SectionHeading, rich};
 
 /// One question/answer pair in a [`Faq`].
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -79,7 +79,7 @@ pub fn Faq(
                       {item.question}
                     </AccordionTrigger>
                     <AccordionContent class="text-sm text-muted-foreground leading-relaxed">
-                      {move || answer.get_value()}
+                      {move || rich(&answer.get_value())}
                     </AccordionContent>
                   </AccordionItem>
                 }

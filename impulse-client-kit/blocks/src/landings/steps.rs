@@ -2,7 +2,7 @@
 
 use leptos::prelude::*;
 
-use super::{HeadingAlign, SectionHeading};
+use super::{HeadingAlign, SectionHeading, rich};
 
 /// One step in a [`StepList`]: a title and a short body. Steps are numbered
 /// automatically by their position.
@@ -92,8 +92,8 @@ pub fn StepList(
                   <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold">
                     {(i + 1).to_string()}
                   </span>
-                  <h3 class="mt-3 font-medium text-sm">{s.title}</h3>
-                  <p class="mt-1 text-sm text-muted-foreground leading-relaxed">{s.body}</p>
+                  <h3 class="mt-3 font-medium text-sm">{rich(&s.title)}</h3>
+                  <p class="mt-1 text-sm text-muted-foreground leading-relaxed">{rich(&s.body)}</p>
                 </li>
               }
             })

@@ -4,6 +4,7 @@ use leptos::prelude::*;
 
 use impulse_client_kit_components::button::{Button, ButtonSize, ButtonVariant};
 
+use super::icons::ArrowRight;
 use super::{CtaAction, GridBackdrop};
 
 /// A centered, full-width call-to-action band — the closing "ready to start?"
@@ -53,10 +54,12 @@ pub fn CallToAction(
           .into_iter()
           .map(|a| {
             let variant = if a.primary { ButtonVariant::Default } else { ButtonVariant::Outline };
+            let arrow = a.primary.then(|| view! { <ArrowRight class="h-4 w-4" /> });
             view! {
               <a href=a.href>
                 <Button size=ButtonSize::Lg variant=variant class="gap-2">
                   {a.label}
+                  {arrow}
                 </Button>
               </a>
             }

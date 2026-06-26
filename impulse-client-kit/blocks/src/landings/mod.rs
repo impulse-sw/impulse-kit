@@ -39,6 +39,7 @@
 //! ```
 
 use impulse_client_kit::utils::cn;
+use impulse_client_kit_components::raw::Raw;
 use leptos::prelude::*;
 
 mod icons;
@@ -127,6 +128,29 @@ pub enum HeadingAlign {
   Center,
   /// Left-aligned — for split / two-column sections.
   Start,
+}
+
+/// Render a short prose string with inline `` `code` `` spans (delimited by
+/// backticks) turned into styled `<Raw>` chips — the same lightweight inline
+/// markup the kit's [`rich`](impulse_client_kit_components::raw::rich) helper
+/// applies, but for owned/borrowed strings rather than `&'static str`.
+///
+/// Text without backticks renders unchanged (wrapped in a `<span>`), so it is
+/// safe to route every prose field through this.
+pub(crate) fn rich(input: &str) -> AnyView {
+  let mut nodes: Vec<AnyView> = Vec::new();
+  let mut is_code = false;
+  for part in input.split('`') {
+    if !part.is_empty() {
+      if is_code {
+        nodes.push(view! { <Raw text=part.to_string() /> }.into_any());
+      } else {
+        nodes.push(view! { <span>{part.to_string()}</span> }.into_any());
+      }
+    }
+    is_code = !is_code;
+  }
+  nodes.into_iter().collect_view().into_any()
 }
 
 /// The signature blueprint-grid background.
