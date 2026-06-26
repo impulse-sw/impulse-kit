@@ -83,7 +83,7 @@ Client Kit is just superstructure above Leptos framework. It provides:
 - logging support with `log`
 - automated light/dark themes (with Tailwind support)
 - utils to perform request to the backend (`impulse_client_kit::router::endpoint` and `impulse_client_kit::router::redirect` functions)
-- WebSocket & WebTransport bindings (with optional automatic reconnection)
+- WebSocket & WebTransport bindings (with optional automatic reconnection, including an async per-attempt URL provider for token-refreshing reconnects)
 - telemetry collection: monitor components (`<ClickMonitor>`, `<ViewMonitor>`, `<HoverMonitor>`, `<FocusMonitor>`, `<SubmitMonitor>`, `<EventMonitor>`) plus imperative `track_event`/`track_log`/`track_metric`/`track_span` helpers, with anonymous or identified collection (see the `telemetry` module)
 
 Startup example:

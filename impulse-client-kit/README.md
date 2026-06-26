@@ -262,6 +262,33 @@ let wt = use_webtransport_with_reconnect(
 
 While waiting between attempts the handle reports `Connecting`. The reactive `state`, inbound `message`/`datagram_signal`, sends, and stream constructors all keep working across reconnects — there is no need to re-create the handle. A close requested through `close()` (and, for WebTransport, a graceful close by either peer) is treated as final and never reconnects.
 
+### Per-attempt URL (token-refreshing reconnect)
+
+The static-URL constructors capture the URL once. When the connection needs a
+**fresh value on every attempt** — most commonly a single-use auth ticket that
+can't ride a socket handshake as a cookie — supply an **async URL provider**
+instead. It is invoked once per (re)connect, so each attempt can mint a new
+ticket and bake it into the URL; a provider error is treated like a failed open,
+so backoff and the attempt cap still apply.
+
+```rust
+use impulse_client_kit::ws::{use_websocket_with_url_fn, WebSocketOptions};
+use impulse_client_kit::prelude::*;
+
+let ws = use_websocket_with_url_fn(
+  // Called again on every reconnect — fetch a fresh ticket each time.
+  || async move {
+    let ticket = fetch_ws_ticket().await?;
+    Ok(format!("wss://example.com/socket?ticket={ticket}"))
+  },
+  WebSocketOptions::default().with_reconnect(ReconnectOptions::enabled()),
+)?;
+```
+
+WebTransport has the same shape via `use_webtransport_with_url_fn(provider, options, reconnect)`.
+Both also expose the lower-level `use_*_with_provider` taking an
+`Rc<dyn Fn() -> …>` if you already hold a boxed provider.
+
 ## Some other utils
 
 See [`utils.rs` file](./src/utils.rs).
