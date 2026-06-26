@@ -19,12 +19,20 @@ pub struct Feature {
 impl Feature {
   /// A feature with an icon.
   pub fn new(icon: AnyView, title: impl Into<String>, description: impl Into<String>) -> Self {
-    Self { icon: Some(icon), title: title.into(), description: description.into() }
+    Self {
+      icon: Some(icon),
+      title: title.into(),
+      description: description.into(),
+    }
   }
 
   /// A feature without an icon.
   pub fn text(title: impl Into<String>, description: impl Into<String>) -> Self {
-    Self { icon: None, title: title.into(), description: description.into() }
+    Self {
+      icon: None,
+      title: title.into(),
+      description: description.into(),
+    }
   }
 }
 

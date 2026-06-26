@@ -18,7 +18,10 @@ pub struct FooterColumn {
 impl FooterColumn {
   /// Build a column from a title and a list of links.
   pub fn new(title: impl Into<String>, links: impl IntoIterator<Item = LinkItem>) -> Self {
-    Self { title: title.into(), links: links.into_iter().collect() }
+    Self {
+      title: title.into(),
+      links: links.into_iter().collect(),
+    }
   }
 }
 

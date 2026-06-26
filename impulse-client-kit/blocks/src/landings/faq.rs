@@ -2,7 +2,9 @@
 
 use leptos::prelude::*;
 
-use impulse_client_kit_components::accordion::{Accordion, AccordionContent, AccordionItem, AccordionTrigger, AccordionType};
+use impulse_client_kit_components::accordion::{
+  Accordion, AccordionContent, AccordionItem, AccordionTrigger, AccordionType,
+};
 
 use super::{HeadingAlign, SectionHeading, rich};
 
@@ -18,7 +20,10 @@ pub struct FaqItem {
 impl FaqItem {
   /// Build a Q&A pair from any string-likes.
   pub fn new(question: impl Into<String>, answer: impl Into<String>) -> Self {
-    Self { question: question.into(), answer: answer.into() }
+    Self {
+      question: question.into(),
+      answer: answer.into(),
+    }
   }
 }
 

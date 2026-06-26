@@ -18,12 +18,18 @@ pub struct Logo {
 impl Logo {
   /// A wordmark logo (text only).
   pub fn wordmark(name: impl Into<String>) -> Self {
-    Self { name: name.into(), src: None }
+    Self {
+      name: name.into(),
+      src: None,
+    }
   }
 
   /// An image logo.
   pub fn image(name: impl Into<String>, src: impl Into<String>) -> Self {
-    Self { name: name.into(), src: Some(src.into()) }
+    Self {
+      name: name.into(),
+      src: Some(src.into()),
+    }
   }
 }
 

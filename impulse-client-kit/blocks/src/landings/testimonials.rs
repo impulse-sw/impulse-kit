@@ -23,7 +23,12 @@ pub struct Testimonial {
 impl Testimonial {
   /// Build a testimonial with just a quote and an author.
   pub fn new(quote: impl Into<String>, author: impl Into<String>) -> Self {
-    Self { quote: quote.into(), author: author.into(), role: None, avatar_src: None }
+    Self {
+      quote: quote.into(),
+      author: author.into(),
+      role: None,
+      avatar_src: None,
+    }
   }
 
   /// Set the role / company line.
@@ -99,7 +104,12 @@ pub fn Testimonials(
 
 #[component]
 fn TestimonialCard(data: Testimonial) -> impl IntoView {
-  let initial = data.author.chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_default();
+  let initial = data
+    .author
+    .chars()
+    .next()
+    .map(|c| c.to_uppercase().to_string())
+    .unwrap_or_default();
   let avatar = match data.avatar_src {
     Some(src) => view! {
       <img src=src alt=data.author.clone() class="h-9 w-9 rounded-full object-cover" />

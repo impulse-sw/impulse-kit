@@ -14,12 +14,18 @@ pub struct Pill {
 impl Pill {
   /// A bare pill.
   pub fn new(name: impl Into<String>) -> Self {
-    Self { name: name.into(), note: None }
+    Self {
+      name: name.into(),
+      note: None,
+    }
   }
 
   /// A pill with a trailing note (also used as the `title` tooltip).
   pub fn noted(name: impl Into<String>, note: impl Into<String>) -> Self {
-    Self { name: name.into(), note: Some(note.into()) }
+    Self {
+      name: name.into(),
+      note: Some(note.into()),
+    }
   }
 }
 

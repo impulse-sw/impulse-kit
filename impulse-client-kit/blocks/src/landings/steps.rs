@@ -17,7 +17,10 @@ pub struct Step {
 impl Step {
   /// Build a step from any string-likes.
   pub fn new(title: impl Into<String>, body: impl Into<String>) -> Self {
-    Self { title: title.into(), body: body.into() }
+    Self {
+      title: title.into(),
+      body: body.into(),
+    }
   }
 }
 

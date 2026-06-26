@@ -14,7 +14,10 @@ pub struct Stat {
 impl Stat {
   /// Build a stat from any string-likes.
   pub fn new(number: impl Into<String>, label: impl Into<String>) -> Self {
-    Self { number: number.into(), label: label.into() }
+    Self {
+      number: number.into(),
+      label: label.into(),
+    }
   }
 }
 

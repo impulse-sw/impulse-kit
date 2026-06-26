@@ -127,7 +127,11 @@ fn PricingCard(tier: PricingTier) -> impl IntoView {
   } else {
     "h-full"
   };
-  let cta_variant = if tier.cta.primary { ButtonVariant::Default } else { ButtonVariant::Outline };
+  let cta_variant = if tier.cta.primary {
+    ButtonVariant::Default
+  } else {
+    ButtonVariant::Outline
+  };
   view! {
     <Card class=card_class>
       <CardHeader>

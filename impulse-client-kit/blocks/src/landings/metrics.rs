@@ -22,7 +22,12 @@ pub struct Metric {
 impl Metric {
   /// A metric without a progress bar.
   pub fn new(label: impl Into<String>, before: impl Into<String>, after: impl Into<String>) -> Self {
-    Self { label: label.into(), before: before.into(), after: after.into(), progress: None }
+    Self {
+      label: label.into(),
+      before: before.into(),
+      after: after.into(),
+      progress: None,
+    }
   }
 
   /// Add the progress fraction (clamped to 0–100).

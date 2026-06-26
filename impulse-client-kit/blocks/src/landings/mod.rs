@@ -90,7 +90,10 @@ pub struct LinkItem {
 impl LinkItem {
   /// Build a link from any string-likes.
   pub fn new(label: impl Into<String>, href: impl Into<String>) -> Self {
-    Self { label: label.into(), href: href.into() }
+    Self {
+      label: label.into(),
+      href: href.into(),
+    }
   }
 }
 
@@ -111,12 +114,20 @@ pub struct CtaAction {
 impl CtaAction {
   /// A filled, primary call-to-action.
   pub fn primary(label: impl Into<String>, href: impl Into<String>) -> Self {
-    Self { label: label.into(), href: href.into(), primary: true }
+    Self {
+      label: label.into(),
+      href: href.into(),
+      primary: true,
+    }
   }
 
   /// An outline, secondary call-to-action.
   pub fn secondary(label: impl Into<String>, href: impl Into<String>) -> Self {
-    Self { label: label.into(), href: href.into(), primary: false }
+    Self {
+      label: label.into(),
+      href: href.into(),
+      primary: false,
+    }
   }
 }
 
