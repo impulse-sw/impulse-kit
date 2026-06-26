@@ -42,8 +42,8 @@ so the consuming project's Tailwind pass must be able to scan them. This crate's
 `build.rs` publishes an aggregated scan file — its own sources **plus** the
 forwarded `impulse-client-kit-components` sources — as build-script metadata:
 
-* `DEP_IMPULSE_UI_KIT_BLOCKS_STYLES` — the aggregated scan file, and
-* `DEP_IMPULSE_UI_KIT_BLOCKS_SOURCE_DIR` — the raw `src` directory.
+* `DEP_IMPULSE_CLIENT_KIT_BLOCKS_STYLES` — the aggregated scan file, and
+* `DEP_IMPULSE_CLIENT_KIT_BLOCKS_SOURCE_DIR` — the raw `src` directory.
 
 Because the bundle already folds in the upstream component classes, a consumer
 only needs to wire up this single source. Add the helper as a build-dependency:
@@ -60,7 +60,7 @@ use std::{env, path::Path};
 fn main() {
   let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
   let partial = Path::new(&manifest_dir).join(".tailwind-sources.css");
-  impulse_tailwind_sources::write_source_partial(partial, &["DEP_IMPULSE_UI_KIT_BLOCKS_STYLES"]);
+  impulse_tailwind_sources::write_source_partial(partial, &["DEP_IMPULSE_CLIENT_KIT_BLOCKS_STYLES"]);
 }
 ```
 
