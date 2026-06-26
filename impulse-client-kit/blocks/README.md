@@ -20,6 +20,8 @@ every element is a real, hit-testable DOM node.
 - [Charts](#charts) — [`<BarChart>`](#barchart), [`<LineChart>`](#linechart),
   [`<PieChart>`](#piechart), [`<Sparkline>`](#sparkline)
 - [Graph](#graph) — interactive node editor (`<GraphCanvas>` & friends)
+- [Landings](#landings) — marketing-page sections (`<Hero>`, `<FeatureGrid>`,
+  `<Pricing>`, `<Faq>`, `<Footer>`, …)
 - [Theming & customization](#theming--customization)
 
 ## Installation
@@ -471,6 +473,150 @@ view! {
 
 > Pan/zoom uses pointer + wheel events; the canvas sets `touch-action: none` so
 > dragging works on touch devices too.
+
+---
+
+## Landings
+
+`impulse_client_kit_blocks::landings` is a set of ready-made **landing-page
+sections**: drop them in a column and you have a product page. They were
+distilled from two real landings built on the kit (TaskBoard and Деплойер) and
+generalised into data-driven, theme-aware blocks.
+
+Every block takes plain data (`Vec<Feature>`, `Vec<PricingTier>`, …) instead of
+markup, reads the kit's CSS variables so it follows light/dark mode, and is
+self-contained — including the signature "blueprint grid + glow" backdrop, which
+ships as `<GridBackdrop>` (inline-styled, no app-level CSS needed).
+
+```rust
+use impulse_client_kit_blocks::landings::*;
+use leptos::prelude::*;
+
+view! {
+  <Navbar
+    brand="Деплойер"
+    logo_src="/logo.svg"
+    version="v4.1.0"
+    links=vec![LinkItem::new("Features", "#features"), LinkItem::new("Pricing", "#pricing")]
+  >
+    // right-hand actions slot: theme toggle, CTA, …
+    <a href="#contact">"Contact"</a>
+  </Navbar>
+
+  <Hero
+    eyebrow="Local CI/CD"
+    title="Simple, yet powerful "
+    highlight="local CI/CD"
+    subtitle="One YAML replaces five to seven scattered configs."
+    actions=vec![
+      CtaAction::primary("Request a demo", "#contact"),
+      CtaAction::secondary("See features", "#features"),
+    ]
+    note="Linux · macOS · Windows · Built in Rust"
+  />
+
+  <StatStrip stats=vec![
+    Stat::new("9", "export formats"),
+    Stat::new("2", "execution engines"),
+    Stat::new("YAML", "one config file"),
+    Stat::new("~12 MB", "single static binary"),
+  ] />
+
+  <FeatureGrid
+    id="features"
+    eyebrow="Features"
+    title="Everything you need"
+    features=vec![
+      Feature::new(view! { <span>"⚙"</span> }.into_any(), "Local pipelines", "Run builds on your machine."),
+      Feature::text("Signed deploys", "SHA-256 signatures embedded into the archive."),
+    ]
+  />
+
+  <Pricing
+    id="pricing"
+    eyebrow="Pricing"
+    title="Plans for developers and teams"
+    tiers=vec![
+      PricingTier::new("Individual", "₽300", "per dev / month", CtaAction::secondary("Get a license", "#contact"))
+        .features(["Full CLI & TUI", "AI init", "All 9 export formats"]),
+      PricingTier::new("Team", "₽100 000", "per year", CtaAction::primary("Request a demo", "#contact"))
+        .note("25 seats")
+        .features(["Everything in Individual", "Signed deploys"])
+        .highlighted(),
+    ]
+  />
+
+  <Faq title="Frequently asked questions" items=vec![
+    FaqItem::new("Which platforms?", "Linux, macOS and Windows."),
+  ] />
+
+  <CallToAction
+    title="Ready to start?"
+    subtitle="Request a demo and see it on your repo."
+    actions=vec![CtaAction::primary("Request a demo", "#contact")]
+  />
+
+  <Footer
+    brand="Деплойер"
+    tagline="Simple, yet powerful local CI/CD."
+    columns=vec![FooterColumn::new("Product", [LinkItem::new("Pricing", "#pricing")])]
+    notes=vec!["© Verbal Automation Systems LLC".into()]
+  />
+}
+```
+
+### Blocks
+
+| Block               | Role                                                                         |
+| ------------------- | ---------------------------------------------------------------------------- |
+| `AnnouncementBanner`| Slim promo strip above the navbar.                                           |
+| `Navbar`            | Sticky, translucent top nav with a brand, links and a free-form actions slot.|
+| `Hero`              | Headline section with eyebrow, gradient-highlighted title, CTAs and backdrop.|
+| `StatStrip`         | A band of headline numbers / KPIs.                                          |
+| `LogoCloud`         | A muted "trusted by" logo / wordmark row.                                   |
+| `FeatureGrid`       | Responsive grid of icon + title + description cards.                        |
+| `StepList`          | Auto-numbered "how it works" sequence.                                      |
+| `ChecklistSection`  | Two-column section: heading beside a ticked checklist.                      |
+| `MetricComparison`  | "before → after" metric cards with optional progress bars.                 |
+| `Testimonials`      | Grid of quote cards with author + role + avatar.                           |
+| `PillRow`           | Centered row of pills — a tech-stack / "built with" strip.                 |
+| `Pricing`           | Row of pricing tiers, with one optionally highlighted.                     |
+| `Faq`               | Single-open accordion of questions and answers.                            |
+| `CallToAction`      | Closing CTA band over the glow.                                            |
+| `Footer`            | Brand block, link columns and a legal/colophon bottom bar.                 |
+| `SectionHeading`    | The shared eyebrow + title + subtitle header every section uses.           |
+| `GridBackdrop`      | The decorative blueprint-grid + glow backdrop, for your own sections.       |
+
+### Data helpers
+
+Blocks are fed with small, ergonomic structs — most have constructors and
+builder-style setters:
+
+- `LinkItem::new(label, href)` — a plain nav/footer link.
+- `CtaAction::primary(label, href)` / `CtaAction::secondary(label, href)` — a
+  filled or outline button.
+- `Stat::new(number, label)`, `Pill::new(name)` / `Pill::noted(name, note)`,
+  `Logo::wordmark(name)` / `Logo::image(name, src)`.
+- `Feature::new(icon, title, desc)` (icon is any `AnyView`) / `Feature::text(title, desc)`.
+- `Step::new(title, body)`, `ChecklistItem::new(title, body)`, `FaqItem::new(q, a)`.
+- `Metric::new(label, before, after).progress(pct)`.
+- `Testimonial::new(quote, author).role(..).avatar(src)`.
+- `PricingTier::new(name, price, period, cta).note(..).features([..]).highlighted()`.
+- `FooterColumn::new(title, [LinkItem, …])`.
+
+### Section props
+
+The content sections (`FeatureGrid`, `StepList`, `ChecklistSection`,
+`MetricComparison`, `Testimonials`, `Pricing`, `Faq`) share the same surface:
+an optional `eyebrow`, a required `title`, an optional `subtitle` and an
+optional `id` anchor for in-page navigation. Several also take `muted=true` to
+sit on the alternating muted background. `Hero` and `CallToAction` take
+`backdrop` / `grid` flags to toggle the grid + glow.
+
+> Like every block in this crate, the landing blocks' **default** classes are
+> string literals scanned by Tailwind, so they just work. Classes **you** pass
+> as data (e.g. text inside a `Feature` icon you build yourself) must live in
+> your own scanned sources.
 
 ---
 

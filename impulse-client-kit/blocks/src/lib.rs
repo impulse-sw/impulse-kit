@@ -17,4 +17,5 @@
 
 pub mod charts;
 pub mod graph;
+pub mod landings;
 pub mod markdown;
