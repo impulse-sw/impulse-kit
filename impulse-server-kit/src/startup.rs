@@ -41,6 +41,25 @@ use crate::setup::{GenericServerState, GenericSetup, ResolvedProtocol};
 #[cfg(feature = "http3")]
 static TLS13: &[&rustls::SupportedProtocolVersion] = &[&rustls::version::TLS13];
 
+/// `Alt-Svc` advertisement lifetime, in seconds (the `ma` parameter).
+///
+/// Deliberately short (10 minutes) rather than the conventional 24h/30d. The
+/// `Alt-Svc` cache is keyed by origin, **not** by the network the client is on:
+/// once a browser successfully negotiates HTTP/3 over Wi-Fi it keeps preferring
+/// QUIC for the whole `ma` window, including after it roams onto a mobile
+/// network. On many cellular paths QUIC is unreliable — carrier tunneling
+/// (GTP/464XLAT/VPN) lowers and varies the path MTU, and UDP is sometimes
+/// throttled — so the connection *establishes* (small handshake datagrams get
+/// through) but bulk transfers stall. A CSR app then renders nothing because its
+/// WASM/JS bundle never finishes downloading, while SSR pages still show (their
+/// HTML is delivered server-side) and TCP/HTTP2 keeps working (MSS clamping /
+/// PMTUD adapt where QUIC's mandatory ≥1200-byte DF datagrams cannot.) A 30-day
+/// `ma` meant a single good Wi-Fi negotiation stranded the user on broken QUIC
+/// for weeks. With a short `ma` the preference expires quickly, so after roaming
+/// the browser re-races and falls back to the working TCP path within minutes.
+#[cfg(feature = "http3")]
+const H3_ALT_SVC_MAX_AGE_SECS: u32 = 600;
+
 #[cfg(feature = "http3")]
 #[handler]
 /// HTTP2-to-HTTP3 switching header.
@@ -56,8 +75,34 @@ pub async fn h3_header(depot: &mut Depot, res: &mut Response) {
 
   res.headers_mut().insert(
     ALT_SVC,
-    HeaderValue::from_str(&format!(r##"h3=":{port}"; ma=2592000"##)).unwrap(),
+    HeaderValue::from_str(&format!(r##"h3=":{port}"; ma={H3_ALT_SVC_MAX_AGE_SECS}"##)).unwrap(),
   );
+}
+
+/// QUIC transport configuration hardened for unreliable / low-MTU mobile paths.
+///
+/// QUIC pins the UDP datagram size to a single value with the Don't-Fragment bit
+/// set, and by default quinn runs Path-MTU discovery (DPLPMTUD) that probes up to
+/// ~1452 bytes. On a stable fibre/Wi-Fi path that just gives a bigger MTU; on a
+/// mobile path it is a liability: cell-to-cell handoffs change the effective MTU
+/// mid-connection, so a previously-probed large MTU suddenly black-holes and the
+/// stream stalls until quinn's black-hole detection recovers — exactly the
+/// intermittent "loads sometimes" behaviour users see on 4G.
+///
+/// We trade a little peak throughput for reliability: pin the datagram size to
+/// the protocol's guaranteed floor (1200 bytes, RFC 9000 §14.1) and turn MTU
+/// discovery off. 1200-byte datagrams traverse every QUIC-capable path,
+/// including after a handoff, so large responses (e.g. a CSR app's WASM bundle)
+/// download to completion instead of hanging. Paths that cannot carry even 1200
+/// bytes cannot run QUIC at all; for those the client falls back to TCP (helped
+/// by the short `Alt-Svc` lifetime above).
+#[cfg(feature = "http3")]
+fn mobile_safe_quic_transport() -> std::sync::Arc<quinn_proto::TransportConfig> {
+  let mut transport = quinn_proto::TransportConfig::default();
+  transport.initial_mtu(1200);
+  transport.min_mtu(1200);
+  transport.mtu_discovery_config(None);
+  std::sync::Arc::new(transport)
 }
 
 /// Build a `RustlsConfig` from cert/key file paths.
@@ -427,9 +472,13 @@ async fn serve_protocols(
     } = proto
     {
       let rustls_config = tlsv13(ssl_crt_path, ssl_key_path)?;
-      let quinn_config = rustls_config
+      let mut quinn_config = rustls_config
         .build_quinn_config()
         .map_err(|e| ServerError::from_private(e).with_500())?;
+      // Harden the QUIC transport for low/variable-MTU mobile paths (see
+      // `mobile_safe_quic_transport`); the default DPLPMTUD probing black-holes
+      // bulk transfers on cellular networks after a cell handoff.
+      quinn_config.transport_config(mobile_safe_quic_transport());
       let acceptor = QuinnListener::new(quinn_config, format!("{host}:{port}")).bind().await;
       tracing::info!("Listening for HTTP/3 (QUIC) on {host}:{port}.");
       let server = Server::new(acceptor);

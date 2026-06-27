@@ -9,7 +9,7 @@ authors = { workspace = true }
 
 [features]
 default = ["http3", "cors", "acme", "oapi", "otel", "telemetry", "force-https", "impulse-ring"]
-http3 = ["salvo/quinn"]
+http3 = ["salvo/quinn", "dep:quinn-proto"]
 # Listen for HTTP over the Ring shared-memory IPC bus instead of (or alongside)
 # TCP/QUIC. See `crate::impulse_ring` and the `impulse-client-ring` crate.
 impulse-ring = ["dep:impulse-ring-connector", "dep:impulse-ring-http", "dep:impulse-client-ring", "dep:http", "dep:http-body-util", "dep:bytes"]
@@ -127,6 +127,7 @@ impulse-ring-http = { workspace = true, optional = true }
 impulse-client-ring = { workspace = true, optional = true, features = ["async"] }
 mime = { optional = true, workspace = true }
 notify = { workspace = true }
+quinn-proto = { workspace = true, optional = true }
 opentelemetry = { optional = true, workspace = true, features = ["metrics"] }
 opentelemetry-otlp = { optional = true, workspace = true, features = ["tonic", "trace", "http-proto", "grpc-tonic", "reqwest-blocking-client", "reqwest-rustls"] }
 opentelemetry_sdk = { optional = true, workspace = true, features = ["rt-tokio"] }
