@@ -43,7 +43,7 @@ static TLS13: &[&rustls::SupportedProtocolVersion] = &[&rustls::version::TLS13];
 
 /// `Alt-Svc` advertisement lifetime, in seconds (the `ma` parameter).
 ///
-/// Deliberately short (10 minutes) rather than the conventional 24h/30d. The
+/// Deliberately tiny (60 seconds) rather than the conventional 24h/30d. The
 /// `Alt-Svc` cache is keyed by origin, **not** by the network the client is on:
 /// once a browser successfully negotiates HTTP/3 over Wi-Fi it keeps preferring
 /// QUIC for the whole `ma` window, including after it roams onto a mobile
@@ -55,10 +55,18 @@ static TLS13: &[&rustls::SupportedProtocolVersion] = &[&rustls::version::TLS13];
 /// HTML is delivered server-side) and TCP/HTTP2 keeps working (MSS clamping /
 /// PMTUD adapt where QUIC's mandatory ≥1200-byte DF datagrams cannot.) A 30-day
 /// `ma` meant a single good Wi-Fi negotiation stranded the user on broken QUIC
-/// for weeks. With a short `ma` the preference expires quickly, so after roaming
-/// the browser re-races and falls back to the working TCP path within minutes.
+/// for weeks.
+///
+/// `ma` is not the user-visible breakage window: per-attempt recovery is the
+/// browser's broken-QUIC detection (seconds, on request timeout → TCP), and the
+/// header is re-stamped on *every* response (it is a router hoop, so it rides
+/// QUIC responses too), so active sessions keep QUIC sticky regardless of `ma`.
+/// `ma` only bounds how long an *idle* client keeps remembering h3 — so a tiny
+/// value just makes a roamed/idle client forget the dead QUIC path almost
+/// immediately and re-race onto the working TCP path, at the negligible cost of
+/// the occasional first request after a long pause going over TCP.
 #[cfg(feature = "http3")]
-const H3_ALT_SVC_MAX_AGE_SECS: u32 = 600;
+const H3_ALT_SVC_MAX_AGE_SECS: u32 = 60;
 
 #[cfg(feature = "http3")]
 #[handler]
