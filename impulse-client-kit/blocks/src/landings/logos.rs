@@ -64,29 +64,31 @@ pub fn LogoCloud(
         {title
           .filter(|s| !s.is_empty())
           .map(|t| {
-            view! {
-              <p class="text-center text-sm text-muted-foreground">{t}</p>
-            }
+            view! { <p class="text-center text-sm text-muted-foreground">{t}</p> }
           })}
         <div class="mt-8 flex flex-wrap items-center justify-center gap-x-10 gap-y-6">
           {logos
             .into_iter()
             .map(|logo| {
               match logo.src {
-                Some(src) => view! {
-                  <img
-                    src=src
-                    alt=logo.name
-                    class="h-7 w-auto opacity-60 transition-opacity hover:opacity-100"
-                  />
+                Some(src) => {
+                  view! {
+                    <img
+                      src=src
+                      alt=logo.name
+                      class="h-7 w-auto opacity-60 transition-opacity hover:opacity-100"
+                    />
+                  }
+                    .into_any()
                 }
-                .into_any(),
-                None => view! {
-                  <span class="text-lg font-semibold tracking-tight text-muted-foreground/70 transition-colors hover:text-foreground">
-                    {logo.name}
-                  </span>
+                None => {
+                  view! {
+                    <span class="text-lg font-semibold tracking-tight text-muted-foreground/70 transition-colors hover:text-foreground">
+                      {logo.name}
+                    </span>
+                  }
+                    .into_any()
                 }
-                .into_any(),
               }
             })
             .collect_view()}

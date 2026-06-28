@@ -62,7 +62,9 @@ pub fn StatStrip(
             view! {
               <div class="flex flex-col items-center gap-1">
                 <span class=number_class>{s.number}</span>
-                <span class="text-xs md:text-sm text-muted-foreground max-w-[16rem]">{s.label}</span>
+                <span class="text-xs md:text-sm text-muted-foreground max-w-[16rem]">
+                  {s.label}
+                </span>
               </div>
             }
           })

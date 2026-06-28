@@ -81,7 +81,9 @@ pub fn PillRow(
                   <span class="font-medium">{p.name}</span>
                   {p
                     .note
-                    .map(|n| view! { <span class="hidden text-muted-foreground sm:inline">{n}</span> })}
+                    .map(|n| {
+                      view! { <span class="hidden text-muted-foreground sm:inline">{n}</span> }
+                    })}
                 </span>
               }
             })

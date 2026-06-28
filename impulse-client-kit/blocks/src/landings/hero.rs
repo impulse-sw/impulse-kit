@@ -84,9 +84,11 @@ pub fn Hero(
       </span>
     }
   });
-  let subtitle = subtitle
-    .filter(|s| !s.is_empty())
-    .map(|s| view! { <p class="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl text-pretty">{s}</p> });
+  let subtitle = subtitle.filter(|s| !s.is_empty()).map(|s| {
+    view! {
+      <p class="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl text-pretty">{s}</p>
+    }
+  });
   let note = note
     .filter(|s| !s.is_empty())
     .map(|n| view! { <p class="text-xs text-muted-foreground/80">{n}</p> });
@@ -97,9 +99,13 @@ pub fn Hero(
           .into_iter()
           .map(|a| {
             let variant = if a.primary { ButtonVariant::Default } else { ButtonVariant::Outline };
-            // The primary call-to-action carries a trailing arrow, as on both
-            // source landings.
-            let arrow = a.primary.then(|| view! { <ArrowRight class="h-4 w-4" /> });
+            let arrow = a
+              .primary
+              .then(|| {
+                // The primary call-to-action carries a trailing arrow, as on both
+                // source landings.
+                view! { <ArrowRight class="h-4 w-4" /> }
+              });
             view! {
               <a href=a.href>
                 <Button size=ButtonSize::Lg variant=variant class="gap-2">
@@ -120,13 +126,8 @@ pub fn Hero(
         <div class="flex flex-col items-center text-center gap-6">
           {eyebrow}
           <h1 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight max-w-4xl text-balance">
-            {title}
-            {highlight}
-            {title_suffix}
-          </h1>
-          {subtitle}
-          {actions}
-          {note}
+            {title} {highlight} {title_suffix}
+          </h1> {subtitle} {actions} {note}
         </div>
       </div>
     </section>

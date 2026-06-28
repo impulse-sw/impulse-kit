@@ -89,7 +89,9 @@ pub fn ChecklistSection(
                   </span>
                   <div class="space-y-1">
                     <div class="font-semibold">{rich(&item.title)}</div>
-                    <div class="text-sm text-muted-foreground leading-relaxed">{rich(&item.body)}</div>
+                    <div class="text-sm text-muted-foreground leading-relaxed">
+                      {rich(&item.body)}
+                    </div>
                   </div>
                 </li>
               }

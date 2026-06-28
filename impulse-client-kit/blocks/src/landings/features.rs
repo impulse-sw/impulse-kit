@@ -93,8 +93,7 @@ pub fn FeatureGrid(
                             {icon}
                           </span>
                         }
-                      })}
-                    <CardTitle class="mt-3 text-base">{rich(&f.title)}</CardTitle>
+                      })} <CardTitle class="mt-3 text-base">{rich(&f.title)}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <CardDescription class="text-sm leading-relaxed">

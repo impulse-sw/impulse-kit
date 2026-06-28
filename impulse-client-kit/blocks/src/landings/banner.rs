@@ -45,12 +45,14 @@ pub fn AnnouncementBanner(
                 {t}
               </span>
             }
-          })}
-        <span class="text-muted-foreground">{text}</span>
+          })} <span class="text-muted-foreground">{text}</span>
         {link
           .map(|l| {
             view! {
-              <a href=l.href class="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+              <a
+                href=l.href
+                class="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+              >
                 {l.label}
                 <ArrowRight class="h-3.5 w-3.5" />
               </a>

@@ -111,9 +111,7 @@ fn TestimonialCard(data: Testimonial) -> impl IntoView {
     .map(|c| c.to_uppercase().to_string())
     .unwrap_or_default();
   let avatar = match data.avatar_src {
-    Some(src) => view! {
-      <img src=src alt=data.author.clone() class="h-9 w-9 rounded-full object-cover" />
-    }
+    Some(src) => view! { <img src=src alt=data.author.clone() class="h-9 w-9 rounded-full object-cover" /> }
     .into_any(),
     None => view! {
       <span class="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
@@ -131,8 +129,7 @@ fn TestimonialCard(data: Testimonial) -> impl IntoView {
           <span class="text-primary">"”"</span>
         </p>
         <div class="mt-auto flex items-center gap-3">
-          {avatar}
-          <div class="leading-tight">
+          {avatar} <div class="leading-tight">
             <div class="text-sm font-medium">{data.author}</div>
             {data.role.map(|r| view! { <div class="text-xs text-muted-foreground">{r}</div> })}
           </div>

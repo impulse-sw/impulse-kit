@@ -74,10 +74,10 @@ pub fn Faq(
               .into_iter()
               .enumerate()
               .map(|(i, item)| {
+                let answer = StoredValue::new(item.answer);
                 // `AccordionContent` takes a `ChildrenFn` (called more than once),
                 // so the answer is stashed in a `Copy` `StoredValue` to keep the
                 // closure `Fn`.
-                let answer = StoredValue::new(item.answer);
                 view! {
                   <AccordionItem value=format!("faq-{i}")>
                     <AccordionTrigger class="text-left text-base font-medium">

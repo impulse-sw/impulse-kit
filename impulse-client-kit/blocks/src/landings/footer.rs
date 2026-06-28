@@ -107,10 +107,7 @@ pub fn Footer(
     <footer class="border-t border-border/60 bg-background">
       <div class="mx-auto max-w-6xl px-4 lg:px-6 py-10 grid gap-6 md:grid-cols-3 lg:grid-cols-4 text-sm">
         <div class="space-y-2 md:col-span-1 lg:col-span-1">
-          <div class="flex items-center gap-2">
-            {logo}
-            <span class="font-bold">{brand}</span>
-          </div>
+          <div class="flex items-center gap-2">{logo} <span class="font-bold">{brand}</span></div>
           {tagline}
         </div>
         {columns_view}

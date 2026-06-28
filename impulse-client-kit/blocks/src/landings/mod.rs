@@ -235,11 +235,12 @@ pub fn SectionHeading(
   let subtitle = subtitle.filter(|s| !s.is_empty());
   let eyebrow = eyebrow.filter(|s| !s.is_empty());
   view! {
-    <div class=cn(&[wrap, class.as_str()])>
+    <div class=cn(
+      &[wrap, class.as_str()],
+    )>
       {eyebrow.map(|e| view! { <p class="text-sm font-medium text-primary">{e}</p> })}
       <h2 class="mt-2 text-3xl md:text-4xl font-bold tracking-tight text-balance">{title}</h2>
-      {subtitle
-        .map(|s| view! { <p class="mt-4 text-muted-foreground text-pretty">{s}</p> })}
+      {subtitle.map(|s| view! { <p class="mt-4 text-muted-foreground text-pretty">{s}</p> })}
     </div>
   }
 }
