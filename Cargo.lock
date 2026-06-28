@@ -653,9 +653,9 @@ checksum = "8ae3f5d315924270530207e2a68396c3cc547f6dca3fbdca317cfb1a51edb593"
 
 [[package]]
 name = "camino"
-version = "1.2.3"
+version = "1.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4ce8d3bd5823c7504d3f579f13e7b2f3da252fcb938c594d5680ee508bf846f"
+checksum = "5f2d30e4173c4026932d51d31d6b0613b1fd3014bf3f9f8943d4ba139c437ba0"
 
 [[package]]
 name = "castaway"
@@ -877,7 +877,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "client-kit-showcase"
-version = "1.4.3"
+version = "1.4.4"
 dependencies = [
  "chrono",
  "codee",
@@ -2230,9 +2230,9 @@ checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
 name = "hybrid-array"
-version = "0.4.12"
+version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9155a582abd142abc056962c29e3ce5ff2ad5469f4246b537ed42c5deba857da"
+checksum = "818356c5132c1fede50f837ca96afbe78ff42413047f4abb886217845e1b6c8c"
 dependencies = [
  "typenum",
 ]
@@ -2488,7 +2488,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit"
-version = "1.4.3"
+version = "1.4.4"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -2506,7 +2506,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-blocks"
-version = "1.4.3"
+version = "1.4.4"
 dependencies = [
  "gloo-net",
  "impulse-client-kit",
@@ -2520,7 +2520,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-components"
-version = "1.4.3"
+version = "1.4.4"
 dependencies = [
  "chrono",
  "codee",
@@ -2535,7 +2535,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-ring"
-version = "1.4.3"
+version = "1.4.4"
 dependencies = [
  "bytes",
  "clap",
@@ -2555,7 +2555,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-error-pages"
-version = "1.4.3"
+version = "1.4.4"
 dependencies = [
  "icondata",
  "impulse-client-kit",
@@ -2604,7 +2604,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-server-kit"
-version = "1.4.3"
+version = "1.4.4"
 dependencies = [
  "any_spawner",
  "axum",
@@ -2655,7 +2655,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-skdsl"
-version = "1.4.3"
+version = "1.4.4"
 dependencies = [
  "clap",
  "impulse-server-kit",
@@ -2671,7 +2671,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-static-server"
-version = "1.4.3"
+version = "1.4.4"
 dependencies = [
  "impulse-server-kit",
  "serde",
@@ -2680,11 +2680,11 @@ dependencies = [
 
 [[package]]
 name = "impulse-tailwind-sources"
-version = "1.4.3"
+version = "1.4.4"
 
 [[package]]
 name = "impulse-utils"
-version = "1.4.3"
+version = "1.4.4"
 dependencies = [
  "anyhow",
  "http",
@@ -5777,7 +5777,7 @@ dependencies = [
 
 [[package]]
 name = "ssr-showcase"
-version = "1.4.3"
+version = "1.4.4"
 dependencies = [
  "console_error_panic_hook",
  "impulse-client-kit",
@@ -5911,9 +5911,9 @@ dependencies = [
 
 [[package]]
 name = "tachys"
-version = "0.2.17"
+version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d554eae4a01fc17427ad87ae25867633517f1e80594b63b63cfdd23db8cb2273"
+checksum = "a92ba81187437cc5df4281f2326a2e13cc81e8f96448292d1112388e2025ca66"
 dependencies = [
  "any_spawner",
  "async-trait",
@@ -6755,9 +6755,9 @@ dependencies = [
 
 [[package]]
 name = "wasm_split_helpers"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69a727977b2d2e2193e8f85f59069d791d9ce091a4217b8c3d6a6f17f1554498"
+checksum = "ab578aae2fe2916edaea06843187d50f87b0965622da0ceef648edca27b385ba"
 dependencies = [
  "async-once-cell",
  "wasm_split_macros",
