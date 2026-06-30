@@ -65,10 +65,31 @@ pub fn subscribe_by_name(conn: &Connection, name: &str, key: Option<&str>) -> io
   }
 }
 
+/// A re-handshake hook: re-negotiates the session against the (reconnected)
+/// broker and returns a fresh inbound [`Subscriber`]. Used to transparently
+/// resume an SSE stream after an `impulsed` restart, where the old down-channel
+/// is gone for good.
+pub(crate) type ReopenFn = Box<dyn Fn() -> io::Result<Subscriber> + Send>;
+
 /// Drain a [`Subscriber`] of [`RingStreamFrame`]s on a dedicated thread, forwarding
 /// `DATA`/`STREAM_DATA` payloads to `tx` and stopping on `CLOSE`/error/`tx` drop.
-fn spawn_inbound_pump(subscriber: Subscriber, tx: mpsc::Sender<io::Result<Bytes>>) {
+///
+/// The underlying broker can restart underneath a long-lived stream: `impulsed`
+/// recreates its shared memory with a new epoch, the connector reconnects, but the
+/// session's down-channel arena is gone — so the subscriber falls permanently
+/// silent. We detect that by watching [`Connection::broker_epoch`]: when it
+/// changes, either re-handshake via `reopen` (SSE) and keep delivering, or — when
+/// the session cannot be resumed transparently (WebSocket) — surface a broken-pipe
+/// error so the consumer stops hanging and can re-open the session itself.
+fn spawn_inbound_pump(
+  conn: Arc<Connection>,
+  subscriber: Subscriber,
+  tx: mpsc::Sender<io::Result<Bytes>>,
+  reopen: Option<ReopenFn>,
+) {
   std::thread::spawn(move || {
+    let mut subscriber = subscriber;
+    let mut epoch = conn.broker_epoch();
     loop {
       match subscriber.recv::<RingStreamFrame>(RECV_TICK) {
         Ok(Some(frame)) => match frame.opcode {
@@ -80,10 +101,34 @@ fn spawn_inbound_pump(subscriber: Subscriber, tx: mpsc::Sender<io::Result<Bytes>
           opcode::CLOSE | opcode::STREAM_CLOSE => break,
           _ => {}
         },
-        // Timeout: nothing arrived this tick. Stop if the consumer went away.
+        // Timeout: nothing arrived this tick. Stop if the consumer went away,
+        // otherwise check whether the broker restarted underneath us.
         Ok(None) => {
           if tx.is_closed() {
             break;
+          }
+          let current = conn.broker_epoch();
+          if current != epoch {
+            match &reopen {
+              // SSE: re-run the handshake against the fresh broker and resume. If
+              // the server has not re-exposed itself yet, keep the old epoch so we
+              // retry on the next tick.
+              Some(reopen) => {
+                if let Ok(fresh) = reopen() {
+                  subscriber = fresh;
+                  epoch = current;
+                }
+              }
+              // WebSocket / raw duplex: a live codec cannot be resumed mid-stream,
+              // so report the disconnect instead of blocking forever.
+              None => {
+                let _ = tx.blocking_send(Err(io::Error::new(
+                  io::ErrorKind::BrokenPipe,
+                  "ring stream ended: impulsed restarted (re-open the session)",
+                )));
+                break;
+              }
+            }
           }
         }
         Err(e) => {
@@ -119,7 +164,7 @@ impl RingDuplex {
   /// an async byte stream. `conn` is retained so the bus outlives the channels.
   pub fn new(conn: Arc<Connection>, publisher: Publisher, subscriber: Subscriber) -> Self {
     let (in_tx, in_rx) = mpsc::channel::<io::Result<Bytes>>(16);
-    spawn_inbound_pump(subscriber, in_tx);
+    spawn_inbound_pump(conn.clone(), subscriber, in_tx, None);
 
     let (out_tx, mut out_rx) = mpsc::unbounded_channel::<Vec<u8>>();
     std::thread::spawn(move || {
@@ -386,7 +431,14 @@ impl RingWebTransport {
     let (incoming_tx, incoming_rx) = mpsc::channel::<RingWtStream>(16);
     let registry: StreamRegistry = Arc::new(Mutex::new(HashMap::new()));
 
-    spawn_wt_demux(subscriber, dgram_tx, incoming_tx, registry.clone(), out_tx.clone());
+    spawn_wt_demux(
+      conn.clone(),
+      subscriber,
+      dgram_tx,
+      incoming_tx,
+      registry.clone(),
+      out_tx.clone(),
+    );
 
     RingWebTransport {
       _conn: conn,
@@ -439,6 +491,7 @@ impl RingWebTransport {
 /// Demultiplex an inbound WebTransport channel into datagrams, accepted streams
 /// and per-stream data.
 fn spawn_wt_demux(
+  conn: Arc<Connection>,
   subscriber: Subscriber,
   dgram_tx: mpsc::Sender<Bytes>,
   incoming_tx: mpsc::Sender<RingWtStream>,
@@ -446,6 +499,7 @@ fn spawn_wt_demux(
   out: mpsc::UnboundedSender<RingStreamFrame>,
 ) {
   std::thread::spawn(move || {
+    let epoch = conn.broker_epoch();
     loop {
       match subscriber.recv::<RingStreamFrame>(RECV_TICK) {
         Ok(Some(frame)) => match frame.opcode {
@@ -484,6 +538,13 @@ fn spawn_wt_demux(
           if dgram_tx.is_closed() && incoming_tx.is_closed() {
             break;
           }
+          // A changed broker epoch means `impulsed` restarted; the session's
+          // channel pair is gone and a live WebTransport session cannot be
+          // resumed mid-flight. End the session (datagram/stream receivers see
+          // EOF) so the caller can open a fresh one.
+          if conn.broker_epoch() != epoch {
+            break;
+          }
         }
         Err(_) => break,
       }
@@ -504,9 +565,25 @@ pub struct RingEventStream {
 impl RingEventStream {
   /// Wrap a down-channel `subscriber` as a byte stream. `conn` is retained so the
   /// bus outlives the channel.
+  ///
+  /// The stream does not auto-resume across an `impulsed` restart; use
+  /// [`RingEventStream::with_reopen`] for that.
   pub fn new(conn: Arc<Connection>, subscriber: Subscriber) -> Self {
     let (tx, rx) = mpsc::channel::<io::Result<Bytes>>(16);
-    spawn_inbound_pump(subscriber, tx);
+    spawn_inbound_pump(conn.clone(), subscriber, tx, None);
+    RingEventStream {
+      _conn: conn,
+      inbound: rx,
+    }
+  }
+
+  /// Like [`RingEventStream::new`], but transparently re-establishes the stream
+  /// after a broker restart: when `impulsed` is restarted, `reopen` is invoked to
+  /// re-run the SSE handshake against the fresh broker and the stream keeps
+  /// delivering events without the caller noticing.
+  pub(crate) fn with_reopen(conn: Arc<Connection>, subscriber: Subscriber, reopen: ReopenFn) -> Self {
+    let (tx, rx) = mpsc::channel::<io::Result<Bytes>>(16);
+    spawn_inbound_pump(conn.clone(), subscriber, tx, Some(reopen));
     RingEventStream {
       _conn: conn,
       inbound: rx,

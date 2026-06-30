@@ -34,10 +34,11 @@
 //! does **not** need to be rebuilt — a request issued after the restart is
 //! retried once against the fresh broker. This is on by default; toggle it with
 //! [`ImpulseRingClient::with_auto_reconnect`]. Recovery covers the unary
-//! request/response path; an already-open streaming session
-//! ([`sse`](ImpulseRingClient::sse) / [`websocket`](ImpulseRingClient::websocket)
-//! / [`webtransport`](ImpulseRingClient::webtransport)) must be re-opened after a
-//! restart.
+//! request/response path and an open [`sse`](ImpulseRingClient::sse) stream, which
+//! is transparently re-handshaked against the fresh broker. An already-open
+//! [`websocket`](ImpulseRingClient::websocket) /
+//! [`webtransport`](ImpulseRingClient::webtransport) session cannot be resumed
+//! mid-flight — it reports a disconnect after the restart and must be re-opened.
 
 #![deny(warnings, clippy::todo, clippy::unimplemented)]
 
@@ -149,10 +150,12 @@ impl ImpulseRingClient {
   ///
   /// With it on, a request issued after the broker has restarted re-establishes
   /// the connection (re-registering on the new broker) and is retried once, so a
-  /// client survives a broker restart without being rebuilt. Note this covers the
-  /// unary request/response path (`send` / `send_blocking`); an already-open
-  /// streaming session (SSE / WebSocket / WebTransport) does not survive a broker
-  /// restart and must be re-opened.
+  /// client survives a broker restart without being rebuilt. This covers the
+  /// unary request/response path (`send` / `send_blocking`) and an open
+  /// [`sse`](ImpulseRingClient::sse) stream, which is transparently re-handshaked
+  /// against the fresh broker. An open [`websocket`](ImpulseRingClient::websocket)
+  /// or [`webtransport`](ImpulseRingClient::webtransport) session cannot be resumed
+  /// mid-flight: it ends with a disconnect after the restart and must be re-opened.
   ///
   /// The setting is shared by every clone of this client (and any client built
   /// from the same [`Connection`] via [`ImpulseRingClient::with_connection`]).
@@ -313,8 +316,32 @@ impl ImpulseRingClient {
   }
 
   /// Blocking variant of [`ImpulseRingClient::sse`].
+  ///
+  /// The returned stream survives an `impulsed` restart: if the broker is
+  /// restarted while the stream is open, the handshake is transparently re-run
+  /// against the fresh broker (the server re-streams from the start) so events
+  /// keep flowing without the caller rebuilding anything.
   #[cfg(feature = "async")]
   pub fn open_sse_blocking(&self, uri: &str) -> io::Result<streaming::RingEventStream> {
+    let subscriber = self.sse_handshake(uri)?;
+    // Re-run the same handshake on a broker restart; the connector has already
+    // reconnected the bus, so this resolves the server's freshly re-exposed
+    // function and subscribes to its new down-channel.
+    let client = self.clone();
+    let uri = uri.to_string();
+    let reopen: streaming::ReopenFn = Box::new(move || client.sse_handshake(&uri));
+    Ok(streaming::RingEventStream::with_reopen(
+      self.conn.clone(),
+      subscriber,
+      reopen,
+    ))
+  }
+
+  /// Perform the SSE upgrade handshake and return the subscriber bound to the
+  /// server's down-channel. Shared by the initial open and the post-restart
+  /// re-open.
+  #[cfg(feature = "async")]
+  fn sse_handshake(&self, uri: &str) -> io::Result<Subscriber> {
     use impulse_ring_http::{HEADER_CHAN_DOWN, HEADER_UPGRADE, RingUpgradeKind};
 
     let req = RingHttpRequest {
@@ -333,8 +360,7 @@ impl ImpulseRingClient {
     }
     let down = header_value(&resp.headers, HEADER_CHAN_DOWN)
       .ok_or_else(|| io::Error::other("SSE upgrade is missing the down-channel header"))?;
-    let subscriber = streaming::subscribe_by_name(&self.conn, down, self.key.as_deref())?;
-    Ok(streaming::RingEventStream::new(self.conn.clone(), subscriber))
+    streaming::subscribe_by_name(&self.conn, down, self.key.as_deref())
   }
 
   /// Open a WebSocket virtual connection against `uri`.
