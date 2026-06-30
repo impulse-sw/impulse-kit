@@ -26,6 +26,18 @@
 //! [`RingHttpResponse`](impulse_ring_http::RingHttpResponse). The wire schemas
 //! are shared with the server through the [`impulse_ring_http`] crate, so the
 //! broker's fingerprint check guarantees both ends agree.
+//!
+//! ## Surviving a broker restart
+//!
+//! If the `impulsed` broker restarts, the underlying bus connection detects it
+//! and transparently reconnects (re-registering on the new broker), so a client
+//! does **not** need to be rebuilt — a request issued after the restart is
+//! retried once against the fresh broker. This is on by default; toggle it with
+//! [`ImpulseRingClient::with_auto_reconnect`]. Recovery covers the unary
+//! request/response path; an already-open streaming session
+//! ([`sse`](ImpulseRingClient::sse) / [`websocket`](ImpulseRingClient::websocket)
+//! / [`webtransport`](ImpulseRingClient::webtransport)) must be re-opened after a
+//! restart.
 
 #![deny(warnings, clippy::todo, clippy::unimplemented)]
 
@@ -129,6 +141,30 @@ impl ImpulseRingClient {
   pub fn with_timeout(mut self, timeout: Duration) -> Self {
     self.timeout = timeout;
     self
+  }
+
+  /// Enable or disable transparent reconnection when the `impulsed` broker
+  /// restarts (default: **enabled**, inherited from the underlying bus
+  /// connection).
+  ///
+  /// With it on, a request issued after the broker has restarted re-establishes
+  /// the connection (re-registering on the new broker) and is retried once, so a
+  /// client survives a broker restart without being rebuilt. Note this covers the
+  /// unary request/response path (`send` / `send_blocking`); an already-open
+  /// streaming session (SSE / WebSocket / WebTransport) does not survive a broker
+  /// restart and must be re-opened.
+  ///
+  /// The setting is shared by every clone of this client (and any client built
+  /// from the same [`Connection`] via [`ImpulseRingClient::with_connection`]).
+  #[must_use]
+  pub fn with_auto_reconnect(self, on: bool) -> Self {
+    self.conn.set_auto_reconnect(on);
+    self
+  }
+
+  /// Whether transparent reconnection on a broker restart is enabled.
+  pub fn auto_reconnect(&self) -> bool {
+    self.conn.auto_reconnect()
   }
 
   /// The target application name.
