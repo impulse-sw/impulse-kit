@@ -29,6 +29,13 @@ A comprehensive component library for building modern web applications with [Lep
   - [Scroll Area](#scroll-area)
   - [Aspect Ratio](#aspect-ratio)
   - [Resizable](#resizable)
+- [Layout Containers](#layout-containers)
+  - [Flex / Row / Column](#flex--row--column)
+  - [Grid](#grid)
+  - [Container](#container)
+  - [FullScreen](#fullscreen)
+  - [Center](#center)
+  - [Spacer](#spacer)
 - [Navigation Components](#navigation-components)
   - [Breadcrumb](#breadcrumb)
   - [Button Group](#button-group)
@@ -1165,6 +1172,263 @@ use components::resizable::*;
 <ResizablePanelGroup direction=ResizableDirection::Vertical>
     // ... panels
 </ResizablePanelGroup>
+```
+
+---
+
+## Layout Containers
+
+Structural primitives for arranging content. They wrap Tailwind's flexbox and
+grid utilities behind type-safe props, while the shared `Gap`, `Align`, and
+`Justify` enums keep spacing and alignment consistent across components. Every
+container also accepts a `class` prop that is merged after the defaults, so you
+can override or extend the styling (including responsive variants) at any call
+site.
+
+### Flex / Row / Column
+
+Flexbox containers. `Row` lays children out horizontally, `Column` vertically,
+and `Flex` exposes the direction directly (including the reversed variants).
+
+#### Import
+
+```rust
+use components::layout::flex::{Flex, Row, Column, FlexDirection};
+// or via the module re-exports:
+use components::layout::{Flex, Row, Column, FlexDirection};
+use components::layout::{Gap, Align, Justify};
+```
+
+#### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `direction` | `FlexDirection` | `Row` | Main-axis direction (`Flex` only) |
+| `gap` | `Gap` | `Md` | Spacing between children (`None`/`Xs`/`Sm`/`Md`/`Lg`/`Xl`/`Xxl`) |
+| `align` | `Align` | `Stretch` | Cross-axis alignment (`Start`/`Center`/`End`/`Stretch`/`Baseline`) |
+| `justify` | `Justify` | `Start` | Main-axis distribution (`Start`/`Center`/`End`/`Between`/`Around`/`Evenly`) |
+| `wrap` | `bool` | `false` | Allow children to wrap onto multiple lines |
+| `class` | `String` | `""` | Additional CSS classes |
+
+#### Examples
+
+```rust
+// A toolbar: items centered vertically, pushed to the edges
+<Row align=Align::Center justify=Justify::Between class="p-4">
+    <span class="font-semibold">"Title"</span>
+    <Button>"Action"</Button>
+</Row>
+
+// A vertical stack with large spacing
+<Column gap=Gap::Lg>
+    <Card>"First"</Card>
+    <Card>"Second"</Card>
+</Column>
+
+// Wrapping tag list
+<Row gap=Gap::Sm wrap=true>
+    <Badge>"rust"</Badge>
+    <Badge>"leptos"</Badge>
+    <Badge>"tailwind"</Badge>
+</Row>
+
+// Reversed direction via Flex
+<Flex direction=FlexDirection::ColumnReverse gap=Gap::Md>
+    // ...
+</Flex>
+```
+
+---
+
+### Grid
+
+A CSS grid with a fixed number of equal-width columns. Use `GridItem` for
+children that should span more than one column. For responsive column counts,
+leave `cols` at its default and pass variants such as
+`"sm:grid-cols-2 lg:grid-cols-4"` through `class`.
+
+#### Import
+
+```rust
+use components::layout::grid::{Grid, GridItem, GridCols, GridSpan};
+// or:
+use components::layout::{Grid, GridItem, GridCols, GridSpan, Gap};
+```
+
+#### Props (Grid)
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `cols` | `GridCols` | `Two` | Column count (`One` … `Twelve`) |
+| `gap` | `Gap` | `Md` | Spacing between cells |
+| `class` | `String` | `""` | Additional CSS classes |
+
+#### Props (GridItem)
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `span` | `GridSpan` | `One` | Columns to span (`One` … `Twelve`, or `Full`) |
+| `class` | `String` | `""` | Additional CSS classes |
+
+#### Examples
+
+```rust
+// Three equal columns
+<Grid cols=GridCols::Three gap=Gap::Lg>
+    <Card>"A"</Card>
+    <Card>"B"</Card>
+    <Card>"C"</Card>
+</Grid>
+
+// A 12-column layout with spanning items
+<Grid cols=GridCols::Twelve gap=Gap::Md>
+    <GridItem span=GridSpan::Eight>
+        <Card>"Main content"</Card>
+    </GridItem>
+    <GridItem span=GridSpan::Four>
+        <Card>"Sidebar"</Card>
+    </GridItem>
+</Grid>
+
+// Responsive columns via class override
+<Grid class="grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" gap=Gap::Md>
+    // ...
+</Grid>
+```
+
+---
+
+### Container
+
+A horizontally centered, width-constrained wrapper with responsive horizontal
+padding. Ideal for page-level content.
+
+#### Import
+
+```rust
+use components::layout::container::{Container, ContainerSize};
+// or:
+use components::layout::{Container, ContainerSize};
+```
+
+#### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `size` | `ContainerSize` | `Xl` | Max width (`Sm`/`Md`/`Lg`/`Xl`/`Full`) |
+| `class` | `String` | `""` | Additional CSS classes |
+
+#### Examples
+
+```rust
+<Container>
+    <h1 class="text-2xl font-bold">"Page Title"</h1>
+    // ...
+</Container>
+
+// Narrower reading width
+<Container size=ContainerSize::Md>
+    <article>// ...</article>
+</Container>
+```
+
+---
+
+### FullScreen
+
+A section that fills at least the full height of the viewport. Set `center` to
+center its children on both axes — handy for splash screens, loaders, and empty
+states.
+
+#### Import
+
+```rust
+use components::layout::fullscreen::FullScreen;
+// or:
+use components::layout::FullScreen;
+```
+
+#### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `center` | `bool` | `false` | Center children horizontally and vertically |
+| `class` | `String` | `""` | Additional CSS classes |
+
+#### Examples
+
+```rust
+// Centered loading screen
+<FullScreen center=true class="bg-background">
+    <Spinner />
+</FullScreen>
+
+// Full-height landing section
+<FullScreen class="bg-muted">
+    <Container>// ...</Container>
+</FullScreen>
+```
+
+---
+
+### Center
+
+Centers its children on both axes. Set `inline` to use `inline-flex` instead of
+`flex`, so the container only takes up as much width as its content.
+
+#### Import
+
+```rust
+use components::layout::center::Center;
+// or:
+use components::layout::Center;
+```
+
+#### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `inline` | `bool` | `false` | Use `inline-flex` instead of `flex` |
+| `class` | `String` | `""` | Additional CSS classes |
+
+#### Examples
+
+```rust
+<Center class="h-40 rounded-md border">
+    <span class="text-muted-foreground">"Centered content"</span>
+</Center>
+```
+
+---
+
+### Spacer
+
+A flexible spacer that grows to fill the free space along a `Row` or `Column`'s
+main axis, pushing siblings apart.
+
+#### Import
+
+```rust
+use components::layout::spacer::Spacer;
+// or:
+use components::layout::Spacer;
+```
+
+#### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `class` | `String` | `""` | Additional CSS classes |
+
+#### Examples
+
+```rust
+// Push the last item to the far end of the row
+<Row align=Align::Center>
+    <span>"Logo"</span>
+    <Spacer />
+    <Button>"Sign in"</Button>
+</Row>
 ```
 
 ---
