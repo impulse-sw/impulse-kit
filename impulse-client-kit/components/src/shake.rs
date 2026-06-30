@@ -125,18 +125,28 @@ impl<T: PartialEq + Clone + Send + Sync + 'static> ShakeTrigger for Option<T> {
 /// Declarative wrapper. Replays the shake whenever `signal` changes to an
 /// active value (see [`ShakeTrigger`]). Respects `prefers-reduced-motion` via
 /// the injected styles.
+///
+/// The component is generic over the *signal source* `T` (e.g. an `RwSignal`,
+/// `ReadSignal`, `Memo` or `Signal`) rather than the value it yields. This
+/// lets the value type be deduced from `T`'s associated `Get::Value`, so a call
+/// like `<Shake signal=error>` infers without a turbofish. Taking `Signal<S>` with
+/// `#[prop(into)]` instead would be ambiguous: `RwSignal<String>` converts into
+/// both `Signal<String>` and `Signal<RwSignal<String>>`, and the `ShakeTrigger`
+/// bound is not consulted to disambiguate the `into`, which surfaces as `E0283`.
 #[component]
-pub fn Shake<S>(
-  /// The reactive trigger. The shake replays on each change to an active value.
-  #[prop(into)]
-  signal: Signal<S>,
+pub fn Shake<T>(
+  /// The reactive trigger (any readable signal). The shake replays on each change
+  /// to an active value.
+  signal: T,
   /// Extra classes for the wrapper element.
   #[prop(into, optional)]
   class: String,
   children: Children,
 ) -> impl IntoView
 where
-  S: ShakeTrigger,
+  T: Get + Copy + Send + Sync + 'static,
+  T: GetUntracked<Value = <T as Get>::Value>,
+  <T as Get>::Value: ShakeTrigger,
 {
   let ShakeHandle { node_ref, shake } = use_shake();
   let prev = RwSignal::new(signal.get_untracked());
