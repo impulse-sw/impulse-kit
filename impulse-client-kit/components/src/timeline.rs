@@ -240,11 +240,22 @@ pub fn Timeline(
     <div
       id="timeline-container"
       data-slot="timeline"
-      class=cn(&["flex h-full w-full p-4", if is_vertical { "flex-col" } else { "flex-row" }, class.as_str()])
+      class=cn(
+        &[
+          "flex h-full w-full p-4",
+          if is_vertical { "flex-col" } else { "flex-row" },
+          class.as_str(),
+        ],
+      )
       role="list"
       aria-label="Timeline"
     >
-      <ul node_ref=list_ref id="timeline-grid" class=cn(&["grid relative", layout_class]) style=grid_style>
+      <ul
+        node_ref=list_ref
+        id="timeline-grid"
+        class=cn(&["grid relative", layout_class])
+        style=grid_style
+      >
         {items}
       </ul>
     </div>

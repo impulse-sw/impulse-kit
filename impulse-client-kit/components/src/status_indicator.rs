@@ -98,14 +98,18 @@ pub fn StatusIndicator(
             .then(|| {
               view! {
                 <span class=cn(
-                  &["absolute inline-flex rounded-full opacity-75 animate-ping", size.class(), state.ping()],
+                  &[
+                    "absolute inline-flex rounded-full opacity-75 animate-ping",
+                    size.class(),
+                    state.ping(),
+                  ],
                 ) />
               }
             })
         }}
         <span class=move || {
           cn(&["relative inline-flex rounded-full", size.class(), state.get().dot()])
-        }> </span>
+        }></span>
       </div>
       {label
         .map(|label| {

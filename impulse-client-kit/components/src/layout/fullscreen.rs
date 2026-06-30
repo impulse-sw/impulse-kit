@@ -15,10 +15,7 @@ pub fn FullScreen(
 ) -> impl IntoView {
   let center_class = if center { "flex items-center justify-center" } else { "" };
   view! {
-    <div
-      data-slot="full-screen"
-      class=cn(&["min-h-screen w-full", center_class, class.as_str()])
-    >
+    <div data-slot="full-screen" class=cn(&["min-h-screen w-full", center_class, class.as_str()])>
       {children()}
     </div>
   }

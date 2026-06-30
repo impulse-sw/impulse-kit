@@ -76,14 +76,7 @@ pub fn Row(
     <div
       data-slot="row"
       class=cn(
-        &[
-          "flex flex-row",
-          gap.class(),
-          align.class(),
-          justify.class(),
-          wrap_class,
-          class.as_str(),
-        ],
+        &["flex flex-row", gap.class(), align.class(), justify.class(), wrap_class, class.as_str()],
       )
     >
       {children()}
@@ -106,14 +99,7 @@ pub fn Column(
     <div
       data-slot="column"
       class=cn(
-        &[
-          "flex flex-col",
-          gap.class(),
-          align.class(),
-          justify.class(),
-          wrap_class,
-          class.as_str(),
-        ],
+        &["flex flex-col", gap.class(), align.class(), justify.class(), wrap_class, class.as_str()],
       )
     >
       {children()}
