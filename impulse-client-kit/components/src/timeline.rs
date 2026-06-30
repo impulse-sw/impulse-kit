@@ -21,7 +21,7 @@
 
 use impulse_client_kit::utils::cn;
 use leptos::prelude::*;
-use wasm_bindgen::JsCast;
+use web_sys::wasm_bindgen::JsCast;
 
 /// Layout direction of the timeline.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -166,7 +166,7 @@ pub fn Timeline(
   // Build the items now (so the context counter assigns each its index) and
   // publish the final count.
   let fragment = children();
-  total.set(fragment.nodes.len());
+  total.set(fragment.nodes.iter().len());
   let items = fragment.nodes;
 
   // Vertical layout pads the list so the first/last cards stay centred on their
@@ -350,7 +350,7 @@ pub fn TimelineItem(
   ctx.counter.set(index + 1);
 
   let is_vertical = ctx.orientation == TimelineOrientation::Vertical;
-  let is_even = index % 2 == 0;
+  let is_even = index.is_multiple_of(2);
 
   let side = if ctx.alternating {
     if is_even { Side::Before } else { Side::After }
