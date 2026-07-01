@@ -202,8 +202,34 @@ where
 
   tracing::info!("Listening for HTTP over Ring as application '{}'.", listener.app_name);
 
-  // Block the connection from being dropped until shutdown is requested.
-  shutdown.await;
+  // When `impulsed` restarts, the bus connection transparently reconnects and
+  // re-exposes this application — but that happens silently inside the connector's
+  // watcher, so the server logs show nothing and it looks like the listener never
+  // came back. Watch the broker epoch (it changes on every reconnect) and log each
+  // re-registration, so an operator can see the listener recover after a restart.
+  let epoch_app = listener.app_name.clone();
+  let epoch_conn = conn.clone();
+  let watch_reconnects = async move {
+    let mut epoch = epoch_conn.broker_epoch();
+    loop {
+      tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+      let current = epoch_conn.broker_epoch();
+      if current != epoch {
+        epoch = current;
+        tracing::info!(
+          "Re-registered '{}' for HTTP over Ring after an impulsed restart (broker epoch {current}).",
+          epoch_app
+        );
+      }
+    }
+  };
+
+  // Block the connection from being dropped until shutdown is requested; run the
+  // reconnect watcher alongside it (it never completes on its own).
+  tokio::select! {
+    () = shutdown => {}
+    () = watch_reconnects => {}
+  }
   tracing::info!("Ring listener for '{}' shutting down.", listener.app_name);
   drop(conn);
   Ok(())
