@@ -878,7 +878,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "client-kit-showcase"
-version = "1.4.6"
+version = "1.4.7"
 dependencies = [
  "chrono",
  "codee",
@@ -2489,7 +2489,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit"
-version = "1.4.6"
+version = "1.4.7"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -2507,7 +2507,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-blocks"
-version = "1.4.6"
+version = "1.4.7"
 dependencies = [
  "gloo-net",
  "impulse-client-kit",
@@ -2521,7 +2521,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-components"
-version = "1.4.6"
+version = "1.4.7"
 dependencies = [
  "chrono",
  "codee",
@@ -2536,7 +2536,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-ring"
-version = "1.4.6"
+version = "1.4.7"
 dependencies = [
  "bytes",
  "clap",
@@ -2556,7 +2556,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-error-pages"
-version = "1.4.6"
+version = "1.4.7"
 dependencies = [
  "icondata",
  "impulse-client-kit",
@@ -2605,7 +2605,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-server-kit"
-version = "1.4.6"
+version = "1.4.7"
 dependencies = [
  "any_spawner",
  "axum",
@@ -2656,7 +2656,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-skdsl"
-version = "1.4.6"
+version = "1.4.7"
 dependencies = [
  "clap",
  "impulse-server-kit",
@@ -2672,7 +2672,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-static-server"
-version = "1.4.6"
+version = "1.4.7"
 dependencies = [
  "impulse-server-kit",
  "serde",
@@ -2681,11 +2681,11 @@ dependencies = [
 
 [[package]]
 name = "impulse-tailwind-sources"
-version = "1.4.6"
+version = "1.4.7"
 
 [[package]]
 name = "impulse-utils"
-version = "1.4.6"
+version = "1.4.7"
 dependencies = [
  "anyhow",
  "http",
@@ -2722,9 +2722,9 @@ dependencies = [
 
 [[package]]
 name = "inotify-sys"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e05c02b5e89bff3b946cedeca278abc628fe811e604f027c45a8aa3cf793d0eb"
+checksum = "6fda9741ca16536952da2ecaa6105c2f4653fa6f0724681df6d2414c4106d0b0"
 dependencies = [
  "libc",
 ]
@@ -4860,9 +4860,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-pki-types"
-version = "1.14.1"
+version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30a7197ae7eb376e574fe940d068c30fe0462554a3ddbe4eca7838e049c937a9"
+checksum = "764899a24af3980067ee14bc143654f297b22eaebfe3c7b6b211920a5a59b046"
 dependencies = [
  "web-time",
  "zeroize",
@@ -5778,7 +5778,7 @@ dependencies = [
 
 [[package]]
 name = "ssr-showcase"
-version = "1.4.6"
+version = "1.4.7"
 dependencies = [
  "console_error_panic_hook",
  "impulse-client-kit",
@@ -7199,9 +7199,9 @@ checksum = "636f85e5ca6488e96401b61eb7de54f4e44755c988af0f52cf90230c312a1a89"
 
 [[package]]
 name = "xxhash-rust"
-version = "0.8.15"
+version = "0.8.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fdd20c5420375476fbd4394763288da7eb0cc0b8c11deed431a91562af7335d3"
+checksum = "4d93c89cdc2d3a63c3ec48ffe926931bdc069eafa8e4402fe6d8f790c9d1e576"
 
 [[package]]
 name = "yaml_parser"
