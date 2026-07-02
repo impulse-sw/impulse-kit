@@ -167,7 +167,6 @@ pub fn ContextMenuSubContent(#[prop(optional, into)] class: String, children: Ch
           && let Some(content) = content_ref.get()
         {
           let trigger_rect = trigger.get_bounding_client_rect();
-          let content_rect = content.get_bounding_client_rect();
           let (viewport_width, viewport_height) = viewport_size();
 
           let top = trigger_rect.top();
@@ -175,8 +174,8 @@ pub fn ContextMenuSubContent(#[prop(optional, into)] class: String, children: Ch
           let (top, left) = clamp_to_viewport(
             top,
             left,
-            content_rect.width(),
-            content_rect.height(),
+            content.offset_width() as f64,
+            content.offset_height() as f64,
             viewport_width,
             viewport_height,
           );
@@ -253,13 +252,12 @@ pub fn ContextMenuContent(#[prop(optional, into)] class: String, children: Child
         let (x, y) = context.position.get();
 
         if let Some(content) = content_ref.get() {
-          let content_rect = content.get_bounding_client_rect();
           let (viewport_width, viewport_height) = viewport_size();
           let (top, left) = clamp_to_viewport(
             y,
             x,
-            content_rect.width(),
-            content_rect.height(),
+            content.offset_width() as f64,
+            content.offset_height() as f64,
             viewport_width,
             viewport_height,
           );

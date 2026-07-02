@@ -90,7 +90,6 @@ pub fn PopoverContent(
           && let Some(content) = content_ref.get()
         {
           let trigger_rect = trigger.get_bounding_client_rect();
-          let content_rect = content.get_bounding_client_rect();
           let (viewport_width, viewport_height) = viewport_size();
 
           let (top, left) = calculate_position(
@@ -98,8 +97,8 @@ pub fn PopoverContent(
             trigger_rect.left(),
             trigger_rect.width(),
             trigger_rect.height(),
-            content_rect.width(),
-            content_rect.height(),
+            content.offset_width() as f64,
+            content.offset_height() as f64,
             side,
             align,
             side_offset,
