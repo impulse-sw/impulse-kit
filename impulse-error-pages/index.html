@@ -9,10 +9,25 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap" rel="stylesheet">
+  <!--
+    Blocking, render-before-paint theme reconciliation. It must read the
+    explicit `theme` choice from localStorage *first* and only then fall back
+    to `prefers-color-scheme`; resolving the OS preference alone paints dark
+    for a user who picked light on a dark system, and the WASM `ThemeProvider`
+    then strips it — the dark→light flicker. Keep the literals (`theme`,
+    `dark`, `light`) in sync with impulse-client-kit-components::theme.
+  -->
   <script>
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      document.documentElement.classList.add("dark");
-    }
+    (function () {
+      try {
+        var e = localStorage.getItem("theme"), c = document.documentElement.classList;
+        if (e === "dark" || (e !== "light" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+          c.add("dark"); c.remove("light");
+        } else {
+          c.remove("dark"); c.add("light");
+        }
+      } catch (_) {}
+    })();
   </script>
 </head>
 <body class="bg-background">
