@@ -8,10 +8,25 @@
   <meta content="text/html;charset=utf-8" http-equiv="Content-Type" />
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta charset="UTF-8" />
+  <!--
+    Blocking, render-before-paint theme reconciliation. It must read the
+    explicit `theme` choice from localStorage *first* and only then fall back
+    to `prefers-color-scheme`; resolving the OS preference alone paints dark
+    for a user who picked light on a dark system, and the WASM `ThemeProvider`
+    then strips it — the dark→light flicker. Keep the literals (`theme`,
+    `dark`, `light`) in sync with impulse-client-kit-components::theme.
+  -->
   <script>
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      document.documentElement.classList.add("dark");
-    }
+    (function () {
+      try {
+        var e = localStorage.getItem("theme"), c = document.documentElement.classList;
+        if (e === "dark" || (e !== "light" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+          c.add("dark"); c.remove("light");
+        } else {
+          c.remove("dark"); c.add("light");
+        }
+      } catch (_) {}
+    })();
   </script>
 </head>
 <body class="bg-background">
