@@ -230,9 +230,9 @@ checksum = "76a2e8124351fda1ef8aaaa3bbd7ebbcb486bbcd4225aca0aa0d84bb2db8fecb"
 
 [[package]]
 name = "arrayvec"
-version = "0.7.7"
+version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f02882884d3e1bc524fb12c79f107f6ad0e1cfd498c536ffb494301740995dfe"
+checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
 
 [[package]]
 name = "asn1-rs"
@@ -698,7 +698,7 @@ dependencies = [
  "p256",
  "p521",
  "pem",
- "rand 0.10.1",
+ "rand 0.10.2",
  "rcgen",
  "reqwest",
  "rsa",
@@ -878,7 +878,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "client-kit-showcase"
-version = "1.4.7"
+version = "1.4.8"
 dependencies = [
  "chrono",
  "codee",
@@ -2489,7 +2489,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit"
-version = "1.4.7"
+version = "1.4.8"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -2507,7 +2507,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-blocks"
-version = "1.4.7"
+version = "1.4.8"
 dependencies = [
  "gloo-net",
  "impulse-client-kit",
@@ -2521,7 +2521,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-components"
-version = "1.4.7"
+version = "1.4.8"
 dependencies = [
  "chrono",
  "codee",
@@ -2536,7 +2536,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-ring"
-version = "1.4.7"
+version = "1.4.8"
 dependencies = [
  "bytes",
  "clap",
@@ -2556,7 +2556,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-error-pages"
-version = "1.4.7"
+version = "1.4.8"
 dependencies = [
  "icondata",
  "impulse-client-kit",
@@ -2605,7 +2605,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-server-kit"
-version = "1.4.7"
+version = "1.4.8"
 dependencies = [
  "any_spawner",
  "axum",
@@ -2656,7 +2656,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-skdsl"
-version = "1.4.7"
+version = "1.4.8"
 dependencies = [
  "clap",
  "impulse-server-kit",
@@ -2672,7 +2672,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-static-server"
-version = "1.4.7"
+version = "1.4.8"
 dependencies = [
  "impulse-server-kit",
  "serde",
@@ -2681,11 +2681,11 @@ dependencies = [
 
 [[package]]
 name = "impulse-tailwind-sources"
-version = "1.4.7"
+version = "1.4.8"
 
 [[package]]
 name = "impulse-utils"
-version = "1.4.7"
+version = "1.4.8"
 dependencies = [
  "anyhow",
  "http",
@@ -2722,9 +2722,9 @@ dependencies = [
 
 [[package]]
 name = "inotify-sys"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fda9741ca16536952da2ecaa6105c2f4653fa6f0724681df6d2414c4106d0b0"
+checksum = "9ea94e891b3606826e9c998be69ddca42247dad8ad50b1649a5cb7e1c9ae06fd"
 dependencies = [
  "libc",
 ]
@@ -4292,9 +4292,9 @@ checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 
 [[package]]
 name = "rancor"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a063ea72381527c2a0561da9c80000ef822bdd7c3241b1cc1b12100e3df081ee"
+checksum = "daff8b7b3ccf5f7ba270b3e7a0a4d4c701c5797e38dec27c7e2c3dbb830fed1c"
 dependencies = [
  "ptr_meta 0.3.1",
 ]
@@ -4322,9 +4322,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.10.1"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2e8e8bcc7961af1fdac401278c6a831614941f6164ee3bf4ce61b7edb162207"
+checksum = "c7f5fa3a058cd35567ef9bfa5e75732bee0f9e4c55fa90477bef2dfcdbc4be80"
 dependencies = [
  "chacha20 0.10.1",
  "getrandom 0.4.3",
@@ -5010,7 +5010,7 @@ dependencies = [
  "chacha20poly1305",
  "cookie",
  "hmac 0.13.0",
- "rand 0.10.1",
+ "rand 0.10.2",
  "salvo-session",
  "salvo_core",
  "serde_json",
@@ -5208,7 +5208,7 @@ dependencies = [
  "percent-encoding",
  "pin-project",
  "quinn",
- "rand 0.10.1",
+ "rand 0.10.2",
  "regex",
  "salvo-http3",
  "salvo_macros",
@@ -5778,7 +5778,7 @@ dependencies = [
 
 [[package]]
 name = "ssr-showcase"
-version = "1.4.7"
+version = "1.4.8"
 dependencies = [
  "console_error_panic_hook",
  "impulse-client-kit",
