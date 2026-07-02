@@ -218,7 +218,10 @@ pub(crate) fn legend_view(items: Vec<(String, String)>, label_class: &str) -> An
       }
     })
     .collect_view();
-  view! { <div class="mb-2 flex w-full min-w-0 flex-wrap items-center gap-x-4 gap-y-1">{entries}</div> }.into_any()
+  view! {
+    <div class="mb-2 flex w-full min-w-0 flex-wrap items-center gap-x-4 gap-y-1">{entries}</div>
+  }
+  .into_any()
 }
 
 /// One row of a chart tooltip.
@@ -238,7 +241,13 @@ pub(crate) struct Tip {
 }
 
 /// Render a [`Tip`] as an absolutely positioned, cursor-following tooltip.
-pub(crate) fn tooltip_view(class: String, tip: &Tip) -> AnyView {
+///
+/// Anchored to the right of the cursor by default; once the cursor crosses
+/// past the midpoint of `container_width` there's more room on the left, so
+/// it flips there instead (anchored via CSS `right`, which grows the box
+/// leftward regardless of its own width) rather than running off the edge
+/// of the chart.
+pub(crate) fn tooltip_view(class: String, tip: &Tip, container_width: f64) -> AnyView {
   let rows = tip
     .rows
     .iter()
@@ -252,8 +261,13 @@ pub(crate) fn tooltip_view(class: String, tip: &Tip) -> AnyView {
       }
     })
     .collect_view();
+  let horizontal = if tip.x > container_width / 2.0 {
+    format!("right:{}px", (container_width - tip.x + 12.0).max(0.0))
+  } else {
+    format!("left:{}px", tip.x + 12.0)
+  };
   view! {
-    <div class=class style=format!("left:{}px;top:{}px", tip.x + 12.0, tip.y + 12.0)>
+    <div class=class style=format!("{horizontal};top:{}px", tip.y + 12.0)>
       <div class="mb-0.5 font-medium text-foreground">{tip.title.clone()}</div>
       {rows}
     </div>

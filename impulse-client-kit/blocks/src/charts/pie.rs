@@ -298,7 +298,17 @@ pub fn PieChart(
   });
 
   let tooltip_class = classes.tooltip.clone();
-  let tooltip = move || tip.with(|t| t.as_ref().map(|t| tooltip_view(tooltip_class.clone(), t)));
+  let tooltip = move || {
+    tip.with(|t| {
+      t.as_ref().map(|t| {
+        let container_width = container
+          .get_untracked()
+          .map(|el| el.client_width() as f64)
+          .unwrap_or(f64::INFINITY);
+        tooltip_view(tooltip_class.clone(), t, container_width)
+      })
+    })
+  };
 
   let show_tooltip = opts.show_tooltip;
   let view_box = format!("0 0 {} {}", opts.width, opts.height);
