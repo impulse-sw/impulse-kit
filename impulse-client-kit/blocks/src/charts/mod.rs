@@ -206,18 +206,19 @@ pub(crate) fn baseline_view(frame: &Frame, class: &str) -> AnyView {
 
 /// A swatch + label legend row.
 pub(crate) fn legend_view(items: Vec<(String, String)>, label_class: &str) -> AnyView {
+  let label_class = format!("{label_class} min-w-0 break-words");
   let entries = items
     .into_iter()
     .map(|(color, label)| {
       view! {
-        <div class="flex items-center gap-1.5">
-          <span class="h-2.5 w-2.5 rounded-sm" style=format!("background-color:{color}") />
-          <span class=label_class.to_string()>{label}</span>
+        <div class="flex min-w-0 max-w-full items-center gap-1.5">
+          <span class="h-2.5 w-2.5 shrink-0 rounded-sm" style=format!("background-color:{color}") />
+          <span class=label_class.clone()>{label}</span>
         </div>
       }
     })
     .collect_view();
-  view! { <div class="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1">{entries}</div> }.into_any()
+  view! { <div class="mb-2 flex w-full min-w-0 flex-wrap items-center gap-x-4 gap-y-1">{entries}</div> }.into_any()
 }
 
 /// One row of a chart tooltip.

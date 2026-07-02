@@ -305,7 +305,7 @@ pub fn PieChart(
 
   view! {
     <div class=cn(
-      &["w-full", class.as_str()],
+      &["w-full min-w-0", class.as_str()],
     )>
       {legend}
       <div

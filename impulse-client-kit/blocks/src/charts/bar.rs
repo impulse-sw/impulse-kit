@@ -374,7 +374,7 @@ pub fn BarChart(
 
   view! {
     <div class=cn(
-      &["w-full", class.as_str()],
+      &["w-full min-w-0", class.as_str()],
     )>
       {legend} <div node_ref=container class="relative w-full">
         <svg viewBox=view_box preserveAspectRatio="xMidYMid meet" role="img" class="h-auto w-full">
