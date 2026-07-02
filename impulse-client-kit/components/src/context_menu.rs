@@ -1,6 +1,8 @@
 #![allow(missing_docs, dead_code)]
 
+use crate::viewport::viewport_size;
 use impulse_client_kit::utils::cn;
+use impulse_client_kit::utils::clamp_to_viewport;
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 use web_sys::Element;
@@ -162,10 +164,16 @@ pub fn ContextMenuSubContent(#[prop(optional, into)] class: String, children: Ch
       request_animation_frame(move || {
         if let Some(trigger_ref) = sub_trigger_context
           && let Some(trigger) = trigger_ref.trigger_ref.get()
+          && let Some(content) = content_ref.get()
         {
           let trigger_rect = trigger.get_bounding_client_rect();
+          let content_rect = content.get_bounding_client_rect();
+          let (viewport_width, viewport_height) = viewport_size();
+
           let top = trigger_rect.top();
           let left = trigger_rect.right() + 4.0;
+          let (top, left) =
+            clamp_to_viewport(top, left, content_rect.width(), content_rect.height(), viewport_width, viewport_height);
 
           position_style.set(format!("position: fixed; top: {}px; left: {}px;", top, left));
         }
@@ -237,7 +245,17 @@ pub fn ContextMenuContent(#[prop(optional, into)] class: String, children: Child
       // Use requestAnimationFrame to ensure content is laid out
       request_animation_frame(move || {
         let (x, y) = context.position.get();
-        position_style.set(format!("position: fixed; top: {}px; left: {}px;", y, x));
+
+        if let Some(content) = content_ref.get() {
+          let content_rect = content.get_bounding_client_rect();
+          let (viewport_width, viewport_height) = viewport_size();
+          let (top, left) =
+            clamp_to_viewport(y, x, content_rect.width(), content_rect.height(), viewport_width, viewport_height);
+
+          position_style.set(format!("position: fixed; top: {}px; left: {}px;", top, left));
+        } else {
+          position_style.set(format!("position: fixed; top: {}px; left: {}px;", y, x));
+        }
       });
     }
   });

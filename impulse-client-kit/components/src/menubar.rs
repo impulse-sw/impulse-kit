@@ -1,5 +1,6 @@
 #![allow(missing_docs, dead_code)]
 
+use crate::viewport::viewport_size;
 use impulse_client_kit::utils::cn;
 use impulse_client_kit::utils::{OverlayAlign, OverlaySide, calculate_position};
 use leptos::prelude::*;
@@ -92,6 +93,7 @@ pub fn MenubarContent(
     {
       let trigger_rect = trigger.get_bounding_client_rect();
       let content_rect = content.get_bounding_client_rect();
+      let (viewport_width, viewport_height) = viewport_size();
 
       let (top, left) = calculate_position(
         trigger_rect.top(),
@@ -103,6 +105,8 @@ pub fn MenubarContent(
         side,
         align,
         side_offset,
+        viewport_width,
+        viewport_height,
       );
 
       position_style.set(format!("position: fixed; top: {}px; left: {}px;", top, left));

@@ -4,6 +4,7 @@
 //!
 //! web-sys = { version = "0.3.82", features = ["DomRect", "Element", "HtmlButtonElement", "HtmlDivElement"] }
 
+use crate::viewport::viewport_size;
 use impulse_client_kit::utils::cn;
 use impulse_client_kit::utils::{OverlayAlign, OverlaySide, calculate_position};
 use leptos::prelude::*;
@@ -90,6 +91,7 @@ pub fn PopoverContent(
         {
           let trigger_rect = trigger.get_bounding_client_rect();
           let content_rect = content.get_bounding_client_rect();
+          let (viewport_width, viewport_height) = viewport_size();
 
           let (top, left) = calculate_position(
             trigger_rect.top(),
@@ -101,6 +103,8 @@ pub fn PopoverContent(
             side,
             align,
             side_offset,
+            viewport_width,
+            viewport_height,
           );
 
           position_style.set(format!("position: fixed; top: {}px; left: {}px;", top, left));

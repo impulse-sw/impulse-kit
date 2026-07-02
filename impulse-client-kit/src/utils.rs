@@ -2,7 +2,7 @@
 
 mod position;
 
-pub use position::{OverlayAlign, OverlaySide, calculate_position};
+pub use position::{OverlayAlign, OverlaySide, calculate_position, clamp_to_viewport};
 
 /// Utility function to combine classes
 pub fn cn(classes: &[impl AsRef<str>]) -> String {
