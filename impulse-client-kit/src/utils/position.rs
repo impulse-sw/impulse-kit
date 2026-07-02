@@ -64,7 +64,14 @@ pub fn calculate_position(
     }
   }
 
-  clamp_to_viewport(top, left, content_width, content_height, viewport_width, viewport_height)
+  clamp_to_viewport(
+    top,
+    left,
+    content_width,
+    content_height,
+    viewport_width,
+    viewport_height,
+  )
 }
 
 /// Clamps a `top`/`left` position so a `content_width` x `content_height` box
@@ -83,7 +90,10 @@ pub fn clamp_to_viewport(
   let max_left = (viewport_width - content_width - VIEWPORT_PADDING).max(VIEWPORT_PADDING);
   let max_top = (viewport_height - content_height - VIEWPORT_PADDING).max(VIEWPORT_PADDING);
 
-  (top.clamp(VIEWPORT_PADDING, max_top), left.clamp(VIEWPORT_PADDING, max_left))
+  (
+    top.clamp(VIEWPORT_PADDING, max_top),
+    left.clamp(VIEWPORT_PADDING, max_left),
+  )
 }
 
 #[cfg(test)]
@@ -92,7 +102,19 @@ mod tests {
 
   #[test]
   fn clamps_left_edge() {
-    let (top, left) = calculate_position(100.0, -50.0, 30.0, 20.0, 200.0, 100.0, OverlaySide::Bottom, OverlayAlign::Start, 4, 1024.0, 768.0);
+    let (top, left) = calculate_position(
+      100.0,
+      -50.0,
+      30.0,
+      20.0,
+      200.0,
+      100.0,
+      OverlaySide::Bottom,
+      OverlayAlign::Start,
+      4,
+      1024.0,
+      768.0,
+    );
     assert_eq!(left, VIEWPORT_PADDING);
     assert_eq!(top, 124.0);
   }
@@ -117,7 +139,19 @@ mod tests {
 
   #[test]
   fn clamps_bottom_edge() {
-    let (top, _) = calculate_position(700.0, 100.0, 30.0, 20.0, 100.0, 300.0, OverlaySide::Bottom, OverlayAlign::Start, 4, 1024.0, 768.0);
+    let (top, _) = calculate_position(
+      700.0,
+      100.0,
+      30.0,
+      20.0,
+      100.0,
+      300.0,
+      OverlaySide::Bottom,
+      OverlayAlign::Start,
+      4,
+      1024.0,
+      768.0,
+    );
     assert_eq!(top, 768.0 - 300.0 - VIEWPORT_PADDING);
   }
 
@@ -130,7 +164,19 @@ mod tests {
 
   #[test]
   fn keeps_position_when_within_viewport() {
-    let (top, left) = calculate_position(100.0, 100.0, 30.0, 20.0, 50.0, 40.0, OverlaySide::Bottom, OverlayAlign::Start, 4, 1024.0, 768.0);
+    let (top, left) = calculate_position(
+      100.0,
+      100.0,
+      30.0,
+      20.0,
+      50.0,
+      40.0,
+      OverlaySide::Bottom,
+      OverlayAlign::Start,
+      4,
+      1024.0,
+      768.0,
+    );
     assert_eq!(top, 124.0);
     assert_eq!(left, 100.0);
   }

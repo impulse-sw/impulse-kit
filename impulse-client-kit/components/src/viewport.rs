@@ -8,8 +8,16 @@ use leptos::prelude::*;
 pub(crate) fn viewport_size() -> (f64, f64) {
   let window = window();
 
-  let width = window.inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(f64::INFINITY);
-  let height = window.inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(f64::INFINITY);
+  let width = window
+    .inner_width()
+    .ok()
+    .and_then(|v| v.as_f64())
+    .unwrap_or(f64::INFINITY);
+  let height = window
+    .inner_height()
+    .ok()
+    .and_then(|v| v.as_f64())
+    .unwrap_or(f64::INFINITY);
 
   (width, height)
 }
