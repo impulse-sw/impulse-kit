@@ -2,6 +2,23 @@
 
 A bunch of fullstack utils.
 
+## Feature flags
+
+Default features: `salvo`, `reqwest`, `mresult`, `cresult`.
+
+| Feature | Effect |
+| --- | --- |
+| `salvo` | Backend response types, `MsgPackParser` / `SimdJsonParser` for `salvo::Request`. |
+| `reqwest` | Client-side MsgPack / server-error extension traits for `reqwest` (implies `cresult`). |
+| `mresult` | `MResult` + `ServerError` (implies `salvo`). |
+| `cresult` | `CResult` + `ClientError`. |
+| `telemetry` | Shared telemetry wire types (see below). |
+| `page-lifecycle` | Browser page-lifecycle recovery helpers; only active on `wasm32`. |
+
+The crate compiles both natively and on `wasm32` — server-only dependencies
+(`salvo`, `sonic-rs`) are gated to non-wasm targets, so client crates can share
+the same error and wire types.
+
 ## MessagePack support
 
 With `impulse-utils`, you can:
@@ -240,3 +257,48 @@ let resp = reqwest::Client::new()
 > `redirect_server_error` method is available with `reqwest` and `mresult` features.
 > 
 > `collect_server_error` method is available with `reqwest` and `cresult` features.
+
+## Telemetry wire types (`telemetry` feature)
+
+The `impulse_utils::telemetry` module holds the **shared wire types** for the
+client-telemetry pipeline: `TelemetryEvent`, `TelemetryEventKind` (click, view,
+hover, focus, submit, custom, page view, log, metric, span), `TelemetryLevel`
+and the batch envelope. `impulse-client-kit` produces these events in the
+browser and `impulse-server-kit` ingests them through its collection endpoint;
+both depend on this single definition, so the two ends can never drift apart.
+
+The types are platform-agnostic (plain `serde`, compiles on `wasm32` and
+natively). The canonical transport is MessagePack, but they serialize to JSON
+just as well — handy for debugging. On the server (with the `salvo` feature)
+they additionally derive `salvo::oapi::ToSchema`, so the collection endpoint is
+documented in OpenAPI.
+
+## Page-lifecycle recovery (`page-lifecycle` feature, wasm only)
+
+When a browser freezes a page into the back/forward cache (bfcache) or discards
+a background tab, timers stop and sockets can die **without a `close` event**.
+On resume, long-lived connections and wall-clock schedules are silently broken —
+the "CSR stops working after a long idle" class of bug.
+
+`impulse_utils::page_lifecycle::on_page_restore` centralises the recovery
+plumbing: it attaches `pageshow` / `online` / `visibilitychange` listeners and
+invokes your callback whenever the page may have resumed:
+
+```rust
+use impulse_utils::page_lifecycle::on_page_restore;
+
+// Keep the guard alive for as long as recovery is wanted; dropping it
+// detaches the listeners.
+let _guard = on_page_restore(|force| {
+  if force {
+    // bfcache restore: the connection is stale by definition — reconnect.
+  } else {
+    // network back / tab visible again: reconnect only if it looks dead.
+  }
+});
+```
+
+The `force` flag is `true` for a bfcache restore (`pageshow` with
+`persisted == true`) and `false` for the softer signals. Returns `None` when
+there is no `window` (SSR / non-browser context). This is what powers the
+WebSocket/WebTransport recovery in `impulse-client-kit`.

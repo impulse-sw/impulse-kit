@@ -8,12 +8,33 @@ Just include it into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-impulse-client-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.7" }
+impulse-client-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.4.10" }
 ```
 
-## Components and its usage
+## Feature flags
 
-See the [components README.md](./components/README.md).
+Exactly one rendering mode must be enabled — they are mutually exclusive:
+
+| Feature | Effect |
+| --- | --- |
+| `csr` *(default)* | Client-side rendering; `setup_app` mounts the app to the body. |
+| `hydrate` | Hydrates server-rendered HTML in place (pair with `impulse-server-kit`'s `leptos-ssr`; see the [SSR showcase](./examples/ssr_showcase/README.md)). |
+| `ssr` | Server-side build of the app crate; browser-side helpers become no-ops. |
+
+Additional features:
+
+| Feature | Effect |
+| --- | --- |
+| `telemetry` *(default)* | Monitor components + imperative telemetry helpers (no-op under `ssr`). |
+| `websocket` | Reactive WebSocket bindings (requires `csr` or `hydrate`). |
+| `webtransport` | Reactive WebTransport bindings (requires `csr` or `hydrate`). |
+
+## Components and blocks
+
+Low-level UI components (buttons, inputs, dialogs, …) live in the separate
+[`impulse-client-kit-components`](./components/README.md) crate; higher-level
+ready-made widgets (markdown, charts, node graph, landing-page sections) — in
+[`impulse-client-kit-blocks`](./blocks/README.md).
 
 ## Simple application entrypoint
 
@@ -162,7 +183,7 @@ Enable the `websocket` feature:
 
 ```toml
 [dependencies]
-impulse-client-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.7", features = ["websocket"] }
+impulse-client-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.4.10", features = ["websocket"] }
 ```
 
 Open a connection and observe state/messages reactively:
@@ -196,7 +217,7 @@ Enable the `webtransport` feature:
 
 ```toml
 [dependencies]
-impulse-client-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.7", features = ["webtransport"] }
+impulse-client-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.4.10", features = ["webtransport"] }
 ```
 
 The browser WebTransport API is gated by `web-sys` behind `--cfg=web_sys_unstable_apis`. Add this to your downstream `.cargo/config.toml`:
@@ -261,6 +282,29 @@ let wt = use_webtransport_with_reconnect(
 ```
 
 While waiting between attempts the handle reports `Connecting`. The reactive `state`, inbound `message`/`datagram_signal`, sends, and stream constructors all keep working across reconnects — there is no need to re-create the handle. A close requested through `close()` (and, for WebTransport, a graceful close by either peer) is treated as final and never reconnects.
+
+### Frozen-page recovery & connect watchdog
+
+Reconnection can only react to a `close` event — and the browser does not
+always deliver one. When a page is frozen into the back/forward cache (bfcache)
+or a background tab is discarded, the connection's transport is torn down but
+the `close` event can be dropped; on restore the handle would otherwise sit on
+a dead socket forever, still reporting `Open`.
+
+Both wrappers therefore hook the page-lifecycle events (via
+`impulse_utils::page_lifecycle`) and revalidate the connection on resume:
+
+- a bfcache restore (`pageshow` with `persisted == true`) forces a fresh
+  reconnect unconditionally — the restored socket is stale by definition;
+- the network coming back (`online`) or the tab becoming visible again
+  triggers a reconnect only if the connection actually looks dead.
+
+Independently, every connect attempt is covered by a **watchdog**: if an
+attempt (including an async URL provider that never resolves) wedges, it is
+timed out and counted as a failed attempt, so backoff and the attempt cap keep
+working instead of the handle hanging in `Connecting` forever.
+
+Both behaviours are built in and require no configuration.
 
 ### Per-attempt URL (token-refreshing reconnect)
 

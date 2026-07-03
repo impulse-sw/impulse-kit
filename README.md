@@ -2,6 +2,21 @@
 
 Collection of Rust libraries, frameworks and programs to build better Internet.
 
+## Workspace map
+
+| Crate | What it is |
+| --- | --- |
+| [`impulse-server-kit`](./impulse-server-kit) | Backend framework on top of Salvo: multi-protocol listener (HTTP/1.1–3 + Ring shared memory), YAML config, tracing/OTel, OpenAPI, Leptos SSR. |
+| [`impulse-server-kit-dsl`](./impulse-server-kit-dsl) | `skdsl` — DSL-to-API translator: endpoint prototypes, version bumping, Rust/JS clients. |
+| [`impulse-static-server`](./impulse-static-server) | Static frontend server (`iks` binary) and SPA routers as a library. |
+| [`impulse-utils`](./impulse-utils) | Fullstack utils: errors/results, response macros, MsgPack & SIMD JSON, telemetry wire types, page-lifecycle recovery. |
+| [`impulse-client-kit`](./impulse-client-kit) | Frontend framework over Leptos: entrypoints, themes, WS/WT bindings, telemetry. |
+| [`impulse-client-kit-components`](./impulse-client-kit/components) | 60+ shadcn-styled UI components. |
+| [`impulse-client-kit-blocks`](./impulse-client-kit/blocks) | Higher-level blocks: Markdown, charts, node graph, landing-page sections. |
+| [`impulse-tailwind-sources`](./impulse-client-kit/tailwind-sources) | Build-script glue that lets Tailwind scan component crates from the Cargo registry. |
+| [`impulse-client-ring`](./impulse-client-ring) | `reqwest`-style HTTP client over the Ring shared-memory bus (incl. SSE/WS/WT). |
+| [`impulse-error-pages`](./impulse-error-pages) | Ready-made error pages (400–500) as a static frontend bundle. |
+
 ## Overview
 
 ### Impulse Server Kit
@@ -79,12 +94,14 @@ In a way, `impulse-utils` is useful in many cases such as error handling and res
 
 Client Kit is just superstructure above Leptos framework. It provides:
 
-- simple application entrypoint
+- simple application entrypoint (CSR, hydrate and SSR modes)
 - logging support with `log`
 - automated light/dark themes (with Tailwind support)
 - utils to perform request to the backend (`impulse_client_kit::router::endpoint` and `impulse_client_kit::router::redirect` functions)
-- WebSocket & WebTransport bindings (with optional automatic reconnection, including an async per-attempt URL provider for token-refreshing reconnects)
+- WebSocket & WebTransport bindings (with optional automatic reconnection, including an async per-attempt URL provider for token-refreshing reconnects, frozen-page/bfcache recovery and a per-attempt connect watchdog)
 - telemetry collection: monitor components (`<ClickMonitor>`, `<ViewMonitor>`, `<HoverMonitor>`, `<FocusMonitor>`, `<SubmitMonitor>`, `<EventMonitor>`) plus imperative `track_event`/`track_log`/`track_metric`/`track_span` helpers, with anonymous or identified collection (see the `telemetry` module)
+
+UI lives in two companion crates: [`impulse-client-kit-components`](./impulse-client-kit/components/README.md) (60+ shadcn-styled components) and [`impulse-client-kit-blocks`](./impulse-client-kit/blocks/README.md) (Markdown, charts, an interactive node graph, landing-page sections). Their Tailwind classes are wired into the consuming app's build via [`impulse-tailwind-sources`](./impulse-client-kit/tailwind-sources/README.md).
 
 Startup example:
 
@@ -107,9 +124,20 @@ talks over the **Ring** shared-memory IPC bus instead of TCP/Unix sockets. It is
 the client half of Server Kit's `impulse-ring` listener: a server registers an
 application on the bus and serves HTTP over shared memory, and Client Ring looks
 it up by name and issues ordinary requests — no ports, no kernel round-trips on
-the data path. Ships with a server example and a `curl`-like CLI example.
+the data path. Beyond unary requests it speaks SSE, WebSocket and WebTransport
+over Ring channels, streams large bodies transparently, and survives an
+`impulsed` broker restart without being rebuilt. Ships with a server example
+and a `curl`-like CLI example.
 
 [Client Ring Documentation](./impulse-client-ring/README.md)
+
+### Impulse Error Pages
+
+Ready-made error pages for Impulse services (400, 401, 403, 404, 405 & 500),
+built as a small Leptos frontend — serve the bundle with Static Server (or any
+static server) and redirect to `/{status-code}`.
+
+[Error Pages Documentation](./impulse-error-pages/README.md)
 
 ## Rust Toolchain
 

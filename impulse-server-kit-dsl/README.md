@@ -1,6 +1,6 @@
 # Server Kit DSL
 
-Simple API description parser and tranlsator for Server Kit.
+Simple API description parser and translator for Server Kit.
 
 SK DSL generates prototypes folder `v{api_ver}` with endpoints grouped by tags files `{tag_name}.rs`:
 
@@ -24,8 +24,10 @@ To install Server Kit DSL client from source, clone this repository and run `car
 ```bash
 git clone https://github.com/impulse-sw/impulse-kit.git
 cd impulse-kit
-cargo install --path . --bin skdsl
+cargo install --path impulse-server-kit-dsl --bin skdsl
 ```
+
+The package is named `impulse-skdsl`; the installed binary is `skdsl`.
 
 You can also use Deployer:
 

@@ -1,6 +1,6 @@
 # Impulse UI Components
 
-A comprehensive collection of 60 UI components for Leptos, inspired by shadcn/ui design principles.
+A comprehensive collection of 60+ UI components for Leptos, inspired by shadcn/ui design principles.
 
 ## Table of Contents
 
@@ -23,8 +23,8 @@ Add the crate as a normal Cargo dependency — no copying components into your t
 
 ```toml
 [dependencies]
-impulse-client-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.7" }
-impulse-client-kit-components = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.7" }
+impulse-client-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.4.10" }
+impulse-client-kit-components = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.4.10" }
 leptos = "0.8"
 ```
 
@@ -35,16 +35,16 @@ this crate's components live inside your (read-only) Cargo registry. To let your
 Tailwind pass discover them, this crate's `build.rs` publishes the absolute path
 of its sources to dependents as build-script metadata:
 
-* `DEP_IMPULSE_UI_KIT_COMPONENTS_STYLES` — an aggregated scan file containing
+* `DEP_IMPULSE_CLIENT_KIT_COMPONENTS_STYLES` — an aggregated scan file containing
   every component source, and
-* `DEP_IMPULSE_UI_KIT_COMPONENTS_SOURCE_DIR` — the raw `src` directory.
+* `DEP_IMPULSE_CLIENT_KIT_COMPONENTS_SOURCE_DIR` — the raw `src` directory.
 
 The [`impulse-tailwind-sources`](../tailwind-sources) helper turns that metadata
 into a `@source` partial for you. Add it as a build-dependency:
 
 ```toml
 [build-dependencies]
-impulse-tailwind-sources = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.7" }
+impulse-tailwind-sources = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.4.10" }
 ```
 
 …and call it from a tiny `build.rs`:
@@ -56,7 +56,7 @@ use std::{env, path::Path};
 fn main() {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let partial = Path::new(&manifest_dir).join(".tailwind-sources.css");
-    impulse_tailwind_sources::write_source_partial(partial, &["DEP_IMPULSE_UI_KIT_COMPONENTS_STYLES"]);
+    impulse_tailwind_sources::write_source_partial(partial, &["DEP_IMPULSE_CLIENT_KIT_COMPONENTS_STYLES"]);
 }
 ```
 
@@ -93,13 +93,13 @@ links = "my-ui-lib"
 build = "build.rs"
 
 [build-dependencies]
-impulse-tailwind-sources = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.7" }
+impulse-tailwind-sources = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.4.10" }
 ```
 
 ```rust
 // build.rs of your library
 fn main() {
-    impulse_tailwind_sources::export(&["DEP_IMPULSE_UI_KIT_COMPONENTS_STYLES"]);
+    impulse_tailwind_sources::export(&["DEP_IMPULSE_CLIENT_KIT_COMPONENTS_STYLES"]);
 }
 ```
 
@@ -147,7 +147,7 @@ A versatile button component with multiple variants and sizes.
 
 **Props:**
 - `variant`: `ButtonVariant` - Visual style (Default, Destructive, Outline, Secondary, Ghost, Link)
-- `size`: `ButtonSize` - Size preset (Default, Sm, Lg, Icon, IconSm, IconLg)
+- `size`: `ButtonSize` - Size preset (Sm — default, Middle, Lg, Icon, IconSm, IconLg)
 - `class`: `Signal<String>` - Additional CSS classes
 - `node_ref`: `NodeRef<Button>` - Reference to the button element
 - `children`: Content to render inside the button
@@ -259,6 +259,40 @@ Keyboard key display component.
 
 **Props:**
 - Display keyboard shortcuts in UI
+
+### Status Indicator
+
+A small pulsing dot communicating a live status (service up / down / recovering / idle). `Active`, `Down` and `Fixing` pulse via `animate-ping`; `Idle` stays static.
+
+**Props:**
+- `state`: `Signal<StatusState>` - Active (green), Down (red), Fixing (yellow), Idle (slate); reactive, so it can be wired straight to e.g. a WebSocket connection state
+- `label`: `Signal<String>` - Optional text next to the dot
+- `size`: `StatusIndicatorSize` - Sm, Md (default), Lg
+- `class`: `String` - Additional CSS classes
+
+**Example:**
+```rust
+use impulse_client_kit_components::status_indicator::*;
+
+view! {
+    <StatusIndicator state=StatusState::Active label="Connected" />
+}
+```
+
+### Raw
+
+Inline code chip (`<Raw>`) and code block (`<RawBlock>`) plus the `rich` helper, which turns backtick-wrapped spans inside a static string into styled `Raw` chips.
+
+**Example:**
+```rust
+use impulse_client_kit_components::raw::*;
+
+view! {
+    <Raw text="cargo build" />
+    <RawBlock language="rust" code="fn main() {}" />
+    {rich("Run `depl run build` to make a build.")}
+}
+```
 
 ---
 
@@ -695,6 +729,34 @@ Slide-out panel component.
 - Similar to Sheet
 - Mobile-optimized
 
+### Layout Containers
+
+Structural container primitives built on Tailwind utility classes (module `layout`):
+
+- `Flex`, `Row`, `Column` - Flexbox containers (`FlexDirection`, `Gap`, `Align`, `Justify` enums)
+- `Grid`, `GridItem` - CSS grid with `GridCols` / `GridSpan` presets
+- `Container` - Centered page container with `ContainerSize` presets
+- `FullScreen` - Full-viewport section
+- `Center` - Centers its children both ways
+- `Spacer` - Flexible space filler
+
+Spacing and alignment are expressed through shared enums (`Gap`, `Align`, `Justify`), so the generated class names stay static and remain discoverable by the Tailwind scanner.
+
+**Example:**
+```rust
+use impulse_client_kit_components::layout::*;
+
+view! {
+    <Container size=ContainerSize::Lg>
+        <Row gap=Gap::Md align=Align::Center>
+            <div>"Left"</div>
+            <Spacer />
+            <div>"Right"</div>
+        </Row>
+    </Container>
+}
+```
+
 ---
 
 ## Navigation Components
@@ -943,6 +1005,27 @@ view! {
 }
 ```
 
+### Shake
+
+A Stripe-style perspective "error wobble" for invalid forms. Respects `prefers-reduced-motion`.
+
+**Usage:**
+- Declarative: wrap content in `<Shake signal=...>` — the animation replays whenever the signal changes to an "active" value (non-empty `String`, `true`, `Some(_)`, non-zero counter)
+- Imperative: `use_shake()` returns a `ShakeHandle { node_ref, shake }`; attach `node_ref` to your element and call `shake.run(())` (render `<ShakeStyles />` once yourself in this mode)
+
+**Example:**
+```rust
+use impulse_client_kit_components::shake::*;
+
+let error = RwSignal::new(String::new());
+
+view! {
+    <Shake signal=error>
+        <LoginForm />
+    </Shake>
+}
+```
+
 ---
 
 ## Data Display Components
@@ -1002,6 +1085,33 @@ view! {
         <AvatarImage src="https://github.com/user.png" alt="User" />
         <AvatarFallback>"UN"</AvatarFallback>
     </Avatar>
+}
+```
+
+### Timeline
+
+A CSS-grid timeline, horizontal or vertical, optionally alternating items on either side of the line. Items get their position automatically via a shared context counter.
+
+**Composite Components:**
+- `Timeline` - Root container (`orientation`: `TimelineOrientation::Horizontal` / `Vertical`)
+- `TimelineItem` - One entry (`variant`: `TimelineVariant` - Default, Secondary, Destructive, Outline)
+- `TimelineItemDate` / `TimelineItemTitle` / `TimelineItemDescription` - Entry content
+
+**Example:**
+```rust
+use impulse_client_kit_components::timeline::*;
+
+view! {
+    <Timeline orientation=TimelineOrientation::Vertical>
+        <TimelineItem>
+            <TimelineItemDate>"12 Mar 2024"</TimelineItemDate>
+            <TimelineItemTitle>"Shipped"</TimelineItemTitle>
+            <TimelineItemDescription>"First release went out."</TimelineItemDescription>
+        </TimelineItem>
+        <TimelineItem variant=TimelineVariant::Destructive>
+            <TimelineItemTitle>"Incident"</TimelineItemTitle>
+        </TimelineItem>
+    </Timeline>
 }
 ```
 
@@ -1083,6 +1193,26 @@ Generic list item component.
 - Flexible list item
 - Icon support
 - Action handling
+
+### Cookie Consent
+
+Cookie-consent banner: a fixed card bottom-right on desktop, a full-width strip on mobile. The decision is persisted in `localStorage` (key `cookie_consent`, values `accepted` / `declined`). GDPR-compatible. Content is revealed only after hydration, so SSR markup and the initial client render match.
+
+**Props:**
+- `storage_key`: `Option<String>` - `localStorage` key (default `"cookie_consent"`)
+- `title`, `description`: `Option<String>` - Banner texts
+- `accept_label`, `decline_label`: `Option<String>` - Button labels
+- `policy_href`, `policy_label`: `Option<String>` - Privacy-policy link
+- `class`: `String` - Additional CSS classes
+
+**Example:**
+```rust
+use impulse_client_kit_components::cookie_consent::*;
+
+view! {
+    <CookieConsent policy_href="/privacy" />
+}
+```
 
 ---
 

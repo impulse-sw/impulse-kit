@@ -28,10 +28,36 @@ To use Server Kit, include this line into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-impulse-server-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.7" }
+impulse-server-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.4.10" }
 ```
 
 And create empty `{app-name}.yaml` to fill later (see [Configuration Overview](#7) below).
+The config is looked up in the current working directory first, then in
+`/etc/{app-name}.yaml` — handy for system-wide deployments.
+
+### Feature flags
+
+Default features: `http3`, `cors`, `acme`, `oapi`, `otel`, `telemetry`,
+`force-https`, `impulse-ring`.
+
+Notable optional features:
+
+| Feature | Effect |
+| --- | --- |
+| `http3` | HTTP/3 (QUIC) protocol support. |
+| `impulse-ring` | Listen for HTTP over the Ring shared-memory bus. |
+| `oapi` | OpenAPI spec generation and frontends (Scalar / SwaggerUI). |
+| `otel` | OpenTelemetry span & metric exporters. |
+| `telemetry` | Client-side telemetry collection endpoint (see below). |
+| `websocket`, `sse` | Salvo's WebSocket / SSE support (both also work over Ring). |
+| `static-server` | Static file routers with in-memory caching (powers `impulse-static-server`). |
+| `leptos-ssr` | Leptos server-side-rendering adapter (see [Leptos SSR & SEO](#8)). |
+| `leptos-server-fn` | `#[server]` functions dispatch bridged to Salvo. |
+| `proxy`, `cache`, `csrf`, `session`, `jwt-auth`, `basic-auth`, … | Thin re-exports of the matching salvo features. |
+
+There is also a `test_exts` module (`ResponseExt`) with helpers for asserting
+on responses in integration tests — taking the body as `String`/bytes/JSON with
+`Content-Encoding` (gzip/zlib/zstd/brotli) transparently decoded.
 
 <a name="3"></a>
 ## Extended utilities
@@ -74,13 +100,13 @@ io_log_level: debug
 [package]
 name = "impulse-server-example"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
-impulse-server-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.2.7" }
+impulse-server-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.4.10" }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["macros"] }
-tracing = "1"
+tracing = "0.1"
 ```
 
 The code itself:
@@ -293,12 +319,16 @@ key — any mix of the four below, all at once. The list must be non-empty.
 | `http1` | HTTP/1.1 over TCP. Cleartext, or HTTPS with TLS. Required for WebSockets. | `host`, `port` (+ optional `ssl_key_path`, `ssl_crt_path`) | — |
 | `http2` | HTTP/2 over TCP. Cleartext h2c, or HTTPS (h2 over TLS). | `host`, `port` (+ optional `ssl_key_path`, `ssl_crt_path`) | — |
 | `http3` | HTTP/3 over QUIC (TLS v1.3). | `host`, `port`, `ssl_key_path`, `ssl_crt_path` | `http3` |
-| `impulse-ring` | HTTP over the Ring shared-memory bus — no socket. | `app_name` (+ optional `access_key`) | `impulse-ring` |
+| `impulse-ring` | HTTP over the Ring shared-memory bus — no socket. | `app_name` (+ optional `access_key`, `arena_size_kib`) | `impulse-ring` |
 
 For `http1`/`http2`, TLS is **all-or-nothing**: provide both `ssl_key_path` and
 `ssl_crt_path` to terminate HTTPS over TCP (TLS 1.2 + 1.3, for broad client
 compatibility), or omit both for cleartext. `http3` always requires them (QUIC
 mandates TLS 1.3).
+
+The `type` values accept aliases: `http1` = `http/1.1` = `http1.1` =
+`http_localhost`, `http2` = `http/2`, `http3` = `http/3` = `quic`,
+`impulse-ring` = `impulse_ring` = `ring`.
 
 ```yaml
 protocols:
@@ -336,25 +366,48 @@ IPC bus instead of a socket. It is the server-side counterpart of the
   segment.
 - Clients address the server by `app_name` — there is no host/port.
 - Each request runs the **full salvo pipeline** (routing, middleware, OpenAPI,
-  catcher), so handlers behave exactly as over TCP. Request/response only:
-  streaming bodies and WebSockets are not modelled over Ring.
+  catcher), so handlers behave exactly as over TCP.
+- Large bodies are handled transparently: an oversized request body arrives
+  streamed over a side channel and is reassembled before salvo sees it, and an
+  oversized response body is chunked back the same way.
+- **SSE and WebSocket work over Ring too** (features `sse` / `websocket`): the
+  listener detects the upgrade handshake and relays the byte stream over Ring
+  channels, so salvo's ordinary SSE/`WebSocketUpgrade` handlers run unchanged.
+  WebTransport sessions are Ring-native — register a handler via
+  `ImpulseRingListener::on_webtransport` (salvo's own WebTransport needs QUIC,
+  which Ring does not provide).
+- If `impulsed` restarts, the listener transparently re-registers on the fresh
+  broker (and logs the re-registration), so the service keeps serving without a
+  restart of its own.
 
 ```yaml
 protocols:
   - type: impulse-ring
     app_name: my-service
     # access_key: optional-shared-secret
+    # arena_size_kib: 4096   # per-service request-arena size, see below
 ```
+
+`arena_size_kib` sets the request-arena capacity of this application's bus
+function (default 512 KiB; the broker clamps it to [256 KiB, 128 MiB] and
+rounds up to a power of two). A larger arena lets a high-throughput service
+buffer more in-flight requests before callers hit backpressure; it does *not*
+raise the max inline body — large bodies stream over a channel regardless.
 
 You can also drive the listener by hand without YAML:
 
 ```rust
 use impulse_server_kit::prelude::*;
 
-let listener = ImpulseRingListener::new("my-service");
+let listener = ImpulseRingListener::new("my-service")
+  // .with_key("optional-shared-secret")
+  // .with_arena_cap(4 * 1024 * 1024)
+  // .on_webtransport(handler)
+  ;
 let service = salvo::Service::new(router);
 // Serves until `shutdown` resolves; unregisters from the bus on completion.
 serve_impulse_ring(listener, service, shutdown_future).await?;
+// or: listener.serve(service, shutdown_future).await?;
 ```
 
 ### Auto-migrate binary
@@ -375,9 +428,10 @@ allow_cors_domain: "https://my-domain.com"
 ### Allow OAPI
 
 > [!NOTE]
-> Any OAPI config option requires `oapi` feature to be enabled:
+> Any OAPI config option requires the `oapi` feature (**enabled by default**;
+> re-enable it if you build with `default-features = false`):
 > 
-> ```rust
+> ```toml
 > [dependencies]
 > impulse-server-kit = { .., features = ["oapi"] }
 > ```
@@ -392,7 +446,41 @@ allow_oapi_access: true
 oapi_frontend_type: Scalar # or `SwaggerUI`
 oapi_name: My API
 oapi_ver: 0.1.0
+oapi_api_addr: /api        # path where the OAPI frontend is served
 ```
+
+When `allow_oapi_access: true`, the `oapi_name`, `oapi_ver` and
+`oapi_api_addr` fields become required — startup fails with a config error if
+any of them is missing.
+
+### Security headers
+
+When the router is built via `get_root_router_autoinject`, every response gets
+a conservative set of security headers. Defaults:
+
+| Header | Value |
+| --- | --- |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` |
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `SAMEORIGIN` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+
+`Content-Security-Policy`, `Permissions-Policy` and
+`Cross-Origin-Opener-Policy` are off by default (they are highly
+application-specific) — set them explicitly to opt in. Tune everything under
+the `security_headers:` key; set a field to `null` to disable one header, or
+`enabled: false` to skip the hoop entirely:
+
+```yaml
+security_headers:
+  hsts: null                                  # e.g. for local HTTP-only development
+  content_security_policy: "default-src 'self'"
+```
+
+HSTS is only sent when a TLS-bearing protocol (HTTP/3 over QUIC) is being
+served — advertising `Strict-Transport-Security` from a cleartext-only setup
+would pin localhost in the developer's browser for a year. Headers already
+present on a response are left untouched, so per-route overrides win.
 
 ### Logging
 
