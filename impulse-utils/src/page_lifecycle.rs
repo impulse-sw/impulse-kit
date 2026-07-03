@@ -83,7 +83,9 @@ where
   // Only a transition *to* visible is a resume; ignore the page going hidden.
   let cb = on_wake;
   let on_visibility = Closure::<dyn FnMut(Event)>::new(move |_e: Event| {
-    let visible = web_sys::window().and_then(|w| w.document()).is_some_and(|d| !d.hidden());
+    let visible = web_sys::window()
+      .and_then(|w| w.document())
+      .is_some_and(|d| !d.hidden());
     if visible {
       cb(false);
     }
