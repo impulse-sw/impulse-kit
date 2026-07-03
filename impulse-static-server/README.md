@@ -44,7 +44,7 @@ Just include it into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-impulse-static-server = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.4.10" }
+impulse-static-server = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.5.0" }
 ```
 
 and use one of these functions:

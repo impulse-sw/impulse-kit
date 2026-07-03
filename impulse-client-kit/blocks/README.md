@@ -28,7 +28,7 @@ every element is a real, hit-testable DOM node.
 
 ```toml
 [dependencies]
-impulse-client-kit-blocks = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.4.10" }
+impulse-client-kit-blocks = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.5.0" }
 leptos = "0.8"
 ```
 
@@ -50,7 +50,7 @@ only needs to wire up this single source. Add the helper as a build-dependency:
 
 ```toml
 [build-dependencies]
-impulse-tailwind-sources = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.4.10" }
+impulse-tailwind-sources = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.5.0" }
 ```
 
 ```rust
