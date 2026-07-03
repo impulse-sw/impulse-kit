@@ -62,8 +62,12 @@ websocket = [
   "dep:web-sys",
   "web-sys/BinaryType",
   "web-sys/CloseEvent",
+  "web-sys/Document",
+  "web-sys/EventTarget",
   "web-sys/MessageEvent",
+  "web-sys/PageTransitionEvent",
   "web-sys/WebSocket",
+  "web-sys/Window",
 ]
 webtransport = [
   "dep:js-sys",

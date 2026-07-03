@@ -43,7 +43,29 @@
 //! reads [`WebSocketReadyState::Connecting`]. A close requested through
 //! [`WebSocketHandle::close`] is treated as intentional and never reconnects.
 //!
-//! The socket is automatically closed and event listeners detached when the
+//! # Page lifecycle
+//!
+//! Reconnection can only react to a `close` event, and the browser does not
+//! always deliver one. When a page is frozen into the back/forward cache
+//! (bfcache) or a discarded tab, the socket's TCP connection is torn down but
+//! the `close` event can be dropped while the document is frozen — on restore
+//! the handle would otherwise sit on a dead socket forever, reporting
+//! [`WebSocketReadyState::Open`] and never reconnecting.
+//!
+//! To recover, the handle listens for the page-lifecycle events that signal a
+//! possibly-stale connection and revalidates the socket:
+//!
+//! * `pageshow` with `persisted == true` (a bfcache restore) forces a fresh
+//!   reconnect unconditionally, since the restored socket is stale by
+//!   definition even if it still reports `OPEN`.
+//! * `online` and `visibilitychange` (becoming visible) reconnect only when the
+//!   live socket is no longer `OPEN`/`CONNECTING`, recovering a missed `close`
+//!   and collapsing any long pending backoff into an immediate attempt.
+//!
+//! These listeners are inert once [`close`](WebSocketHandle::close) has marked
+//! the handle as intentionally closed.
+//!
+//! The socket is automatically closed and all event listeners detached when the
 //! last [`WebSocketHandle`] clone is dropped.
 
 use std::cell::{Cell, RefCell};
@@ -56,7 +78,7 @@ use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
-use web_sys::{BinaryType, CloseEvent, Event, MessageEvent, WebSocket};
+use web_sys::{BinaryType, CloseEvent, Event, MessageEvent, PageTransitionEvent, WebSocket};
 
 use crate::reconnect::ReconnectOptions;
 
@@ -135,6 +157,26 @@ impl Drop for SocketSlot {
   }
 }
 
+/// Window/document listeners for page-lifecycle events, kept alive for the
+/// lifetime of the handle and detached on drop. Separate from [`SocketSlot`]
+/// because they must persist across socket swaps.
+struct LifecycleSlot {
+  _on_pageshow: Closure<dyn FnMut(PageTransitionEvent)>,
+  _on_online: Closure<dyn FnMut(Event)>,
+  _on_visibility: Closure<dyn FnMut(Event)>,
+}
+
+impl Drop for LifecycleSlot {
+  fn drop(&mut self) {
+    let Some(win) = web_sys::window() else { return };
+    let _ = win.remove_event_listener_with_callback("pageshow", self._on_pageshow.as_ref().unchecked_ref());
+    let _ = win.remove_event_listener_with_callback("online", self._on_online.as_ref().unchecked_ref());
+    if let Some(doc) = win.document() {
+      let _ = doc.remove_event_listener_with_callback("visibilitychange", self._on_visibility.as_ref().unchecked_ref());
+    }
+  }
+}
+
 struct WebSocketInner {
   url_provider: WsUrlProvider,
   protocols: Vec<String>,
@@ -143,6 +185,8 @@ struct WebSocketInner {
   set_message: WriteSignal<Option<WebSocketMessage>>,
   /// Current socket and its listeners.
   slot: RefCell<Option<SocketSlot>>,
+  /// Page-lifecycle listeners driving recovery from bfcache/frozen restores.
+  lifecycle: RefCell<Option<LifecycleSlot>>,
   /// Consecutive failed/closed connections since the last successful open.
   failures: Cell<u32>,
   /// Set when the application requested a close, suppressing reconnection.
@@ -159,8 +203,8 @@ impl Drop for WebSocketInner {
     if let Some(handle) = self.pending.take() {
       handle.clear();
     }
-    // The `SocketSlot` is dropped with `self`, detaching listeners and closing
-    // the socket.
+    // The `SocketSlot` and `LifecycleSlot` are dropped with `self`, detaching
+    // their listeners and closing the socket.
   }
 }
 
@@ -293,6 +337,94 @@ impl WebSocketInner {
     )
     .ok();
     self.pending.set(handle);
+  }
+
+  /// Whether the current socket is `OPEN` or `CONNECTING` — i.e. healthy or
+  /// mid-handshake. A missing slot, `CLOSING`, or `CLOSED` counts as dead.
+  fn socket_alive(&self) -> bool {
+    self.slot.borrow().as_ref().is_some_and(|slot| {
+      matches!(slot.socket.ready_state(), WebSocket::OPEN | WebSocket::CONNECTING)
+    })
+  }
+
+  /// Recover a possibly-stale connection after a page-lifecycle wake-up.
+  ///
+  /// With `force`, the current socket is discarded and rebuilt regardless of its
+  /// reported state (used for a bfcache restore, where an `OPEN` socket is stale
+  /// by definition). Otherwise the reconnect only happens when the socket is no
+  /// longer alive, recovering a `close` event that was dropped while the page
+  /// was frozen and collapsing any pending backoff into an immediate attempt.
+  fn revalidate(self: &Rc<Self>, force: bool) {
+    if self.manual_close.get() {
+      return;
+    }
+    // A connect task is already awaiting the URL provider; it will install a
+    // fresh socket on its own, so nothing to force here.
+    if self.connecting.get() {
+      return;
+    }
+    if !force && self.socket_alive() {
+      return;
+    }
+    // Drop any scheduled retry and the stale socket (its `Drop` detaches
+    // listeners before closing, so no spurious `handle_close`), then reconnect
+    // immediately with backoff reset.
+    if let Some(handle) = self.pending.take() {
+      handle.clear();
+    }
+    self.slot.replace(None);
+    self.failures.set(0);
+    self.spawn_connect();
+  }
+
+  /// Attach the window/document listeners that recover the socket after the page
+  /// is restored from bfcache, comes back online, or becomes visible again.
+  fn install_lifecycle_listeners(self: &Rc<Self>) {
+    let Some(win) = web_sys::window() else {
+      log::warn!("WebSocket: no window; skipping page-lifecycle recovery listeners");
+      return;
+    };
+
+    // A bfcache restore (`persisted`) always rebuilds; a normal initial
+    // `pageshow` (`persisted == false`) is a no-op.
+    let weak = Rc::downgrade(self);
+    let on_pageshow = Closure::<dyn FnMut(PageTransitionEvent)>::new(move |e: PageTransitionEvent| {
+      if e.persisted()
+        && let Some(inner) = weak.upgrade()
+      {
+        inner.revalidate(true);
+      }
+    });
+    let _ = win.add_event_listener_with_callback("pageshow", on_pageshow.as_ref().unchecked_ref());
+
+    let weak = Rc::downgrade(self);
+    let on_online = Closure::<dyn FnMut(Event)>::new(move |_e: Event| {
+      if let Some(inner) = weak.upgrade() {
+        inner.revalidate(false);
+      }
+    });
+    let _ = win.add_event_listener_with_callback("online", on_online.as_ref().unchecked_ref());
+
+    let weak = Rc::downgrade(self);
+    let on_visibility = Closure::<dyn FnMut(Event)>::new(move |_e: Event| {
+      let hidden = web_sys::window()
+        .and_then(|w| w.document())
+        .is_some_and(|d| d.hidden());
+      if !hidden
+        && let Some(inner) = weak.upgrade()
+      {
+        inner.revalidate(false);
+      }
+    });
+    if let Some(doc) = win.document() {
+      let _ = doc.add_event_listener_with_callback("visibilitychange", on_visibility.as_ref().unchecked_ref());
+    }
+
+    self.lifecycle.replace(Some(LifecycleSlot {
+      _on_pageshow: on_pageshow,
+      _on_online: on_online,
+      _on_visibility: on_visibility,
+    }));
   }
 }
 
@@ -440,12 +572,19 @@ pub fn use_websocket_with_provider(provider: WsUrlProvider, options: WebSocketOp
     set_state,
     set_message,
     slot: RefCell::new(None),
+    lifecycle: RefCell::new(None),
     failures: Cell::new(0),
     manual_close: Cell::new(false),
     connecting: Cell::new(false),
     pending: Cell::new(None),
   });
 
+  // Recover from bfcache/frozen restores where a `close` event never arrives.
+  // Only worth wiring up when reconnection is enabled — a one-shot socket has
+  // nothing to reconnect to.
+  if options.reconnect.enabled {
+    inner.install_lifecycle_listeners();
+  }
   inner.spawn_connect();
 
   Ok(WebSocketHandle { state, message, inner })
