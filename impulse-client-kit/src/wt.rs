@@ -45,6 +45,28 @@
 //! )?;
 //! ```
 //!
+//! # Page lifecycle
+//!
+//! The supervisor normally only rebuilds a session when its `closed` promise
+//! settles, but the browser does not always deliver that: when a page is frozen
+//! into the back/forward cache (bfcache) or a discarded tab, the transport is
+//! torn down while the `closed` promise stays pending, leaving the supervisor
+//! parked on a dead session forever after restore. To recover, the handle
+//! listens for page-lifecycle events and, when appropriate, wakes the
+//! supervisor to abandon the current session and reconnect immediately:
+//!
+//! * `pageshow` with `persisted == true` (a bfcache restore) always reconnects,
+//!   since the restored session is stale even if it still reports `Open`.
+//! * `online` and `visibilitychange` (becoming visible) reconnect only when the
+//!   session is not already `Open`/`Connecting`, recovering a `closed` promise
+//!   that never resolved and collapsing any pending backoff into an immediate
+//!   attempt.
+//!
+//! The wake is distinct from a graceful close, so it reconnects where a peer's
+//! `close()` would (correctly) be final. These listeners are inert once
+//! [`close`](WebTransportHandle::close) has marked the handle as intentionally
+//! closed, and are only wired up when reconnection is enabled.
+//!
 //! # Build configuration
 //!
 //! The browser `WebTransport` API is gated by `web-sys` behind
@@ -69,11 +91,63 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{
-  ReadableStream, ReadableStreamDefaultReader, WebTransport, WebTransportBidirectionalStream, WebTransportCloseInfo,
-  WebTransportOptions, WebTransportSendStream, WritableStream, WritableStreamDefaultWriter,
+  Event, PageTransitionEvent, ReadableStream, ReadableStreamDefaultReader, WebTransport,
+  WebTransportBidirectionalStream, WebTransportCloseInfo, WebTransportOptions, WebTransportSendStream, WritableStream,
+  WritableStreamDefaultWriter,
 };
 
 use crate::reconnect::ReconnectOptions;
+
+/// A one-shot, re-armable notification bridged to JS so it can be raced against
+/// another promise with [`js_sys::Promise::race`]. [`WebTransportInner`] holds
+/// the live [`Wake`]; a page-lifecycle handler resolves its promise (with the
+/// inner's sentinel) to interrupt the supervisor's `closed`/backoff wait and
+/// force an immediate reconnect. The supervisor re-arms a fresh one afterwards.
+struct Wake {
+  promise: js_sys::Promise,
+  resolve: js_sys::Function,
+}
+
+impl Wake {
+  fn new() -> Self {
+    let mut resolve_slot = None;
+    // `Promise::new` runs its executor synchronously, so `resolve` is set here.
+    let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+      resolve_slot = Some(resolve);
+    });
+    Self {
+      promise,
+      resolve: resolve_slot.expect("Promise executor runs synchronously"),
+    }
+  }
+}
+
+/// Outcome of awaiting a promise that was raced against the lifecycle [`Wake`].
+enum Raced {
+  /// A lifecycle wake fired first: abandon the current session and reconnect.
+  Woken,
+  /// The awaited promise settled normally, carrying its result.
+  Settled(Result<JsValue, JsValue>),
+}
+
+/// Window/document listeners for page-lifecycle events, kept alive for the
+/// lifetime of the handle and detached on drop.
+struct LifecycleSlot {
+  _on_pageshow: Closure<dyn FnMut(PageTransitionEvent)>,
+  _on_online: Closure<dyn FnMut(Event)>,
+  _on_visibility: Closure<dyn FnMut(Event)>,
+}
+
+impl Drop for LifecycleSlot {
+  fn drop(&mut self) {
+    let Some(win) = web_sys::window() else { return };
+    let _ = win.remove_event_listener_with_callback("pageshow", self._on_pageshow.as_ref().unchecked_ref());
+    let _ = win.remove_event_listener_with_callback("online", self._on_online.as_ref().unchecked_ref());
+    if let Some(doc) = win.document() {
+      let _ = doc.remove_event_listener_with_callback("visibilitychange", self._on_visibility.as_ref().unchecked_ref());
+    }
+  }
+}
 
 /// Future returned by a [`WtUrlProvider`], yielding the URL to connect to.
 pub type WtUrlFuture = Pin<Box<dyn Future<Output = CResult<String>>>>;
@@ -108,6 +182,9 @@ struct WebTransportConfig {
 struct WebTransportInner {
   config: WebTransportConfig,
   set_state: WriteSignal<WebTransportState>,
+  /// Synchronous mirror of the reactive state, readable from lifecycle handlers
+  /// without touching the reactive system. Kept in step via [`Self::update_state`].
+  current_state: Cell<WebTransportState>,
   /// Current session. `None` until the first session is built; swapped in place
   /// on each reconnect.
   transport: RefCell<Option<WebTransport>>,
@@ -118,6 +195,46 @@ struct WebTransportInner {
   datagram_sink: RefCell<Option<WriteSignal<Option<Vec<u8>>>>>,
   /// Guards against running more than one datagram reader at a time.
   reader_running: Cell<bool>,
+  /// Live wake used to interrupt the supervisor's `closed`/backoff wait on a
+  /// page-lifecycle event. Re-armed by the supervisor after each firing.
+  wake: RefCell<Wake>,
+  /// Unique object resolved through the [`Wake`] promise, so the supervisor can
+  /// tell a wake apart from the raced promise settling on its own.
+  sentinel: JsValue,
+  /// Page-lifecycle listeners driving recovery from bfcache/frozen restores.
+  lifecycle: RefCell<Option<LifecycleSlot>>,
+}
+
+impl WebTransportInner {
+  /// Update both the reactive state signal and its synchronous mirror.
+  fn update_state(&self, state: WebTransportState) {
+    self.current_state.set(state);
+    self.set_state.set(state);
+  }
+
+  /// Resolve the live wake promise, interrupting whichever wait the supervisor
+  /// is parked in and forcing an immediate reconnect.
+  fn request_wake(&self) {
+    let _ = self.wake.borrow().resolve.call1(&JsValue::UNDEFINED, &self.sentinel);
+  }
+
+  /// Install a fresh, unfired wake for the next wait.
+  fn rearm_wake(&self) {
+    *self.wake.borrow_mut() = Wake::new();
+  }
+
+  /// Wake the supervisor only if the session looks dead — used by the `online`
+  /// and `visibilitychange` handlers, which must not disturb a healthy or
+  /// in-progress session.
+  fn wake_if_dead(&self) {
+    if self.manual_close.get() {
+      return;
+    }
+    if matches!(self.current_state.get(), WebTransportState::Open | WebTransportState::Connecting) {
+      return;
+    }
+    self.request_wake();
+  }
 }
 
 impl Drop for WebTransportInner {
@@ -227,18 +344,101 @@ where
 fn build_handle(config: WebTransportConfig) -> CResult<WebTransportHandle> {
   let (state, set_state) = signal(WebTransportState::Connecting);
 
+  let reconnect_enabled = config.reconnect.enabled;
   let inner = Rc::new(WebTransportInner {
     config,
     set_state,
+    current_state: Cell::new(WebTransportState::Connecting),
     transport: RefCell::new(None),
     manual_close: Cell::new(false),
     datagram_sink: RefCell::new(None),
     reader_running: Cell::new(false),
+    wake: RefCell::new(Wake::new()),
+    sentinel: js_sys::Object::new().into(),
+    lifecycle: RefCell::new(None),
   });
+
+  // Recover from bfcache/frozen restores where `closed` never resolves. Only
+  // worth wiring up when reconnection is enabled — a one-shot session has
+  // nothing to reconnect to.
+  if reconnect_enabled {
+    install_lifecycle_listeners(&inner);
+  }
 
   spawn_local(supervise(Rc::downgrade(&inner)));
 
   Ok(WebTransportHandle { state, inner })
+}
+
+/// Attach the window/document listeners that wake the supervisor after the page
+/// is restored from bfcache, comes back online, or becomes visible again.
+fn install_lifecycle_listeners(inner: &Rc<WebTransportInner>) {
+  let Some(win) = web_sys::window() else {
+    log::warn!("WebTransport: no window; skipping page-lifecycle recovery listeners");
+    return;
+  };
+
+  // A bfcache restore (`persisted`) always reconnects; a normal initial
+  // `pageshow` (`persisted == false`) is a no-op.
+  let weak = Rc::downgrade(inner);
+  let on_pageshow = Closure::<dyn FnMut(PageTransitionEvent)>::new(move |e: PageTransitionEvent| {
+    if e.persisted()
+      && let Some(inner) = weak.upgrade()
+      && !inner.manual_close.get()
+    {
+      inner.request_wake();
+    }
+  });
+  let _ = win.add_event_listener_with_callback("pageshow", on_pageshow.as_ref().unchecked_ref());
+
+  let weak = Rc::downgrade(inner);
+  let on_online = Closure::<dyn FnMut(Event)>::new(move |_e: Event| {
+    if let Some(inner) = weak.upgrade() {
+      inner.wake_if_dead();
+    }
+  });
+  let _ = win.add_event_listener_with_callback("online", on_online.as_ref().unchecked_ref());
+
+  let weak = Rc::downgrade(inner);
+  let on_visibility = Closure::<dyn FnMut(Event)>::new(move |_e: Event| {
+    let hidden = web_sys::window()
+      .and_then(|w| w.document())
+      .is_some_and(|d| d.hidden());
+    if !hidden
+      && let Some(inner) = weak.upgrade()
+    {
+      inner.wake_if_dead();
+    }
+  });
+  if let Some(doc) = win.document() {
+    let _ = doc.add_event_listener_with_callback("visibilitychange", on_visibility.as_ref().unchecked_ref());
+  }
+
+  inner.lifecycle.replace(Some(LifecycleSlot {
+    _on_pageshow: on_pageshow,
+    _on_online: on_online,
+    _on_visibility: on_visibility,
+  }));
+}
+
+/// Await `promise`, racing it against the live lifecycle [`Wake`]. Returns
+/// [`Raced::Woken`] (re-arming the wake) if a lifecycle event fired first,
+/// otherwise [`Raced::Settled`] with the promise's own result.
+async fn await_or_wake(weak: &Weak<WebTransportInner>, promise: js_sys::Promise) -> Raced {
+  let (wake_promise, sentinel) = match weak.upgrade() {
+    Some(inner) => (inner.wake.borrow().promise.clone(), inner.sentinel.clone()),
+    None => return Raced::Woken,
+  };
+  let raced: js_sys::Promise = js_sys::Promise::race(&js_sys::Array::of2(&promise, &wake_promise));
+  match JsFuture::from(raced).await {
+    Ok(val) if js_sys::Object::is(&val, &sentinel) => {
+      if let Some(inner) = weak.upgrade() {
+        inner.rearm_wake();
+      }
+      Raced::Woken
+    }
+    other => Raced::Settled(other),
+  }
 }
 
 fn build_transport(url: &str, options: &Option<WebTransportOptions>) -> CResult<WebTransport> {
@@ -262,7 +462,7 @@ async fn supervise(weak: Weak<WebTransportInner>) {
         if inner.manual_close.get() {
           return;
         }
-        inner.set_state.set(WebTransportState::Connecting);
+        inner.update_state(WebTransportState::Connecting);
         let provider = inner.config.url_provider.clone();
         drop(inner);
         match provider().await {
@@ -294,7 +494,7 @@ async fn supervise(weak: Weak<WebTransportInner>) {
           }
           Err(e) => {
             log::error!("WebTransport construction failed: {e}");
-            inner.set_state.set(WebTransportState::Failed);
+            inner.update_state(WebTransportState::Failed);
             drop(inner);
             if backoff(&weak, &mut failures).await {
               continue;
@@ -311,7 +511,7 @@ async fn supervise(weak: Weak<WebTransportInner>) {
       match weak.upgrade() {
         Some(inner) if !inner.manual_close.get() => {
           log::error!("WebTransport ready failed: {e:?}");
-          inner.set_state.set(WebTransportState::Failed);
+          inner.update_state(WebTransportState::Failed);
         }
         _ => return,
       }
@@ -325,29 +525,52 @@ async fn supervise(weak: Weak<WebTransportInner>) {
     match weak.upgrade() {
       Some(inner) if !inner.manual_close.get() => {
         failures = 0;
-        inner.set_state.set(WebTransportState::Open);
+        inner.update_state(WebTransportState::Open);
         ensure_reader(&inner, &transport);
       }
       _ => return,
     }
 
-    // Await teardown.
-    let closed_res = JsFuture::from(closed).await;
+    // Await teardown, but let a page-lifecycle wake pre-empt it: on a bfcache
+    // restore the `closed` promise may never resolve, so without this the
+    // supervisor would park here forever on a dead session.
+    let closed_res = match await_or_wake(&weak, closed).await {
+      Raced::Woken => {
+        // The current session is stale/forced-stale. Close it, reset backoff,
+        // and reconnect immediately.
+        match weak.upgrade() {
+          Some(inner) if !inner.manual_close.get() => {
+            if let Some(transport) = inner.transport.borrow().as_ref() {
+              transport.close();
+            }
+            failures = 0;
+            inner.update_state(WebTransportState::Connecting);
+          }
+          Some(inner) => {
+            inner.update_state(WebTransportState::Closed);
+            return;
+          }
+          None => return,
+        }
+        continue;
+      }
+      Raced::Settled(res) => res,
+    };
     match weak.upgrade() {
       Some(inner) => {
         if inner.manual_close.get() {
-          inner.set_state.set(WebTransportState::Closed);
+          inner.update_state(WebTransportState::Closed);
           return;
         }
         match closed_res {
           Ok(_) => {
             // A graceful close from either peer is final.
-            inner.set_state.set(WebTransportState::Closed);
+            inner.update_state(WebTransportState::Closed);
             return;
           }
           Err(e) => {
             log::warn!("WebTransport closed with error: {e:?}");
-            inner.set_state.set(WebTransportState::Failed);
+            inner.update_state(WebTransportState::Failed);
           }
         }
       }
@@ -363,6 +586,9 @@ async fn supervise(weak: Weak<WebTransportInner>) {
 
 /// If the policy permits another attempt, wait the backoff delay. Returns
 /// whether the supervisor should loop again (and build a fresh session).
+///
+/// A page-lifecycle wake pre-empts the wait and resets the backoff, so a
+/// restored page retries at once instead of sitting out a long capped delay.
 async fn backoff(weak: &Weak<WebTransportInner>, failures: &mut u32) -> bool {
   let delay = match weak.upgrade() {
     Some(inner) if !inner.manual_close.get() && inner.config.reconnect.should_retry(*failures) => {
@@ -372,7 +598,9 @@ async fn backoff(weak: &Weak<WebTransportInner>, failures: &mut u32) -> bool {
   };
   *failures += 1;
 
-  sleep(delay).await;
+  if let Raced::Woken = await_or_wake(weak, sleep_promise(delay)).await {
+    *failures = 0;
+  }
 
   matches!(weak.upgrade(), Some(inner) if !inner.manual_close.get())
 }
@@ -436,13 +664,12 @@ async fn read_datagrams(transport: WebTransport, sink: WriteSignal<Option<Vec<u8
   }
 }
 
-/// Resolve after `duration` using `setTimeout`.
-async fn sleep(duration: Duration) {
+/// A promise that resolves after `duration` using `setTimeout`.
+fn sleep_promise(duration: Duration) -> js_sys::Promise {
   let millis = duration.as_millis().min(i32::MAX as u128) as i32;
-  let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+  js_sys::Promise::new(&mut |resolve, _reject| {
     let _ = window().set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, millis);
-  });
-  let _ = JsFuture::from(promise).await;
+  })
 }
 
 impl WebTransportHandle {
