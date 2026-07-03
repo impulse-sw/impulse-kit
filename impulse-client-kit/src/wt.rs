@@ -230,7 +230,10 @@ impl WebTransportInner {
     if self.manual_close.get() {
       return;
     }
-    if matches!(self.current_state.get(), WebTransportState::Open | WebTransportState::Connecting) {
+    if matches!(
+      self.current_state.get(),
+      WebTransportState::Open | WebTransportState::Connecting
+    ) {
       return;
     }
     self.request_wake();
@@ -401,12 +404,8 @@ fn install_lifecycle_listeners(inner: &Rc<WebTransportInner>) {
 
   let weak = Rc::downgrade(inner);
   let on_visibility = Closure::<dyn FnMut(Event)>::new(move |_e: Event| {
-    let hidden = web_sys::window()
-      .and_then(|w| w.document())
-      .is_some_and(|d| d.hidden());
-    if !hidden
-      && let Some(inner) = weak.upgrade()
-    {
+    let hidden = web_sys::window().and_then(|w| w.document()).is_some_and(|d| d.hidden());
+    if !hidden && let Some(inner) = weak.upgrade() {
       inner.wake_if_dead();
     }
   });

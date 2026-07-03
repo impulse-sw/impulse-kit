@@ -342,9 +342,11 @@ impl WebSocketInner {
   /// Whether the current socket is `OPEN` or `CONNECTING` — i.e. healthy or
   /// mid-handshake. A missing slot, `CLOSING`, or `CLOSED` counts as dead.
   fn socket_alive(&self) -> bool {
-    self.slot.borrow().as_ref().is_some_and(|slot| {
-      matches!(slot.socket.ready_state(), WebSocket::OPEN | WebSocket::CONNECTING)
-    })
+    self
+      .slot
+      .borrow()
+      .as_ref()
+      .is_some_and(|slot| matches!(slot.socket.ready_state(), WebSocket::OPEN | WebSocket::CONNECTING))
   }
 
   /// Recover a possibly-stale connection after a page-lifecycle wake-up.
@@ -407,12 +409,8 @@ impl WebSocketInner {
 
     let weak = Rc::downgrade(self);
     let on_visibility = Closure::<dyn FnMut(Event)>::new(move |_e: Event| {
-      let hidden = web_sys::window()
-        .and_then(|w| w.document())
-        .is_some_and(|d| d.hidden());
-      if !hidden
-        && let Some(inner) = weak.upgrade()
-      {
+      let hidden = web_sys::window().and_then(|w| w.document()).is_some_and(|d| d.hidden());
+      if !hidden && let Some(inner) = weak.upgrade() {
         inner.revalidate(false);
       }
     });
