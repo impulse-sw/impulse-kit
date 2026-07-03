@@ -47,6 +47,14 @@ pub struct ReconnectOptions {
   /// Maximum number of consecutive reconnect attempts. `None` retries forever;
   /// the counter resets once a connection successfully reopens.
   pub max_attempts: Option<u32>,
+  /// Maximum time a single attempt may spend reaching the open state before it
+  /// is abandoned and retried. This bounds two failure modes the browser never
+  /// reports on its own — a URL-provider request or a socket handshake that
+  /// stalls indefinitely after the network drops out from under a suspended
+  /// mobile tab — so a stuck attempt can no longer wedge the connection forever.
+  /// `None` disables the watchdog (the previous behaviour); [`enabled`](Self::enabled)
+  /// turns it on at 15s, while the one-shot [`default`](Self::default) leaves it off.
+  pub connect_timeout: Option<Duration>,
 }
 
 impl Default for ReconnectOptions {
@@ -58,16 +66,20 @@ impl Default for ReconnectOptions {
       max_delay: Duration::from_secs(30),
       backoff_factor: 2.0,
       max_attempts: None,
+      // Off for the one-shot default, so a plain socket keeps its previous
+      // "stay in Connecting until the browser says otherwise" behaviour.
+      connect_timeout: None,
     }
   }
 }
 
 impl ReconnectOptions {
   /// Reconnection enabled with sensible defaults: a 1s initial delay doubling up
-  /// to 30s, retrying indefinitely.
+  /// to 30s, retrying indefinitely, with a 15s per-attempt connect watchdog.
   pub fn enabled() -> Self {
     Self {
       enabled: true,
+      connect_timeout: Some(Duration::from_secs(15)),
       ..Self::default()
     }
   }
@@ -93,6 +105,13 @@ impl ReconnectOptions {
   /// Set the maximum number of consecutive attempts (`None` for unlimited).
   pub fn with_max_attempts(mut self, attempts: Option<u32>) -> Self {
     self.max_attempts = attempts;
+    self
+  }
+
+  /// Set the per-attempt watchdog timeout (`None` to disable it). See
+  /// [`connect_timeout`](Self::connect_timeout).
+  pub fn with_connect_timeout(mut self, timeout: Option<Duration>) -> Self {
+    self.connect_timeout = timeout;
     self
   }
 

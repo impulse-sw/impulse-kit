@@ -194,13 +194,24 @@ struct WebSocketInner {
   /// Set while a connect task is awaiting the URL provider, so overlapping
   /// attempts are never spawned.
   connecting: Cell<bool>,
+  /// Bumped whenever an attempt is abandoned. The async connect task carries the
+  /// generation it started with and bows out if it no longer matches, so a
+  /// URL-provider future left wedged by a frozen tab can never install a stale
+  /// socket or clobber the attempt that superseded it.
+  generation: Cell<u32>,
   /// Handle for a scheduled reconnect, so it can be cancelled.
   pending: Cell<Option<TimeoutHandle>>,
+  /// Handle for the per-attempt connect watchdog, so it can be cancelled once
+  /// the socket opens (or the attempt is abandoned).
+  watchdog: Cell<Option<TimeoutHandle>>,
 }
 
 impl Drop for WebSocketInner {
   fn drop(&mut self) {
     if let Some(handle) = self.pending.take() {
+      handle.clear();
+    }
+    if let Some(handle) = self.watchdog.take() {
       handle.clear();
     }
     // The `SocketSlot` and `LifecycleSlot` are dropped with `self`, detaching
@@ -222,11 +233,20 @@ impl WebSocketInner {
     self.connecting.set(true);
     self.set_state.set(WebSocketReadyState::Connecting);
 
+    let generation = self.generation.get();
+    self.arm_watchdog(generation);
+
     let provider = self.url_provider.clone();
     let weak = Rc::downgrade(self);
     spawn_local(async move {
       let url_res = provider().await;
       let Some(inner) = weak.upgrade() else { return };
+      // A newer attempt (or a close) superseded this one while we awaited the
+      // provider — e.g. the watchdog fired on a wedged fetch, or a bfcache
+      // restore forced a reconnect. Bow out without touching shared state.
+      if inner.generation.get() != generation {
+        return;
+      }
       inner.connecting.set(false);
       if inner.manual_close.get() {
         return;
@@ -246,6 +266,59 @@ impl WebSocketInner {
     });
   }
 
+  /// Abandon the in-flight connect attempt (if any): bump the generation so its
+  /// async task bows out, clear the `connecting` guard so a fresh attempt may
+  /// start, and cancel the watchdog covering it.
+  fn abandon_connect(&self) {
+    self.generation.set(self.generation.get().wrapping_add(1));
+    self.connecting.set(false);
+    if let Some(handle) = self.watchdog.take() {
+      handle.clear();
+    }
+  }
+
+  /// Whether the current socket reports `OPEN`.
+  fn socket_is_open(&self) -> bool {
+    self
+      .slot
+      .borrow()
+      .as_ref()
+      .is_some_and(|slot| slot.socket.ready_state() == WebSocket::OPEN)
+  }
+
+  /// Arm the per-attempt watchdog for the attempt tagged `generation`. If the
+  /// socket has not opened by [`ReconnectOptions::connect_timeout`], the attempt
+  /// is treated as failed and funnelled through [`handle_close`](Self::handle_close)
+  /// for a backoff retry — this is what unsticks a URL-provider fetch or a
+  /// socket handshake that stalls forever after a mobile tab is resumed.
+  fn arm_watchdog(self: &Rc<Self>, generation: u32) {
+    if let Some(handle) = self.watchdog.take() {
+      handle.clear();
+    }
+    let Some(timeout) = self.reconnect.connect_timeout else {
+      return;
+    };
+    let weak = Rc::downgrade(self);
+    let handle = set_timeout_with_handle(
+      move || {
+        let Some(inner) = weak.upgrade() else { return };
+        inner.watchdog.set(None);
+        if inner.manual_close.get() || inner.generation.get() != generation || inner.socket_is_open() {
+          return;
+        }
+        log::warn!("WebSocket connect timed out after {timeout:?}; retrying");
+        // Supersede a possibly-wedged provider fetch and drop a stalled socket,
+        // then fall into the normal close/backoff path.
+        inner.abandon_connect();
+        inner.slot.replace(None);
+        inner.handle_close();
+      },
+      timeout,
+    )
+    .ok();
+    self.watchdog.set(handle);
+  }
+
   /// Open a fresh socket, wire up listeners, and install it as the current slot.
   fn install_socket(self: &Rc<Self>, url: &str) -> CResult<()> {
     let inner = self;
@@ -259,6 +332,10 @@ impl WebSocketInner {
     let on_open = Closure::<dyn FnMut(Event)>::new(move |_e: Event| {
       if let Some(inner) = weak.upgrade() {
         inner.failures.set(0);
+        // The attempt succeeded; stand the watchdog down.
+        if let Some(handle) = inner.watchdog.take() {
+          handle.clear();
+        }
       }
       set_state.set(WebSocketReadyState::Open);
     });
@@ -305,6 +382,10 @@ impl WebSocketInner {
 
   /// React to a closed socket: either settle as closed or schedule a reconnect.
   fn handle_close(self: &Rc<Self>) {
+    // This attempt is over; a scheduled retry arms its own watchdog.
+    if let Some(handle) = self.watchdog.take() {
+      handle.clear();
+    }
     if self.manual_close.get() {
       self.set_state.set(WebSocketReadyState::Closed);
       return;
@@ -351,29 +432,35 @@ impl WebSocketInner {
 
   /// Recover a possibly-stale connection after a page-lifecycle wake-up.
   ///
-  /// With `force`, the current socket is discarded and rebuilt regardless of its
-  /// reported state (used for a bfcache restore, where an `OPEN` socket is stale
-  /// by definition). Otherwise the reconnect only happens when the socket is no
-  /// longer alive, recovering a `close` event that was dropped while the page
-  /// was frozen and collapsing any pending backoff into an immediate attempt.
+  /// With `force` (a bfcache restore), the current socket is discarded and
+  /// rebuilt regardless of its reported state — even a socket still reporting
+  /// `OPEN` or stuck in `CONNECTING` is stale by definition — and any in-flight
+  /// connect attempt is superseded, since its URL-provider fetch may have been
+  /// wedged by the freeze.
+  ///
+  /// Without `force` (`online`/`visibilitychange`), a healthy or actively
+  /// handshaking socket is left alone and an in-flight attempt is allowed to run
+  /// (the watchdog bounds it); the reconnect only fires when the socket is dead,
+  /// recovering a `close` event dropped while frozen and collapsing any pending
+  /// backoff into an immediate attempt.
   fn revalidate(self: &Rc<Self>, force: bool) {
     if self.manual_close.get() {
       return;
     }
-    // A connect task is already awaiting the URL provider; it will install a
-    // fresh socket on its own, so nothing to force here.
-    if self.connecting.get() {
-      return;
+    if !force {
+      // Leave a healthy or mid-handshake socket, and let an in-flight attempt
+      // finish on its own — the connect watchdog is what unsticks a wedged one.
+      if self.socket_alive() || self.connecting.get() {
+        return;
+      }
     }
-    if !force && self.socket_alive() {
-      return;
-    }
-    // Drop any scheduled retry and the stale socket (its `Drop` detaches
-    // listeners before closing, so no spurious `handle_close`), then reconnect
-    // immediately with backoff reset.
+    // Drop any scheduled retry, supersede any in-flight attempt, and discard the
+    // stale socket (its `Drop` detaches listeners before closing, so there is no
+    // spurious `handle_close`), then reconnect immediately with backoff reset.
     if let Some(handle) = self.pending.take() {
       handle.clear();
     }
+    self.abandon_connect();
     self.slot.replace(None);
     self.failures.set(0);
     self.spawn_connect();
@@ -523,6 +610,9 @@ impl WebSocketHandle {
     if let Some(handle) = self.inner.pending.take() {
       handle.clear();
     }
+    if let Some(handle) = self.inner.watchdog.take() {
+      handle.clear();
+    }
   }
 }
 
@@ -574,7 +664,9 @@ pub fn use_websocket_with_provider(provider: WsUrlProvider, options: WebSocketOp
     failures: Cell::new(0),
     manual_close: Cell::new(false),
     connecting: Cell::new(false),
+    generation: Cell::new(0),
     pending: Cell::new(None),
+    watchdog: Cell::new(None),
   });
 
   // Recover from bfcache/frozen restores where a `close` event never arrives.

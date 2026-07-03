@@ -505,19 +505,49 @@ async fn supervise(weak: Weak<WebTransportInner>) {
       None => return,
     };
 
-    // Await the handshake.
-    if let Err(e) = JsFuture::from(ready).await {
-      match weak.upgrade() {
-        Some(inner) if !inner.manual_close.get() => {
-          log::error!("WebTransport ready failed: {e:?}");
-          inner.update_state(WebTransportState::Failed);
+    // Await the handshake, bounded by the connect watchdog and pre-emptible by a
+    // page-lifecycle wake: a `ready` promise that never settles — a handshake
+    // stalled after the network dropped under a suspended tab — would otherwise
+    // park the supervisor here forever.
+    let ready_bounded = match weak.upgrade() {
+      Some(inner) => match inner.config.reconnect.connect_timeout {
+        Some(timeout) => js_sys::Promise::race(&js_sys::Array::of2(&ready, &timeout_reject_promise(timeout))),
+        None => ready,
+      },
+      None => return,
+    };
+    match await_or_wake(&weak, ready_bounded).await {
+      Raced::Woken => {
+        match weak.upgrade() {
+          Some(inner) if !inner.manual_close.get() => {
+            if let Some(transport) = inner.transport.borrow().as_ref() {
+              transport.close();
+            }
+            failures = 0;
+            inner.update_state(WebTransportState::Connecting);
+          }
+          Some(inner) => {
+            inner.update_state(WebTransportState::Closed);
+            return;
+          }
+          None => return,
         }
-        _ => return,
-      }
-      if backoff(&weak, &mut failures).await {
         continue;
       }
-      return;
+      Raced::Settled(Ok(_)) => {}
+      Raced::Settled(Err(e)) => {
+        match weak.upgrade() {
+          Some(inner) if !inner.manual_close.get() => {
+            log::error!("WebTransport ready failed or timed out: {e:?}");
+            inner.update_state(WebTransportState::Failed);
+          }
+          _ => return,
+        }
+        if backoff(&weak, &mut failures).await {
+          continue;
+        }
+        return;
+      }
     }
 
     // Session is live.
@@ -668,6 +698,15 @@ fn sleep_promise(duration: Duration) -> js_sys::Promise {
   let millis = duration.as_millis().min(i32::MAX as u128) as i32;
   js_sys::Promise::new(&mut |resolve, _reject| {
     let _ = window().set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, millis);
+  })
+}
+
+/// A promise that *rejects* after `duration`, used to bound an otherwise
+/// unbounded handshake by racing it against `ready`.
+fn timeout_reject_promise(duration: Duration) -> js_sys::Promise {
+  let millis = duration.as_millis().min(i32::MAX as u128) as i32;
+  js_sys::Promise::new(&mut |_resolve, reject| {
+    let _ = window().set_timeout_with_callback_and_timeout_and_arguments_0(&reject, millis);
   })
 }
 
