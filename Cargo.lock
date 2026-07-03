@@ -878,7 +878,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "client-kit-showcase"
-version = "1.4.8"
+version = "1.4.9"
 dependencies = [
  "chrono",
  "codee",
@@ -1651,7 +1651,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ca7d44d22004409a61c393afb3369c8f7bb74abcae49fe249ee01dcc3002113"
 dependencies = [
  "bytes",
- "rkyv 0.8.16",
+ "rkyv 0.8.17",
  "serde",
  "simdutf8",
 ]
@@ -2489,7 +2489,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit"
-version = "1.4.8"
+version = "1.4.9"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -2507,7 +2507,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-blocks"
-version = "1.4.8"
+version = "1.4.9"
 dependencies = [
  "gloo-net",
  "impulse-client-kit",
@@ -2521,7 +2521,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-components"
-version = "1.4.8"
+version = "1.4.9"
 dependencies = [
  "chrono",
  "codee",
@@ -2536,7 +2536,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-ring"
-version = "1.4.8"
+version = "1.4.9"
 dependencies = [
  "bytes",
  "clap",
@@ -2556,7 +2556,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-error-pages"
-version = "1.4.8"
+version = "1.4.9"
 dependencies = [
  "icondata",
  "impulse-client-kit",
@@ -2605,7 +2605,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-server-kit"
-version = "1.4.8"
+version = "1.4.9"
 dependencies = [
  "any_spawner",
  "axum",
@@ -2656,7 +2656,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-skdsl"
-version = "1.4.8"
+version = "1.4.9"
 dependencies = [
  "clap",
  "impulse-server-kit",
@@ -2672,7 +2672,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-static-server"
-version = "1.4.8"
+version = "1.4.9"
 dependencies = [
  "impulse-server-kit",
  "serde",
@@ -2681,11 +2681,11 @@ dependencies = [
 
 [[package]]
 name = "impulse-tailwind-sources"
-version = "1.4.8"
+version = "1.4.9"
 
 [[package]]
 name = "impulse-utils"
-version = "1.4.8"
+version = "1.4.9"
 dependencies = [
  "anyhow",
  "http",
@@ -2963,7 +2963,7 @@ dependencies = [
  "paste",
  "rand 0.9.4",
  "reactive_graph",
- "rustc-hash 2.1.2",
+ "rustc-hash 2.1.3",
  "rustc_version",
  "send_wrapper",
  "serde",
@@ -3548,9 +3548,9 @@ dependencies = [
 
 [[package]]
 name = "num-bigint"
-version = "0.4.6"
+version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5e44f723f1133c9deac646763579fdb3ac745e418f2a7af9cd0c431da1f20b9"
+checksum = "c863e9ab5e7bf9c99ba75e1050f1e4d624ae87ed3532d6238ffbdc7b585dbbe6"
 dependencies = [
  "num-integer",
  "num-traits",
@@ -4196,7 +4196,7 @@ dependencies = [
  "pin-project-lite",
  "quinn-proto",
  "quinn-udp",
- "rustc-hash 2.1.2",
+ "rustc-hash 2.1.3",
  "rustls",
  "socket2",
  "thiserror 2.0.18",
@@ -4217,7 +4217,7 @@ dependencies = [
  "lru-slab",
  "rand 0.9.4",
  "ring",
- "rustc-hash 2.1.2",
+ "rustc-hash 2.1.3",
  "rustls",
  "rustls-pki-types",
  "slab",
@@ -4404,7 +4404,7 @@ dependencies = [
  "or_poisoned",
  "paste",
  "pin-project-lite",
- "rustc-hash 2.1.2",
+ "rustc-hash 2.1.3",
  "rustc_version",
  "send_wrapper",
  "serde",
@@ -4426,7 +4426,7 @@ dependencies = [
  "paste",
  "reactive_graph",
  "reactive_stores_macro",
- "rustc-hash 2.1.2",
+ "rustc-hash 2.1.3",
  "send_wrapper",
 ]
 
@@ -4518,9 +4518,9 @@ dependencies = [
 
 [[package]]
 name = "rend"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cadadef317c2f20755a64d7fdc48f9e7178ee6b0e1f7fce33fa60f1d68a276e6"
+checksum = "663ba70707f96e871406fe10d68128412e619b06d1d47cb91c3a4c6501176240"
 
 [[package]]
 name = "reqwest"
@@ -4619,9 +4619,9 @@ dependencies = [
 
 [[package]]
 name = "rkyv"
-version = "0.8.16"
+version = "0.8.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73389e0c99e664f919275ab5b5b0471391fe9a8de61e1dff9b1eaf56a90f16e3"
+checksum = "815cc8a37159a463064825246cadb07961e25cd9885908606f6d08a98d8f8874"
 dependencies = [
  "bytes",
  "hashbrown 0.17.1",
@@ -4629,8 +4629,8 @@ dependencies = [
  "munge",
  "ptr_meta 0.3.1",
  "rancor",
- "rend 0.5.3",
- "rkyv_derive 0.8.16",
+ "rend 0.5.4",
+ "rkyv_derive 0.8.17",
  "tinyvec",
  "uuid",
 ]
@@ -4648,9 +4648,9 @@ dependencies = [
 
 [[package]]
 name = "rkyv_derive"
-version = "0.8.16"
+version = "0.8.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d2ed0b54125315fb36bd021e82d314d1c126548f871634b483f46b31d13cac6"
+checksum = "c0ed1a78a1b19d184b0daa629dd9a024573173ec7d485b287cb369fb3607cc1c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4795,9 +4795,9 @@ checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
 name = "rustc-hash"
-version = "2.1.2"
+version = "2.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94300abf3f1ae2e2b8ffb7b58043de3d399c73fa6f4b73826402a5c457614dbe"
+checksum = "6b1e7f9a428571be2dc5bc0505c13fb6bf936822b894ec87abf8a08a4e51742d"
 
 [[package]]
 name = "rustc_version"
@@ -5778,7 +5778,7 @@ dependencies = [
 
 [[package]]
 name = "ssr-showcase"
-version = "1.4.8"
+version = "1.4.9"
 dependencies = [
  "console_error_panic_hook",
  "impulse-client-kit",
@@ -5933,7 +5933,7 @@ dependencies = [
  "paste",
  "reactive_graph",
  "reactive_stores",
- "rustc-hash 2.1.2",
+ "rustc-hash 2.1.3",
  "rustc_version",
  "send_wrapper",
  "slotmap",
@@ -6033,9 +6033,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.51"
+version = "0.3.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85c17d80feb7334b40c484e45ed1a5273dfd8bfda537c3be2e74a06a6686f327"
+checksum = "18dfaaeddcb932337b5e7866ee7d0ce9b76d2fd092997146f187ec09b4558a50"
 dependencies = [
  "deranged",
  "num-conv",
@@ -6053,9 +6053,9 @@ checksum = "9e1c906769ad99c88eaa54e728060edef082f8e358ff32030cb7c7d315e81109"
 
 [[package]]
 name = "time-macros"
-version = "0.2.30"
+version = "0.2.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcef1a61bdb119096e153208ec5cbec23944ce8bca13be5c7f60c634f7403935"
+checksum = "c431b87111666e491a90baa837f914fb45cd5dc3c268591b0220ff5057f2085f"
 dependencies = [
  "num-conv",
  "time-core",
