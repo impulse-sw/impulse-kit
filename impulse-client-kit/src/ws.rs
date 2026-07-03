@@ -73,12 +73,13 @@ use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
 
+use impulse_utils::page_lifecycle::{PageLifecycleListeners, on_page_restore};
 use impulse_utils::prelude::*;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
-use web_sys::{BinaryType, CloseEvent, Event, MessageEvent, PageTransitionEvent, WebSocket};
+use web_sys::{BinaryType, CloseEvent, Event, MessageEvent, WebSocket};
 
 use crate::reconnect::ReconnectOptions;
 
@@ -157,26 +158,6 @@ impl Drop for SocketSlot {
   }
 }
 
-/// Window/document listeners for page-lifecycle events, kept alive for the
-/// lifetime of the handle and detached on drop. Separate from [`SocketSlot`]
-/// because they must persist across socket swaps.
-struct LifecycleSlot {
-  _on_pageshow: Closure<dyn FnMut(PageTransitionEvent)>,
-  _on_online: Closure<dyn FnMut(Event)>,
-  _on_visibility: Closure<dyn FnMut(Event)>,
-}
-
-impl Drop for LifecycleSlot {
-  fn drop(&mut self) {
-    let Some(win) = web_sys::window() else { return };
-    let _ = win.remove_event_listener_with_callback("pageshow", self._on_pageshow.as_ref().unchecked_ref());
-    let _ = win.remove_event_listener_with_callback("online", self._on_online.as_ref().unchecked_ref());
-    if let Some(doc) = win.document() {
-      let _ = doc.remove_event_listener_with_callback("visibilitychange", self._on_visibility.as_ref().unchecked_ref());
-    }
-  }
-}
-
 struct WebSocketInner {
   url_provider: WsUrlProvider,
   protocols: Vec<String>,
@@ -186,7 +167,7 @@ struct WebSocketInner {
   /// Current socket and its listeners.
   slot: RefCell<Option<SocketSlot>>,
   /// Page-lifecycle listeners driving recovery from bfcache/frozen restores.
-  lifecycle: RefCell<Option<LifecycleSlot>>,
+  lifecycle: RefCell<Option<PageLifecycleListeners>>,
   /// Consecutive failed/closed connections since the last successful open.
   failures: Cell<u32>,
   /// Set when the application requested a close, suppressing reconnection.
@@ -214,8 +195,8 @@ impl Drop for WebSocketInner {
     if let Some(handle) = self.watchdog.take() {
       handle.clear();
     }
-    // The `SocketSlot` and `LifecycleSlot` are dropped with `self`, detaching
-    // their listeners and closing the socket.
+    // The `SocketSlot` and the `PageLifecycleListeners` are dropped with `self`,
+    // detaching their listeners and closing the socket.
   }
 }
 
@@ -466,50 +447,23 @@ impl WebSocketInner {
     self.spawn_connect();
   }
 
-  /// Attach the window/document listeners that recover the socket after the page
+  /// Attach the page-lifecycle listeners that recover the socket after the page
   /// is restored from bfcache, comes back online, or becomes visible again.
+  ///
+  /// The `force` flag maps straight onto [`revalidate`](Self::revalidate): a
+  /// bfcache restore rebuilds unconditionally, while an `online`/visible wake
+  /// only reconnects a socket that already looks dead.
   fn install_lifecycle_listeners(self: &Rc<Self>) {
-    let Some(win) = web_sys::window() else {
-      log::warn!("WebSocket: no window; skipping page-lifecycle recovery listeners");
-      return;
-    };
-
-    // A bfcache restore (`persisted`) always rebuilds; a normal initial
-    // `pageshow` (`persisted == false`) is a no-op.
     let weak = Rc::downgrade(self);
-    let on_pageshow = Closure::<dyn FnMut(PageTransitionEvent)>::new(move |e: PageTransitionEvent| {
-      if e.persisted()
-        && let Some(inner) = weak.upgrade()
-      {
-        inner.revalidate(true);
-      }
-    });
-    let _ = win.add_event_listener_with_callback("pageshow", on_pageshow.as_ref().unchecked_ref());
-
-    let weak = Rc::downgrade(self);
-    let on_online = Closure::<dyn FnMut(Event)>::new(move |_e: Event| {
+    let listeners = on_page_restore(move |force| {
       if let Some(inner) = weak.upgrade() {
-        inner.revalidate(false);
+        inner.revalidate(force);
       }
     });
-    let _ = win.add_event_listener_with_callback("online", on_online.as_ref().unchecked_ref());
-
-    let weak = Rc::downgrade(self);
-    let on_visibility = Closure::<dyn FnMut(Event)>::new(move |_e: Event| {
-      let hidden = web_sys::window().and_then(|w| w.document()).is_some_and(|d| d.hidden());
-      if !hidden && let Some(inner) = weak.upgrade() {
-        inner.revalidate(false);
-      }
-    });
-    if let Some(doc) = win.document() {
-      let _ = doc.add_event_listener_with_callback("visibilitychange", on_visibility.as_ref().unchecked_ref());
+    if listeners.is_none() {
+      log::warn!("WebSocket: no window; skipping page-lifecycle recovery listeners");
     }
-
-    self.lifecycle.replace(Some(LifecycleSlot {
-      _on_pageshow: on_pageshow,
-      _on_online: on_online,
-      _on_visibility: on_visibility,
-    }));
+    self.lifecycle.replace(listeners);
   }
 }
 

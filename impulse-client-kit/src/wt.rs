@@ -84,6 +84,7 @@ use std::pin::Pin;
 use std::rc::{Rc, Weak};
 use std::time::Duration;
 
+use impulse_utils::page_lifecycle::{PageLifecycleListeners, on_page_restore};
 use impulse_utils::prelude::*;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
@@ -91,9 +92,8 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{
-  Event, PageTransitionEvent, ReadableStream, ReadableStreamDefaultReader, WebTransport,
-  WebTransportBidirectionalStream, WebTransportCloseInfo, WebTransportOptions, WebTransportSendStream, WritableStream,
-  WritableStreamDefaultWriter,
+  ReadableStream, ReadableStreamDefaultReader, WebTransport, WebTransportBidirectionalStream, WebTransportCloseInfo,
+  WebTransportOptions, WebTransportSendStream, WritableStream, WritableStreamDefaultWriter,
 };
 
 use crate::reconnect::ReconnectOptions;
@@ -128,25 +128,6 @@ enum Raced {
   Woken,
   /// The awaited promise settled normally, carrying its result.
   Settled(Result<JsValue, JsValue>),
-}
-
-/// Window/document listeners for page-lifecycle events, kept alive for the
-/// lifetime of the handle and detached on drop.
-struct LifecycleSlot {
-  _on_pageshow: Closure<dyn FnMut(PageTransitionEvent)>,
-  _on_online: Closure<dyn FnMut(Event)>,
-  _on_visibility: Closure<dyn FnMut(Event)>,
-}
-
-impl Drop for LifecycleSlot {
-  fn drop(&mut self) {
-    let Some(win) = web_sys::window() else { return };
-    let _ = win.remove_event_listener_with_callback("pageshow", self._on_pageshow.as_ref().unchecked_ref());
-    let _ = win.remove_event_listener_with_callback("online", self._on_online.as_ref().unchecked_ref());
-    if let Some(doc) = win.document() {
-      let _ = doc.remove_event_listener_with_callback("visibilitychange", self._on_visibility.as_ref().unchecked_ref());
-    }
-  }
 }
 
 /// Future returned by a [`WtUrlProvider`], yielding the URL to connect to.
@@ -202,7 +183,7 @@ struct WebTransportInner {
   /// tell a wake apart from the raced promise settling on its own.
   sentinel: JsValue,
   /// Page-lifecycle listeners driving recovery from bfcache/frozen restores.
-  lifecycle: RefCell<Option<LifecycleSlot>>,
+  lifecycle: RefCell<Option<PageLifecycleListeners>>,
 }
 
 impl WebTransportInner {
@@ -373,51 +354,27 @@ fn build_handle(config: WebTransportConfig) -> CResult<WebTransportHandle> {
   Ok(WebTransportHandle { state, inner })
 }
 
-/// Attach the window/document listeners that wake the supervisor after the page
+/// Attach the page-lifecycle listeners that wake the supervisor after the page
 /// is restored from bfcache, comes back online, or becomes visible again.
+///
+/// A bfcache restore (`force`) forces an immediate reconnect via the wake, while
+/// an `online`/visible wake only disturbs a session that already looks dead.
 fn install_lifecycle_listeners(inner: &Rc<WebTransportInner>) {
-  let Some(win) = web_sys::window() else {
+  let weak = Rc::downgrade(inner);
+  let listeners = on_page_restore(move |force| {
+    let Some(inner) = weak.upgrade() else { return };
+    if force {
+      if !inner.manual_close.get() {
+        inner.request_wake();
+      }
+    } else {
+      inner.wake_if_dead();
+    }
+  });
+  if listeners.is_none() {
     log::warn!("WebTransport: no window; skipping page-lifecycle recovery listeners");
-    return;
-  };
-
-  // A bfcache restore (`persisted`) always reconnects; a normal initial
-  // `pageshow` (`persisted == false`) is a no-op.
-  let weak = Rc::downgrade(inner);
-  let on_pageshow = Closure::<dyn FnMut(PageTransitionEvent)>::new(move |e: PageTransitionEvent| {
-    if e.persisted()
-      && let Some(inner) = weak.upgrade()
-      && !inner.manual_close.get()
-    {
-      inner.request_wake();
-    }
-  });
-  let _ = win.add_event_listener_with_callback("pageshow", on_pageshow.as_ref().unchecked_ref());
-
-  let weak = Rc::downgrade(inner);
-  let on_online = Closure::<dyn FnMut(Event)>::new(move |_e: Event| {
-    if let Some(inner) = weak.upgrade() {
-      inner.wake_if_dead();
-    }
-  });
-  let _ = win.add_event_listener_with_callback("online", on_online.as_ref().unchecked_ref());
-
-  let weak = Rc::downgrade(inner);
-  let on_visibility = Closure::<dyn FnMut(Event)>::new(move |_e: Event| {
-    let hidden = web_sys::window().and_then(|w| w.document()).is_some_and(|d| d.hidden());
-    if !hidden && let Some(inner) = weak.upgrade() {
-      inner.wake_if_dead();
-    }
-  });
-  if let Some(doc) = win.document() {
-    let _ = doc.add_event_listener_with_callback("visibilitychange", on_visibility.as_ref().unchecked_ref());
   }
-
-  inner.lifecycle.replace(Some(LifecycleSlot {
-    _on_pageshow: on_pageshow,
-    _on_online: on_online,
-    _on_visibility: on_visibility,
-  }));
+  inner.lifecycle.replace(listeners);
 }
 
 /// Await `promise`, racing it against the live lifecycle [`Wake`]. Returns

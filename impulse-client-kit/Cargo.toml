@@ -56,6 +56,7 @@ ssr = [
   "dep:leptos_meta",
 ]
 websocket = [
+  "impulse-utils/page-lifecycle",
   "dep:js-sys",
   "dep:wasm-bindgen",
   "dep:wasm-bindgen-futures",
@@ -70,6 +71,7 @@ websocket = [
   "web-sys/Window",
 ]
 webtransport = [
+  "impulse-utils/page-lifecycle",
   "dep:js-sys",
   "dep:wasm-bindgen",
   "dep:wasm-bindgen-futures",
