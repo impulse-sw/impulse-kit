@@ -878,7 +878,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "client-kit-showcase"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "chrono",
  "codee",
@@ -1860,11 +1860,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
 dependencies = [
  "cfg-if",
- "js-sys",
  "libc",
  "r-efi 5.3.0",
  "wasip2",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -2177,12 +2175,9 @@ dependencies = [
 
 [[package]]
 name = "html-escape"
-version = "0.2.13"
+version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d1ad449764d627e22bfd7cd5e8868264fc9236e07c752972b4080cd351cb476"
-dependencies = [
- "utf8-width",
-]
+checksum = "46c1ff2d1cbf39efe5af0900ced8a069b5e61557a17544eb0c4a50239937389e"
 
 [[package]]
 name = "http"
@@ -2489,7 +2484,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -2507,7 +2502,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-blocks"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "gloo-net",
  "impulse-client-kit",
@@ -2521,7 +2516,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-components"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "chrono",
  "codee",
@@ -2536,7 +2531,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-ring"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "bytes",
  "clap",
@@ -2556,7 +2551,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-error-pages"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "icondata",
  "impulse-client-kit",
@@ -2605,7 +2600,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-server-kit"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "any_spawner",
  "axum",
@@ -2656,7 +2651,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-skdsl"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "clap",
  "impulse-server-kit",
@@ -2672,7 +2667,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-static-server"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "impulse-server-kit",
  "serde",
@@ -2681,11 +2676,11 @@ dependencies = [
 
 [[package]]
 name = "impulse-tailwind-sources"
-version = "1.5.0"
+version = "1.5.1"
 
 [[package]]
 name = "impulse-utils"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "anyhow",
  "http",
@@ -3550,9 +3545,9 @@ dependencies = [
 
 [[package]]
 name = "num-bigint"
-version = "0.4.7"
+version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c863e9ab5e7bf9c99ba75e1050f1e4d624ae87ed3532d6238ffbdc7b585dbbe6"
+checksum = "c89e69e7e0f03bea5ef08013795c25018e101932225a656383bd384495ecc367"
 dependencies = [
  "num-integer",
  "num-traits",
@@ -4209,15 +4204,16 @@ dependencies = [
 
 [[package]]
 name = "quinn-proto"
-version = "0.11.15"
+version = "0.11.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fcb935c5bec503c2f0e306bdd3e58bb9029dcb14fa8d9ac76e3a5256ac0763e"
+checksum = "2f4bfc015262b9df63c8845072ce59068853ff5872180c2ce2f13038b970e560"
 dependencies = [
  "aws-lc-rs",
  "bytes",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "lru-slab",
- "rand 0.9.4",
+ "rand 0.10.2",
+ "rand_pcg",
  "ring",
  "rustc-hash 2.1.3",
  "rustls",
@@ -4231,16 +4227,16 @@ dependencies = [
 
 [[package]]
 name = "quinn-udp"
-version = "0.5.14"
+version = "0.5.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "addec6a0dcad8a8d96a771f815f0eaf55f9d1805756410b39f5fa81332574cbd"
+checksum = "35a133f956daabe89a61a685c2649f13d82d5aa4bd5d12d1277e1072a21c0694"
 dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4376,6 +4372,15 @@ name = "rand_core"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
+
+[[package]]
+name = "rand_pcg"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "caa0f4137e1c0a72f4c651489402276c8e8e1cf081f3b0ba156d2cbeef09e86a"
+dependencies = [
+ "rand_core 0.10.1",
+]
 
 [[package]]
 name = "rcgen"
@@ -5780,7 +5785,7 @@ dependencies = [
 
 [[package]]
 name = "ssr-showcase"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "console_error_panic_hook",
  "impulse-client-kit",
@@ -6610,12 +6615,6 @@ name = "utf-8"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
-
-[[package]]
-name = "utf8-width"
-version = "0.1.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1292c0d970b54115d14f2492fe0170adf21d68a1de108eebc51c1df4f346a091"
 
 [[package]]
 name = "utf8_iter"
