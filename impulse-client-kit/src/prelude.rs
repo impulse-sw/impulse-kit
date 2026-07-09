@@ -11,6 +11,9 @@ pub use console_log;
 
 pub use crate::setup_app;
 
+#[cfg(feature = "client")]
+pub use crate::client::{self, HttpRequest, HttpResponse, Method, RequestBuilder, set_request_interceptor};
+
 #[cfg(feature = "telemetry")]
 pub use crate::telemetry::{
   ClickMonitor, EventMonitor, FocusMonitor, HoverMonitor, SubmitMonitor, TelemetryConfig, TelemetryContext,

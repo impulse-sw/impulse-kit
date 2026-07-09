@@ -1,0 +1,378 @@
+//! Unified REST client with a single API across two compile-time backends.
+//!
+//! * **default** (browser wasm, or native): a request goes out directly —
+//!   `reqwest` with the browser fetch backend on wasm, native TLS off-wasm.
+//! * **`cfg(tauri)`** (the wasm frontend bundled into a Tauri webview): the
+//!   webview can't reach arbitrary hosts, so every request is serialised and
+//!   forwarded over Tauri IPC (`invoke`) to the native engine, which runs the
+//!   real transport via [`executor`] and hands back a [`HttpResponse`].
+//!
+//! The same [`RequestBuilder`] / [`HttpResponse`] surface is used in both modes,
+//! so call sites (an app's `requests.rs`) never mention which transport is live.
+//!
+//! ## Auth is layered by the app, not baked in
+//!
+//! This module is deliberately auth-agnostic to avoid a dependency cycle with
+//! `authnz`. Install a [request interceptor][set_request_interceptor] once at
+//! startup to attach credentials (a bearer token, cookies, …). In `cfg(tauri)`
+//! mode the interceptor should live on the **engine** side (the executor), since
+//! that's where the token is held; in the default mode it runs in the browser.
+//!
+//! ```rust,ignore
+//! use impulse_client_kit::client;
+//! let doc: MyDto = client::get("/api/v1/documents/1").credentials().send().await?.json()?;
+//! ```
+
+use impulse_utils::prelude::{CResult, ClientError};
+use serde::{Deserialize, Serialize};
+
+/// HTTP verb. Kept as a small serialisable enum so a request can cross the Tauri
+/// IPC boundary without pulling `http::Method` into the wire type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum Method {
+  /// `GET`
+  Get,
+  /// `POST`
+  Post,
+  /// `PUT`
+  Put,
+  /// `PATCH`
+  Patch,
+  /// `DELETE`
+  Delete,
+  /// `HEAD`
+  Head,
+}
+
+
+impl From<Method> for reqwest::Method {
+  fn from(m: Method) -> Self {
+    match m {
+      Method::Get => reqwest::Method::GET,
+      Method::Post => reqwest::Method::POST,
+      Method::Put => reqwest::Method::PUT,
+      Method::Patch => reqwest::Method::PATCH,
+      Method::Delete => reqwest::Method::DELETE,
+      Method::Head => reqwest::Method::HEAD,
+    }
+  }
+}
+
+/// A fully-described request. Serialisable so it can be executed either in-process
+/// (reqwest) or across Tauri IPC by the native engine.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HttpRequest {
+  /// HTTP verb.
+  pub method: Method,
+  /// Absolute or app-relative URL (already resolved via `router::endpoint`).
+  pub url: String,
+  /// Header name/value pairs, applied in order.
+  pub headers: Vec<(String, String)>,
+  /// Raw request body, if any.
+  pub body: Option<Vec<u8>>,
+  /// Whether ambient credentials should ride along: on wasm this sets fetch
+  /// `credentials: include` (cookies); the engine reads it to decide whether to
+  /// attach the stored token. Auth material itself is added by the interceptor.
+  pub credentials: bool,
+}
+
+/// A collected response: status, headers and the full body buffered in memory.
+/// Buffering keeps the type serialisable across IPC and identical in both modes.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HttpResponse {
+  /// HTTP status code.
+  pub status: u16,
+  /// Response header name/value pairs.
+  pub headers: Vec<(String, String)>,
+  /// Raw response body.
+  pub body: Vec<u8>,
+}
+
+impl HttpResponse {
+  /// The HTTP status code.
+  pub fn status(&self) -> u16 {
+    self.status
+  }
+
+  /// `true` for a 2xx status.
+  pub fn is_success(&self) -> bool {
+    (200..300).contains(&self.status)
+  }
+
+  /// First value of a response header, case-insensitively.
+  pub fn header(&self, name: &str) -> Option<&str> {
+    self
+      .headers
+      .iter()
+      .find(|(k, _)| k.eq_ignore_ascii_case(name))
+      .map(|(_, v)| v.as_str())
+  }
+
+  /// The body as UTF-8 text.
+  pub fn text(&self) -> CResult<String> {
+    String::from_utf8(self.body.clone()).map_err(ClientError::from)
+  }
+
+  /// The raw body bytes.
+  pub fn bytes(self) -> Vec<u8> {
+    self.body
+  }
+
+  /// Decode a JSON body.
+
+  pub fn json<T: serde::de::DeserializeOwned>(&self) -> CResult<T> {
+    serde_json::from_slice(&self.body).map_err(ClientError::from)
+  }
+
+  /// Decode a MessagePack body.
+
+  pub fn msgpack<T: serde::de::DeserializeOwned>(&self) -> CResult<T> {
+    rmp_serde::from_slice(&self.body).map_err(ClientError::from)
+  }
+
+  /// Turns a non-2xx response into an `Err`, otherwise passes it through.
+  pub fn error_for_status(self) -> CResult<Self> {
+    if self.is_success() {
+      Ok(self)
+    } else {
+      Err(ClientError::from_str(format!("HTTP {}", self.status)))
+    }
+  }
+}
+
+/// Fluent builder mirroring `reqwest`'s ergonomics. Body-encoding errors are
+/// captured and surfaced from [`send`](RequestBuilder::send).
+pub struct RequestBuilder {
+  req: HttpRequest,
+  err: Option<ClientError>,
+}
+
+impl RequestBuilder {
+  fn new(method: Method, url: impl Into<String>) -> Self {
+    Self {
+      req: HttpRequest {
+        method,
+        url: url.into(),
+        headers: Vec::new(),
+        body: None,
+        credentials: false,
+      },
+      err: None,
+    }
+  }
+
+  /// Adds a header.
+  pub fn header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+    self.req.headers.push((name.into(), value.into()));
+    self
+  }
+
+  /// Requests that ambient credentials (cookies / stored token) ride along.
+  pub fn credentials(mut self) -> Self {
+    self.req.credentials = true;
+    self
+  }
+
+  /// Sets a raw body.
+  pub fn body(mut self, body: impl Into<Vec<u8>>) -> Self {
+    self.req.body = Some(body.into());
+    self
+  }
+
+  /// Serialises `value` as JSON and sets `Content-Type: application/json`.
+
+  pub fn json<T: Serialize + ?Sized>(mut self, value: &T) -> Self {
+    match serde_json::to_vec(value) {
+      Ok(bytes) => {
+        self.req.headers.push(("Content-Type".into(), "application/json".into()));
+        self.req.body = Some(bytes);
+      }
+      Err(e) => self.err = Some(ClientError::from(e)),
+    }
+    self
+  }
+
+  /// Serialises `value` as MessagePack and sets `Content-Type: application/msgpack`.
+
+  pub fn msgpack<T: Serialize + ?Sized>(mut self, value: &T) -> Self {
+    match rmp_serde::to_vec(value) {
+      Ok(bytes) => {
+        self
+          .req
+          .headers
+          .push(("Content-Type".into(), "application/msgpack".into()));
+        self.req.body = Some(bytes);
+      }
+      Err(e) => self.err = Some(ClientError::from(e)),
+    }
+    self
+  }
+
+  /// Runs the request through the active backend, applying the installed
+  /// interceptor first.
+  pub async fn send(self) -> CResult<HttpResponse> {
+    if let Some(e) = self.err {
+      return Err(e);
+    }
+    let mut req = self.req;
+    apply_interceptor(&mut req);
+    dispatch(req).await
+  }
+}
+
+/// Starts a request with an explicit verb.
+pub fn request(method: Method, url: impl Into<String>) -> RequestBuilder {
+  RequestBuilder::new(method, url)
+}
+
+/// `GET` request builder.
+pub fn get(url: impl Into<String>) -> RequestBuilder {
+  RequestBuilder::new(Method::Get, url)
+}
+/// `POST` request builder.
+pub fn post(url: impl Into<String>) -> RequestBuilder {
+  RequestBuilder::new(Method::Post, url)
+}
+/// `PUT` request builder.
+pub fn put(url: impl Into<String>) -> RequestBuilder {
+  RequestBuilder::new(Method::Put, url)
+}
+/// `PATCH` request builder.
+pub fn patch(url: impl Into<String>) -> RequestBuilder {
+  RequestBuilder::new(Method::Patch, url)
+}
+/// `DELETE` request builder.
+pub fn delete(url: impl Into<String>) -> RequestBuilder {
+  RequestBuilder::new(Method::Delete, url)
+}
+/// `HEAD` request builder.
+pub fn head(url: impl Into<String>) -> RequestBuilder {
+  RequestBuilder::new(Method::Head, url)
+}
+
+// ---------- Request interceptor (auth is layered here) ----------
+
+type Interceptor = Box<dyn Fn(&mut HttpRequest) + Send + Sync + 'static>;
+static INTERCEPTOR: std::sync::OnceLock<Interceptor> = std::sync::OnceLock::new();
+
+/// Installs a global hook run against every outgoing [`HttpRequest`] just before
+/// dispatch — the place to attach an `Authorization` header, flip credentials,
+/// or add tracing headers. Install-once; a second call is ignored.
+pub fn set_request_interceptor<F>(f: F) -> Result<(), &'static str>
+where
+  F: Fn(&mut HttpRequest) + Send + Sync + 'static,
+{
+  INTERCEPTOR
+    .set(Box::new(f))
+    .map_err(|_| "impulse-client-kit: request interceptor already installed")
+}
+
+fn apply_interceptor(req: &mut HttpRequest) {
+  if let Some(f) = INTERCEPTOR.get() {
+    f(req);
+  }
+}
+
+// ---------- Backends ----------
+
+/// Default backend: run the request directly with `reqwest` (browser fetch on
+/// wasm, native TLS off-wasm).
+#[cfg(not(tauri))]
+async fn dispatch(req: HttpRequest) -> CResult<HttpResponse> {
+  let client = reqwest::Client::new();
+  let mut rb = client.request(req.method.into(), &req.url);
+  for (k, v) in &req.headers {
+    rb = rb.header(k, v);
+  }
+  if let Some(body) = req.body {
+    rb = rb.body(body);
+  }
+  // On wasm, send cookies with cross-fetch when asked. Off-wasm reqwest carries
+  // its own cookie store / the engine attaches auth, so this is a no-op there.
+  #[cfg(target_arch = "wasm32")]
+  if req.credentials {
+    rb = rb.fetch_credentials_include();
+  }
+  let resp = rb.send().await.map_err(ClientError::from)?;
+  collect(resp).await
+}
+
+#[cfg(not(tauri))]
+async fn collect(resp: reqwest::Response) -> CResult<HttpResponse> {
+  let status = resp.status().as_u16();
+  let headers = resp
+    .headers()
+    .iter()
+    .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or_default().to_string()))
+    .collect();
+  let body = resp.bytes().await.map_err(ClientError::from)?.to_vec();
+  Ok(HttpResponse { status, headers, body })
+}
+
+/// Tauri backend: forward the request to the native engine over IPC.
+#[cfg(tauri)]
+async fn dispatch(req: HttpRequest) -> CResult<HttpResponse> {
+  ipc::request(req).await
+}
+
+/// The wasm ⇄ Tauri IPC bridge. Calls the engine's `ik_http_request` command via
+/// the global `window.__TAURI__.core.invoke` (requires `withGlobalTauri` in the
+/// app's `tauri.conf.json`).
+#[cfg(tauri)]
+mod ipc {
+  use super::{ClientError, HttpRequest, HttpResponse};
+  use impulse_utils::prelude::CResult;
+  use serde::Serialize;
+  use wasm_bindgen::JsValue;
+  use wasm_bindgen::prelude::wasm_bindgen;
+
+  #[wasm_bindgen]
+  extern "C" {
+    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], js_name = invoke, catch)]
+    async fn invoke(cmd: &str, args: JsValue) -> Result<JsValue, JsValue>;
+  }
+
+  #[derive(Serialize)]
+  struct Args {
+    req: HttpRequest,
+  }
+
+  pub(super) async fn request(req: HttpRequest) -> CResult<HttpResponse> {
+    let args = serde_wasm_bindgen::to_value(&Args { req })
+      .map_err(|e| ClientError::from_str(format!("IPC encode failed: {e:?}")))?;
+    let value = invoke("ik_http_request", args)
+      .await
+      .map_err(|e| ClientError::from_str(format!("IPC request failed: {e:?}")))?;
+    serde_wasm_bindgen::from_value(value).map_err(|e| ClientError::from_str(format!("IPC decode failed: {e:?}")))
+  }
+}
+
+// ---------- Native engine executor ----------
+
+/// The native transport the Tauri engine registers as an IPC command handler.
+///
+/// The engine wraps [`execute`] in a Tauri command named `ik_http_request` and
+/// installs a [request interceptor][super::set_request_interceptor] that attaches
+/// the stored authnz token. See the crate docs for the wiring.
+#[cfg(all(feature = "tauri-executor", not(any(target_arch = "wasm32", target_arch = "wasm64"))))]
+pub mod executor {
+  use super::{HttpRequest, HttpResponse, apply_interceptor, collect};
+  use impulse_utils::prelude::{CResult, ClientError};
+
+  /// Executes a request natively (reqwest) after applying the installed
+  /// interceptor, returning a serialisable [`HttpResponse`] to hand back over IPC.
+  pub async fn execute(mut req: HttpRequest) -> CResult<HttpResponse> {
+    apply_interceptor(&mut req);
+    let client = reqwest::Client::new();
+    let mut rb = client.request(req.method.into(), &req.url);
+    for (k, v) in &req.headers {
+      rb = rb.header(k, v);
+    }
+    if let Some(body) = req.body {
+      rb = rb.body(body);
+    }
+    let resp = rb.send().await.map_err(ClientError::from)?;
+    collect(resp).await
+  }
+}

@@ -28,6 +28,11 @@ compile_error!("impulse-client-kit: feature `webtransport` requires `csr` or `hy
 pub mod router;
 pub mod utils;
 
+/// Unified REST client with one API across the direct (reqwest) and Tauri-IPC
+/// backends. See the module docs for the auth-interceptor pattern.
+#[cfg(feature = "client")]
+pub mod client;
+
 #[cfg(feature = "telemetry")]
 pub mod telemetry;
 

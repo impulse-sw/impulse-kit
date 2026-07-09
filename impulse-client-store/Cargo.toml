@@ -1,0 +1,26 @@
+[package]
+name = "impulse-client-store"
+description = "Offline-first client store: reactive cache, mutation queue and reconnect-driven sync for Leptos apps"
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+
+[features]
+default = []
+# Persist the cache and mutation queue to browser LocalStorage (wasm only). Off
+# by default so the store also builds cleanly on native (the Tauri engine
+# persists to SQLite instead). Web deps are always present on wasm for the
+# connectivity listener, so this flag only toggles behaviour.
+persist = []
+
+[dependencies]
+leptos = { workspace = true }
+log = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = { workspace = true }
+
+[target.'cfg(any(target_arch = "wasm32", target_arch = "wasm64"))'.dependencies]
+web-sys = { workspace = true, features = ["Window", "Storage", "Navigator", "EventTarget"] }
+wasm-bindgen = { workspace = true }

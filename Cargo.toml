@@ -13,6 +13,7 @@ members = [
   "impulse-client-kit/examples/showcase",
   "impulse-client-kit/examples/ssr_showcase",
   "impulse-client-ring",
+  "impulse-client-store",
   "impulse-error-pages",
 ]
 resolver = "3"
@@ -34,6 +35,7 @@ impulse-client-kit-components = { path = "impulse-client-kit/components", defaul
 impulse-client-kit-blocks = { path = "impulse-client-kit/blocks", default-features = false }
 impulse-tailwind-sources = { path = "impulse-client-kit/tailwind-sources" }
 impulse-client-ring = { path = "impulse-client-ring", default-features = false }
+impulse-client-store = { path = "impulse-client-store", default-features = false }
 
 impulse-ring-connector = { git = "https://github.com/impulse-sw/impulse-ring.git", tag = "0.8.0" }
 impulse-ring-http = { git = "https://github.com/impulse-sw/impulse-ring.git", tag = "0.8.0" }

@@ -92,17 +92,57 @@ webtransport = [
   "web-sys/WritableStream",
   "web-sys/WritableStreamDefaultWriter",
 ]
+# Unified REST client (`client` module) with one API across two backends. The
+# default backend goes out directly (reqwest — browser fetch on wasm, native
+# TLS off-wasm). Auth-agnostic: apps install a request interceptor (e.g. to
+# attach an authnz token or cookies). See also `tauri` and `tauri-executor`.
+client = [
+  "dep:reqwest",
+  "dep:serde",
+  "dep:serde_json",
+  "dep:rmp-serde",
+  "dep:http",
+  "impulse-utils/reqwest",
+]
+# Route the unified client through Tauri IPC instead of hitting the network
+# directly. Enable this on the wasm frontend bundled into a Tauri webview, where
+# fetch/WS to arbitrary hosts don't work — requests are forwarded to the native
+# engine's `executor` over `invoke`. `build.rs` also emits `cfg(tauri)`.
+tauri = [
+  "client",
+  "dep:wasm-bindgen",
+  "dep:wasm-bindgen-futures",
+  "dep:serde-wasm-bindgen",
+]
+# The native transport executor the Tauri engine registers as IPC command
+# handlers (non-wasm). Runs the real requests via reqwest and hands back a
+# serialisable response. Enable this on the engine crate, not the UI.
+tauri-executor = ["client"]
 
 [dependencies]
 console_error_panic_hook = { workspace = true, optional = true }
 console_log = { workspace = true, optional = true }
+http = { workspace = true, optional = true }
 impulse-utils = { workspace = true, features = ["cresult"] }
 js-sys = { workspace = true, optional = true }
 leptos = { workspace = true }
 leptos-use = { workspace = true, optional = true }
 leptos_meta = { workspace = true, optional = true }
 log = { workspace = true }
+reqwest = { workspace = true, optional = true, features = ["json"] }
 rmp-serde = { workspace = true, optional = true }
+serde = { workspace = true, optional = true, features = ["derive"] }
+serde_json = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
 web-sys = { workspace = true, optional = true }
+
+# Native (off-wasm) builds add TLS + HTTP/2 to reqwest so the Tauri engine's
+# `executor` can actually reach a remote server. Features union with the base.
+[target.'cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))'.dependencies]
+reqwest = { workspace = true, optional = true, features = ["json", "rustls", "http2"] }
+
+# The Tauri IPC bridge (wasm webview only) needs to hand serialisable requests
+# to `invoke`; serde-wasm-bindgen does the JsValue conversion.
+[target.'cfg(any(target_arch = "wasm32", target_arch = "wasm64"))'.dependencies]
+serde-wasm-bindgen = { version = "0.6", optional = true }
