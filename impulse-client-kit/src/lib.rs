@@ -40,6 +40,10 @@ pub mod telemetry;
 pub mod reconnect;
 #[cfg(feature = "websocket")]
 pub mod ws;
+/// Tauri-IPC backend for the WebSocket surface (mirrors [`ws`]); active under
+/// `cfg(tauri)` so the frontend routes frames through the native engine.
+#[cfg(all(tauri, feature = "websocket"))]
+pub mod ws_ipc;
 #[cfg(feature = "webtransport")]
 pub mod wt;
 
