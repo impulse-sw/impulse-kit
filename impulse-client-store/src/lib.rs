@@ -212,7 +212,9 @@ where
 
   /// Pending mutations, oldest first.
   pub fn pending(&self) -> Vec<(u64, M)> {
-    self.entries.with(|m| m.iter().map(|(id, v)| (*id, v.clone())).collect())
+    self
+      .entries
+      .with(|m| m.iter().map(|(id, v)| (*id, v.clone())).collect())
   }
 
   /// Number of pending mutations (tracks) — handy for a "N unsynced" badge.

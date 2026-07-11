@@ -45,7 +45,6 @@ pub enum Method {
   Head,
 }
 
-
 impl From<Method> for reqwest::Method {
   fn from(m: Method) -> Self {
     match m {
@@ -185,7 +184,10 @@ impl RequestBuilder {
   pub fn json<T: Serialize + ?Sized>(mut self, value: &T) -> Self {
     match serde_json::to_vec(value) {
       Ok(bytes) => {
-        self.req.headers.push(("Content-Type".into(), "application/json".into()));
+        self
+          .req
+          .headers
+          .push(("Content-Type".into(), "application/json".into()));
         self.req.body = Some(bytes);
       }
       Err(e) => self.err = Some(ClientError::from(e)),
