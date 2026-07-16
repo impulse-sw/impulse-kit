@@ -41,15 +41,45 @@ pub trait Remote {
   async fn send(&self, req: HttpRequest) -> CResult<HttpResponse>;
 }
 
-/// The production [`Remote`]: the kit's native reqwest executor
-/// (`impulse-tauri-client`). Available with the `executor` feature.
+/// The production [`Remote`]: runs the request natively via reqwest. This is the
+/// native side of a Tauri app forwarding the UI's requests to the real server.
+/// Available with the `executor` feature.
 #[cfg(feature = "executor")]
 pub struct ExecutorRemote;
 
 #[cfg(feature = "executor")]
 impl Remote for ExecutorRemote {
   async fn send(&self, req: HttpRequest) -> CResult<HttpResponse> {
-    impulse_tauri_client::executor::execute(req).await
+    executor::execute(req).await
+  }
+}
+
+/// The native reqwest executor behind [`ExecutorRemote`]. Also usable directly
+/// (e.g. a connectivity probe) without constructing an [`Engine`].
+#[cfg(feature = "executor")]
+pub mod executor {
+  use impulse_endpoint::{HttpRequest, HttpResponse};
+  use impulse_utils::prelude::{CResult, ClientError};
+
+  /// Runs `req` with reqwest and collects a buffered [`HttpResponse`].
+  pub async fn execute(req: HttpRequest) -> CResult<HttpResponse> {
+    let client = reqwest::Client::new();
+    let mut rb = client.request(req.method.into(), &req.url);
+    for (k, v) in &req.headers {
+      rb = rb.header(k, v);
+    }
+    if let Some(body) = req.body {
+      rb = rb.body(body);
+    }
+    let resp = rb.send().await.map_err(ClientError::from)?;
+    let status = resp.status().as_u16();
+    let headers = resp
+      .headers()
+      .iter()
+      .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or_default().to_string()))
+      .collect();
+    let body = resp.bytes().await.map_err(ClientError::from)?.to_vec();
+    Ok(HttpResponse { status, headers, body })
   }
 }
 

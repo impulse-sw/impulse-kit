@@ -1,12 +1,12 @@
-//! Unified client-side request execution with a single API across two
-//! compile-time backends, plus a typed ergonomics layer shared by every app.
+//! Unified REST client with a single API across two compile-time backends,
+//! plus a typed ergonomics layer shared by every app.
 //!
 //! * **default** (browser wasm, or native): a request goes out directly —
 //!   `reqwest` with the browser fetch backend on wasm, native TLS off-wasm.
 //! * **`cfg(tauri)`** (the wasm frontend bundled into a Tauri webview): the
 //!   webview can't reach arbitrary hosts, so every request is serialised and
-//!   forwarded over Tauri IPC (`invoke("ik_http_request")`) to the native engine,
-//!   which runs the real transport via [`executor`] and hands back a
+//!   forwarded over Tauri IPC (`invoke("ik_http_request")`) to the native engine
+//!   (`impulse-tauri-engine`), which runs the real transport and hands back a
 //!   [`HttpResponse`]. The switch is a Cargo feature — recompile and it just works.
 //!
 //! The same [`RequestBuilder`] / [`HttpResponse`] surface is used in both modes,
@@ -19,20 +19,18 @@
 //! [`RequestBuilder::recv`] / [`RequestBuilder::recv_ok`]:
 //!
 //! ```rust,ignore
-//! use impulse_tauri_client as client;
+//! use impulse_client_kit::client;
 //! let doc: MyDto = client::get("/api/v1/documents/1").credentials().recv().await?;
 //! client::delete("/api/v1/documents/1").credentials().recv_ok().await?;
 //! ```
 //!
 //! ## Auth is layered by the app, not baked in
 //!
-//! This crate is deliberately auth-agnostic to avoid a dependency cycle with
+//! This module is deliberately auth-agnostic to avoid a dependency cycle with
 //! `authnz`. Install a [request interceptor][set_request_interceptor] once at
 //! startup to attach credentials (a bearer token, cookies, …). In `cfg(tauri)`
-//! mode the interceptor lives on the **engine** side (the executor), where the
-//! token is held; in the default mode it runs in the browser.
-
-#![deny(warnings, clippy::todo, clippy::unimplemented, missing_docs)]
+//! mode the interceptor lives on the **engine** side (`impulse-tauri-engine`),
+//! where the token is held; in the default mode it runs in the browser.
 
 use impulse_utils::prelude::{CResult, ClientError};
 use serde::{Deserialize, Serialize};
@@ -202,7 +200,7 @@ where
 {
   INTERCEPTOR
     .set(Box::new(f))
-    .map_err(|_| "impulse-tauri-client: request interceptor already installed")
+    .map_err(|_| "impulse-client-kit: request interceptor already installed")
 }
 
 fn apply_interceptor(req: &mut HttpRequest) {
@@ -282,34 +280,5 @@ mod ipc {
       .await
       .map_err(|e| ClientError::from_str(format!("IPC request failed: {e:?}")))?;
     serde_wasm_bindgen::from_value(value).map_err(|e| ClientError::from_str(format!("IPC decode failed: {e:?}")))
-  }
-}
-
-// ---------- Native engine executor ----------
-
-/// The native transport the Tauri engine registers as an IPC command handler.
-///
-/// The engine wraps [`execute`] in a Tauri command named `ik_http_request` and
-/// installs a [request interceptor][super::set_request_interceptor] that attaches
-/// the stored authnz token.
-#[cfg(all(feature = "tauri-executor", not(any(target_arch = "wasm32", target_arch = "wasm64"))))]
-pub mod executor {
-  use super::{HttpRequest, HttpResponse, apply_interceptor, collect};
-  use impulse_utils::prelude::{CResult, ClientError};
-
-  /// Executes a request natively (reqwest) after applying the installed
-  /// interceptor, returning a serialisable [`HttpResponse`] to hand back over IPC.
-  pub async fn execute(mut req: HttpRequest) -> CResult<HttpResponse> {
-    apply_interceptor(&mut req);
-    let client = reqwest::Client::new();
-    let mut rb = client.request(req.method.into(), &req.url);
-    for (k, v) in &req.headers {
-      rb = rb.header(k, v);
-    }
-    if let Some(body) = req.body {
-      rb = rb.body(body);
-    }
-    let resp = rb.send().await.map_err(ClientError::from)?;
-    collect(resp).await
   }
 }

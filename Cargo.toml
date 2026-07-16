@@ -4,7 +4,6 @@ cargo-features = ["panic-immediate-abort", "trim-paths"]
 members = [
   "impulse-utils",
   "impulse-endpoint",
-  "impulse-tauri-client",
   "impulse-tauri-engine",
   "impulse-server-kit",
   "impulse-server-kit-dsl",
@@ -34,7 +33,6 @@ impulse-skdsl = { path = "impulse-server-kit-dsl" }
 impulse-static-server = { path = "impulse-static-server" }
 impulse-utils = { path = "impulse-utils", default-features = false }
 impulse-endpoint = { path = "impulse-endpoint", default-features = false }
-impulse-tauri-client = { path = "impulse-tauri-client", default-features = false }
 impulse-tauri-engine = { path = "impulse-tauri-engine", default-features = false }
 impulse-client-kit = { path = "impulse-client-kit", default-features = false }
 impulse-client-kit-components = { path = "impulse-client-kit/components", default-features = false }

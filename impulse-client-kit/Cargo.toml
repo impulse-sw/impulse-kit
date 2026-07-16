@@ -94,35 +94,37 @@ webtransport = [
 ]
 # Unified REST client (`client` module) with one API across two backends. The
 # default backend goes out directly (reqwest — browser fetch on wasm, native
-# TLS off-wasm). Auth-agnostic: apps install a request interceptor (e.g. to
-# attach an authnz token or cookies). See also `tauri` and `tauri-executor`.
-# The unified client transport now lives in `impulse-tauri-client`; this feature
-# just pulls it in and re-exports it as `impulse_client_kit::client`.
-client = ["dep:impulse-tauri-client"]
+# TLS off-wasm); `tauri` swaps it for the Tauri-IPC backend. The wire types come
+# from `impulse-endpoint`. Auth-agnostic: apps install a request interceptor
+# (e.g. to attach an authnz token or cookies).
+client = [
+  "dep:reqwest",
+  "dep:serde",
+  "dep:serde_json",
+  "dep:rmp-serde",
+  "dep:impulse-endpoint",
+  "impulse-endpoint/reqwest",
+  "impulse-utils/reqwest",
+]
 # Route the unified client through Tauri IPC instead of hitting the network
 # directly. Enable this on the wasm frontend bundled into a Tauri webview, where
 # fetch/WS to arbitrary hosts don't work — requests are forwarded to the native
-# engine's `executor` over `invoke`. `build.rs` also emits `cfg(tauri)` for the
-# WebSocket bridge; the REST client's IPC backend comes from
-# `impulse-tauri-client/tauri`.
+# engine over `invoke("ik_http_request")`. `build.rs` emits `cfg(tauri)` for both
+# the REST client's IPC backend and the WebSocket bridge. The native side of a
+# Tauri app (the request executor) lives in `impulse-tauri-engine`.
 tauri = [
   "client",
-  "impulse-tauri-client/tauri",
   "dep:wasm-bindgen",
   "dep:wasm-bindgen-futures",
   "dep:serde-wasm-bindgen",
 ]
-# The native transport executor the Tauri engine registers as IPC command
-# handlers (non-wasm). Runs the real requests via reqwest and hands back a
-# serialisable response. Enable this on the engine crate, not the UI.
-tauri-executor = ["client", "impulse-tauri-client/tauri-executor"]
 
 [dependencies]
 console_error_panic_hook = { workspace = true, optional = true }
 console_log = { workspace = true, optional = true }
 http = { workspace = true, optional = true }
 impulse-utils = { workspace = true, features = ["cresult"] }
-impulse-tauri-client = { workspace = true, optional = true }
+impulse-endpoint = { workspace = true, optional = true }
 js-sys = { workspace = true, optional = true }
 leptos = { workspace = true }
 leptos-use = { workspace = true, optional = true }

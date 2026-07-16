@@ -1,6 +1,6 @@
 //! Transport-agnostic HTTP wire types.
 //!
-//! Shared by the client transport (`impulse-tauri-client`), the Tauri engine
+//! Shared by the client transport (`impulse_client_kit::client`), the Tauri engine
 //! (`impulse-tauri-engine`) and the server adapter, so a request/response is the
 //! same type whether it is executed via reqwest, forwarded over Tauri IPC, or
 //! handled locally. Everything is serialisable so it can cross the IPC boundary

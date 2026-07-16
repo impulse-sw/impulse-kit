@@ -9,15 +9,16 @@ authors = { workspace = true }
 
 [features]
 default = ["executor"]
-# Provides `ExecutorRemote`, the production `Remote` backed by the kit's native
-# reqwest executor (`impulse-tauri-client`). Turn it off for headless tests that
-# inject a fake `Remote`.
-executor = ["dep:impulse-tauri-client", "impulse-tauri-client/tauri-executor"]
+# Provides `ExecutorRemote`, the production `Remote` that runs the real requests
+# natively via reqwest (this is the native side of a Tauri app — the "forward to
+# the server" transport). Turn it off for headless tests that inject a fake
+# `Remote`.
+executor = ["dep:reqwest", "impulse-endpoint/reqwest"]
 
 [dependencies]
 impulse-endpoint = { workspace = true }
 impulse-utils = { workspace = true, features = ["cresult", "mresult"] }
-impulse-tauri-client = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true, features = ["json", "rustls", "http2"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tracing = { workspace = true }

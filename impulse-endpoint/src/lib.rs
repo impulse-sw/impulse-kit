@@ -3,7 +3,7 @@
 //! This crate is the neutral foundation of the request stack: it depends on
 //! neither reqwest, salvo, tauri nor leptos, so it can be shared by
 //!
-//! * the **client transport** (`impulse-tauri-client`) — which executes an
+//! * the **client transport** (`impulse_client_kit::client`) — which executes an
 //!   [`HttpRequest`] via reqwest (browser fetch / native TLS) or forwards it over
 //!   Tauri IPC, and reads back an [`HttpResponse`];
 //! * the **Tauri engine** (`impulse-tauri-engine`) — which handles an
