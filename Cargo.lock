@@ -2723,6 +2723,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "impulse-tauri-engine"
+version = "1.6.0"
+dependencies = [
+ "impulse-endpoint",
+ "impulse-tauri-client",
+ "impulse-utils",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "impulse-utils"
 version = "1.6.0"
 dependencies = [
