@@ -1,35 +1,45 @@
-//! Unified REST client with a single API across two compile-time backends.
+//! Unified client-side request execution with a single API across two
+//! compile-time backends, plus a typed ergonomics layer shared by every app.
 //!
 //! * **default** (browser wasm, or native): a request goes out directly —
 //!   `reqwest` with the browser fetch backend on wasm, native TLS off-wasm.
 //! * **`cfg(tauri)`** (the wasm frontend bundled into a Tauri webview): the
 //!   webview can't reach arbitrary hosts, so every request is serialised and
-//!   forwarded over Tauri IPC (`invoke`) to the native engine, which runs the
-//!   real transport via [`executor`] and hands back a [`HttpResponse`].
+//!   forwarded over Tauri IPC (`invoke("ik_http_request")`) to the native engine,
+//!   which runs the real transport via [`executor`] and hands back a
+//!   [`HttpResponse`]. The switch is a Cargo feature — recompile and it just works.
 //!
 //! The same [`RequestBuilder`] / [`HttpResponse`] surface is used in both modes,
 //! so call sites (an app's `requests.rs`) never mention which transport is live.
 //!
-//! ## Auth is layered by the app, not baked in
+//! ## Typed ergonomics
 //!
-//! This module is deliberately auth-agnostic to avoid a dependency cycle with
-//! `authnz`. Install a [request interceptor][set_request_interceptor] once at
-//! startup to attach credentials (a bearer token, cookies, …). In `cfg(tauri)`
-//! mode the interceptor should live on the **engine** side (the executor), since
-//! that's where the token is held; in the default mode it runs in the browser.
+//! Instead of every app re-writing "send with credentials, check the status,
+//! decode JSON or surface the server's `{ "err": … }` message", use
+//! [`RequestBuilder::recv`] / [`RequestBuilder::recv_ok`]:
 //!
 //! ```rust,ignore
-//! use impulse_client_kit::client;
-//! let doc: MyDto = client::get("/api/v1/documents/1").credentials().send().await?.json()?;
+//! use impulse_tauri_client as client;
+//! let doc: MyDto = client::get("/api/v1/documents/1").credentials().recv().await?;
+//! client::delete("/api/v1/documents/1").credentials().recv_ok().await?;
 //! ```
+//!
+//! ## Auth is layered by the app, not baked in
+//!
+//! This crate is deliberately auth-agnostic to avoid a dependency cycle with
+//! `authnz`. Install a [request interceptor][set_request_interceptor] once at
+//! startup to attach credentials (a bearer token, cookies, …). In `cfg(tauri)`
+//! mode the interceptor lives on the **engine** side (the executor), where the
+//! token is held; in the default mode it runs in the browser.
+
+#![deny(warnings, clippy::todo, clippy::unimplemented, missing_docs)]
 
 use impulse_utils::prelude::{CResult, ClientError};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-// The HTTP wire types (`Method`, `HttpRequest`, `HttpResponse`) now live in the
+// The HTTP wire types (`Method`, `HttpRequest`, `HttpResponse`) live in the
 // neutral `impulse-endpoint` crate, shared with the server adapter and the Tauri
-// engine. Re-exported here so existing callers of
-// `impulse_client_kit::client::{HttpRequest, HttpResponse, Method}` keep working.
+// engine. Re-exported here (and, in turn, from `impulse_client_kit::client`).
 pub use impulse_endpoint::{HttpRequest, HttpResponse, Method};
 
 /// Fluent builder mirroring `reqwest`'s ergonomics. Body-encoding errors are
@@ -72,7 +82,6 @@ impl RequestBuilder {
   }
 
   /// Serialises `value` as JSON and sets `Content-Type: application/json`.
-
   pub fn json<T: Serialize + ?Sized>(mut self, value: &T) -> Self {
     match serde_json::to_vec(value) {
       Ok(bytes) => {
@@ -88,7 +97,6 @@ impl RequestBuilder {
   }
 
   /// Serialises `value` as MessagePack and sets `Content-Type: application/msgpack`.
-
   pub fn msgpack<T: Serialize + ?Sized>(mut self, value: &T) -> Self {
     match rmp_serde::to_vec(value) {
       Ok(bytes) => {
@@ -112,6 +120,41 @@ impl RequestBuilder {
     let mut req = self.req;
     apply_interceptor(&mut req);
     dispatch(req).await
+  }
+
+  /// Sends the request and decodes a 2xx JSON body into `T`. On a non-2xx status
+  /// the server's public `{ "err": … }` message is surfaced as the error (falling
+  /// back to `HTTP <status>`). This is the shared replacement for every app's
+  /// hand-written "send, check status, decode-or-extract-error" helper.
+  pub async fn recv<T: serde::de::DeserializeOwned>(self) -> CResult<T> {
+    let resp = self.send().await?;
+    if !resp.is_success() {
+      return Err(server_error(&resp));
+    }
+    resp.json::<T>()
+  }
+
+  /// Like [`recv`](RequestBuilder::recv) for an endpoint that answers an empty
+  /// 2xx: succeeds with `()` or surfaces the server's error message.
+  pub async fn recv_ok(self) -> CResult<()> {
+    let resp = self.send().await?;
+    if !resp.is_success() {
+      return Err(server_error(&resp));
+    }
+    Ok(())
+  }
+}
+
+/// Extracts the server's public error message from a non-2xx response body
+/// (`{ "err": … }`), falling back to a status-based message.
+fn server_error(resp: &HttpResponse) -> ClientError {
+  #[derive(Deserialize)]
+  struct ErrBody {
+    err: String,
+  }
+  match resp.json::<ErrBody>() {
+    Ok(body) => ClientError::from_str(body.err),
+    Err(_) => ClientError::from_str(format!("Request failed (HTTP {})", resp.status())),
   }
 }
 
@@ -151,15 +194,15 @@ type Interceptor = Box<dyn Fn(&mut HttpRequest) + Send + Sync + 'static>;
 static INTERCEPTOR: std::sync::OnceLock<Interceptor> = std::sync::OnceLock::new();
 
 /// Installs a global hook run against every outgoing [`HttpRequest`] just before
-/// dispatch — the place to attach an `Authorization` header, flip credentials,
-/// or add tracing headers. Install-once; a second call is ignored.
+/// dispatch — the place to attach an `Authorization` header, flip credentials, or
+/// add tracing headers. Install-once; a second call is ignored.
 pub fn set_request_interceptor<F>(f: F) -> Result<(), &'static str>
 where
   F: Fn(&mut HttpRequest) + Send + Sync + 'static,
 {
   INTERCEPTOR
     .set(Box::new(f))
-    .map_err(|_| "impulse-client-kit: request interceptor already installed")
+    .map_err(|_| "impulse-tauri-client: request interceptor already installed")
 }
 
 fn apply_interceptor(req: &mut HttpRequest) {
@@ -248,7 +291,7 @@ mod ipc {
 ///
 /// The engine wraps [`execute`] in a Tauri command named `ik_http_request` and
 /// installs a [request interceptor][super::set_request_interceptor] that attaches
-/// the stored authnz token. See the crate docs for the wiring.
+/// the stored authnz token.
 #[cfg(all(feature = "tauri-executor", not(any(target_arch = "wasm32", target_arch = "wasm64"))))]
 pub mod executor {
   use super::{HttpRequest, HttpResponse, apply_interceptor, collect};

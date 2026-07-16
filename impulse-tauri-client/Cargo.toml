@@ -1,0 +1,43 @@
+[package]
+name = "impulse-tauri-client"
+description = "Unified client-side request execution: one API that runs over reqwest (browser fetch / native TLS) or forwards over Tauri IPC to the native engine, flipped by a Cargo feature. Plus typed request ergonomics shared by every app."
+version = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+build = "build.rs"
+
+[features]
+default = []
+# Route the unified client through Tauri IPC instead of hitting the network
+# directly. Enable this on the wasm frontend bundled into a Tauri webview, where
+# fetch to arbitrary hosts doesn't work — requests are forwarded to the native
+# engine's `executor` over `invoke("ik_http_request")`. `build.rs` emits cfg(tauri).
+tauri = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:serde-wasm-bindgen"]
+# The native transport executor the Tauri engine registers as an IPC command
+# handler (non-wasm). Runs the real requests via reqwest and hands back a
+# serialisable response. Enable this on the engine crate, not the UI.
+tauri-executor = []
+
+[dependencies]
+impulse-endpoint = { workspace = true, features = ["reqwest"] }
+impulse-utils = { workspace = true, features = ["cresult", "reqwest"] }
+reqwest = { workspace = true, optional = false, features = ["json"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+rmp-serde = { workspace = true }
+
+# Native (off-wasm) builds add TLS + HTTP/2 to reqwest so the Tauri engine's
+# `executor` can actually reach a remote server. Features union with the base.
+[target.'cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))'.dependencies]
+reqwest = { workspace = true, features = ["json", "rustls", "http2"] }
+
+# The Tauri IPC bridge (wasm webview only) needs to hand serialisable requests to
+# `invoke`; serde-wasm-bindgen does the JsValue conversion.
+[target.'cfg(any(target_arch = "wasm32", target_arch = "wasm64"))'.dependencies]
+wasm-bindgen = { workspace = true, optional = true }
+wasm-bindgen-futures = { workspace = true, optional = true }
+serde-wasm-bindgen = { version = "0.6", optional = true }
+
+[build-dependencies]

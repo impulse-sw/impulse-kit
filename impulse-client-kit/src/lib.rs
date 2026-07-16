@@ -29,9 +29,13 @@ pub mod router;
 pub mod utils;
 
 /// Unified REST client with one API across the direct (reqwest) and Tauri-IPC
-/// backends. See the module docs for the auth-interceptor pattern.
+/// backends. The transport lives in `impulse-tauri-client`; it is re-exported
+/// here unchanged so `impulse_client_kit::client::{…}` call sites keep working.
+/// See that crate for the transport and the auth-interceptor pattern.
 #[cfg(feature = "client")]
-pub mod client;
+pub mod client {
+  pub use impulse_tauri_client::*;
+}
 
 #[cfg(feature = "telemetry")]
 pub mod telemetry;

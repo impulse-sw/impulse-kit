@@ -2489,7 +2489,7 @@ dependencies = [
  "console_error_panic_hook",
  "console_log",
  "http",
- "impulse-endpoint",
+ "impulse-tauri-client",
  "impulse-utils",
  "js-sys",
  "leptos",
@@ -2706,6 +2706,21 @@ dependencies = [
 [[package]]
 name = "impulse-tailwind-sources"
 version = "1.6.0"
+
+[[package]]
+name = "impulse-tauri-client"
+version = "1.6.0"
+dependencies = [
+ "impulse-endpoint",
+ "impulse-utils",
+ "reqwest",
+ "rmp-serde",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
 
 [[package]]
 name = "impulse-utils"
