@@ -2489,6 +2489,7 @@ dependencies = [
  "console_error_panic_hook",
  "console_log",
  "http",
+ "impulse-endpoint",
  "impulse-utils",
  "js-sys",
  "leptos",
@@ -2564,6 +2565,17 @@ dependencies = [
  "serde_json",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "impulse-endpoint"
+version = "1.6.0"
+dependencies = [
+ "impulse-utils",
+ "reqwest",
+ "rmp-serde",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

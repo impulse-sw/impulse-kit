@@ -24,121 +24,13 @@
 //! ```
 
 use impulse_utils::prelude::{CResult, ClientError};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
-/// HTTP verb. Kept as a small serialisable enum so a request can cross the Tauri
-/// IPC boundary without pulling `http::Method` into the wire type.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "UPPERCASE")]
-pub enum Method {
-  /// `GET`
-  Get,
-  /// `POST`
-  Post,
-  /// `PUT`
-  Put,
-  /// `PATCH`
-  Patch,
-  /// `DELETE`
-  Delete,
-  /// `HEAD`
-  Head,
-}
-
-impl From<Method> for reqwest::Method {
-  fn from(m: Method) -> Self {
-    match m {
-      Method::Get => reqwest::Method::GET,
-      Method::Post => reqwest::Method::POST,
-      Method::Put => reqwest::Method::PUT,
-      Method::Patch => reqwest::Method::PATCH,
-      Method::Delete => reqwest::Method::DELETE,
-      Method::Head => reqwest::Method::HEAD,
-    }
-  }
-}
-
-/// A fully-described request. Serialisable so it can be executed either in-process
-/// (reqwest) or across Tauri IPC by the native engine.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HttpRequest {
-  /// HTTP verb.
-  pub method: Method,
-  /// Absolute or app-relative URL (already resolved via `router::endpoint`).
-  pub url: String,
-  /// Header name/value pairs, applied in order.
-  pub headers: Vec<(String, String)>,
-  /// Raw request body, if any.
-  pub body: Option<Vec<u8>>,
-  /// Whether ambient credentials should ride along: on wasm this sets fetch
-  /// `credentials: include` (cookies); the engine reads it to decide whether to
-  /// attach the stored token. Auth material itself is added by the interceptor.
-  pub credentials: bool,
-}
-
-/// A collected response: status, headers and the full body buffered in memory.
-/// Buffering keeps the type serialisable across IPC and identical in both modes.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HttpResponse {
-  /// HTTP status code.
-  pub status: u16,
-  /// Response header name/value pairs.
-  pub headers: Vec<(String, String)>,
-  /// Raw response body.
-  pub body: Vec<u8>,
-}
-
-impl HttpResponse {
-  /// The HTTP status code.
-  pub fn status(&self) -> u16 {
-    self.status
-  }
-
-  /// `true` for a 2xx status.
-  pub fn is_success(&self) -> bool {
-    (200..300).contains(&self.status)
-  }
-
-  /// First value of a response header, case-insensitively.
-  pub fn header(&self, name: &str) -> Option<&str> {
-    self
-      .headers
-      .iter()
-      .find(|(k, _)| k.eq_ignore_ascii_case(name))
-      .map(|(_, v)| v.as_str())
-  }
-
-  /// The body as UTF-8 text.
-  pub fn text(&self) -> CResult<String> {
-    String::from_utf8(self.body.clone()).map_err(ClientError::from)
-  }
-
-  /// The raw body bytes.
-  pub fn bytes(self) -> Vec<u8> {
-    self.body
-  }
-
-  /// Decode a JSON body.
-
-  pub fn json<T: serde::de::DeserializeOwned>(&self) -> CResult<T> {
-    serde_json::from_slice(&self.body).map_err(ClientError::from)
-  }
-
-  /// Decode a MessagePack body.
-
-  pub fn msgpack<T: serde::de::DeserializeOwned>(&self) -> CResult<T> {
-    rmp_serde::from_slice(&self.body).map_err(ClientError::from)
-  }
-
-  /// Turns a non-2xx response into an `Err`, otherwise passes it through.
-  pub fn error_for_status(self) -> CResult<Self> {
-    if self.is_success() {
-      Ok(self)
-    } else {
-      Err(ClientError::from_str(format!("HTTP {}", self.status)))
-    }
-  }
-}
+// The HTTP wire types (`Method`, `HttpRequest`, `HttpResponse`) now live in the
+// neutral `impulse-endpoint` crate, shared with the server adapter and the Tauri
+// engine. Re-exported here so existing callers of
+// `impulse_client_kit::client::{HttpRequest, HttpResponse, Method}` keep working.
+pub use impulse_endpoint::{HttpRequest, HttpResponse, Method};
 
 /// Fluent builder mirroring `reqwest`'s ergonomics. Body-encoding errors are
 /// captured and surfaced from [`send`](RequestBuilder::send).

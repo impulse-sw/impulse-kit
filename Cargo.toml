@@ -3,6 +3,7 @@ cargo-features = ["panic-immediate-abort", "trim-paths"]
 [workspace]
 members = [
   "impulse-utils",
+  "impulse-endpoint",
   "impulse-server-kit",
   "impulse-server-kit-dsl",
   "impulse-static-server",
@@ -30,6 +31,7 @@ impulse-server-kit = { path = "impulse-server-kit", default-features = false }
 impulse-skdsl = { path = "impulse-server-kit-dsl" }
 impulse-static-server = { path = "impulse-static-server" }
 impulse-utils = { path = "impulse-utils", default-features = false }
+impulse-endpoint = { path = "impulse-endpoint", default-features = false }
 impulse-client-kit = { path = "impulse-client-kit", default-features = false }
 impulse-client-kit-components = { path = "impulse-client-kit/components", default-features = false }
 impulse-client-kit-blocks = { path = "impulse-client-kit/blocks", default-features = false }

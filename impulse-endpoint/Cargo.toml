@@ -1,0 +1,22 @@
+[package]
+name = "impulse-endpoint"
+description = "Transport-agnostic HTTP wire types and a small endpoint/router abstraction shared by the server (salvo) adapter and the Tauri engine, so request-handling logic is written once and mounted on either host."
+version = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+
+[features]
+default = []
+# Adds `impl From<Method> for reqwest::Method`, for the client transport that
+# runs these requests through reqwest. Off by default so the server / engine can
+# depend on the wire types + router without pulling reqwest.
+reqwest = ["dep:reqwest"]
+
+[dependencies]
+impulse-utils = { workspace = true, features = ["cresult", "mresult"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+rmp-serde = { workspace = true }
+reqwest = { workspace = true, optional = true, default-features = false }

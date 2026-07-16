@@ -102,6 +102,8 @@ client = [
   "dep:serde_json",
   "dep:rmp-serde",
   "dep:http",
+  "dep:impulse-endpoint",
+  "impulse-endpoint/reqwest",
   "impulse-utils/reqwest",
 ]
 # Route the unified client through Tauri IPC instead of hitting the network
@@ -124,6 +126,7 @@ console_error_panic_hook = { workspace = true, optional = true }
 console_log = { workspace = true, optional = true }
 http = { workspace = true, optional = true }
 impulse-utils = { workspace = true, features = ["cresult"] }
+impulse-endpoint = { workspace = true, optional = true }
 js-sys = { workspace = true, optional = true }
 leptos = { workspace = true }
 leptos-use = { workspace = true, optional = true }
