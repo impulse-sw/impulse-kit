@@ -48,6 +48,12 @@ variables:
   featureset-utils-wasm32:
     type: plain
     value: " --no-default-features --features=reqwest"
+  featureset-endpoint-reqwest:
+    type: plain
+    value: " --features=reqwest"
+  featureset-server-kit-endpoint:
+    type: plain
+    value: " --features=endpoint"
   file-error-pages-favicon:
     type: plain
     value: impulse-error-pages/public/favicon.ico
@@ -81,6 +87,12 @@ variables:
   package-dsl:
     type: plain
     value: impulse-skdsl
+  package-endpoint:
+    type: plain
+    value: impulse-endpoint
+  package-tauri-engine:
+    type: plain
+    value: impulse-tauri-engine
   package-error-pages:
     type: plain
     value: impulse-error-pages
@@ -505,6 +517,34 @@ pipelines:
           "{features}": empty
           "{flags}": reqwest-unstable-flag
           "{package}": package-server-kit
+          "{target}": target-native
+      - title: Lint `impulse-server-kit` with `endpoint`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": featureset-server-kit-endpoint
+          "{flags}": reqwest-unstable-flag
+          "{package}": package-server-kit
+          "{target}": target-native
+      - title: Lint `impulse-endpoint`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-endpoint
+          "{target}": target-native
+      - title: Lint `impulse-endpoint` with `reqwest`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": featureset-endpoint-reqwest
+          "{flags}": empty
+          "{package}": package-endpoint
+          "{target}": target-native
+      - title: Lint `impulse-tauri-engine`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-tauri-engine
           "{target}": target-native
       - title: Lint `impulse-server-kit-dsl`
         used: cargo-lint@0.2.0
