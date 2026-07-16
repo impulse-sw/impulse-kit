@@ -174,6 +174,20 @@ impl EndpointResponse {
     }
   }
 
+  /// Renders a [`ServerError`] as an HTTP-shaped response with the JSON
+  /// `{ "err": … }` body a server would emit, so both host adapters (salvo and
+  /// the Tauri engine) surface a failed handler identically.
+  pub fn from_error(err: &ServerError) -> Self {
+    let status = err.status_code.map(|c| c.as_u16()).unwrap_or(500);
+    let msg = err.public_msg.clone().unwrap_or_else(|| "Server error".to_string());
+    let body = serde_json::to_vec(&serde_json::json!({ "err": msg })).unwrap_or_default();
+    Self {
+      status,
+      headers: vec![("content-type".into(), "application/json".into())],
+      body,
+    }
+  }
+
   /// Overrides the status code (builder-style).
   pub fn with_status(mut self, status: u16) -> Self {
     self.status = status;
@@ -270,5 +284,73 @@ impl<S> Router<S> {
       body,
     };
     Some(handler.call(ctx).await)
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn path_pattern_matches_and_captures() {
+    let p = PathPattern::new("/api/v1/items/{id}");
+    assert_eq!(p.matches("/api/v1/items/42").unwrap().get("id"), Some("42"));
+    assert!(p.matches("/api/v1/items").is_none(), "too few segments");
+    assert!(p.matches("/api/v1/items/1/extra").is_none(), "too many segments");
+    assert!(p.matches("/api/v2/items/42").is_none(), "static mismatch");
+  }
+
+  #[test]
+  fn query_and_identity_helpers() {
+    let params = PathParams::default();
+    let ctx = EndpointCtx {
+      state: &(),
+      identity: Some("me@x"),
+      method: crate::Method::Get,
+      params: &params,
+      query: "q=hi&tags=1,2",
+      headers: &[],
+      body: b"",
+    };
+    assert_eq!(ctx.query_param("tags"), Some("1,2"));
+    assert_eq!(ctx.query_param("missing"), None);
+    assert_eq!(ctx.require_identity().unwrap(), "me@x");
+  }
+
+  struct AddId;
+  impl Endpoint<i32> for AddId {
+    fn call<'a>(&'a self, ctx: EndpointCtx<'a, i32>) -> EndpointFuture<'a> {
+      Box::pin(async move {
+        let id: i32 = ctx.params.parse("id")?;
+        EndpointResponse::json(&(*ctx.state + id))
+      })
+    }
+  }
+
+  #[tokio::test]
+  async fn router_dispatches_matching_route() {
+    let router = Router::<i32>::new().route(crate::Method::Get, "/items/{id}", AddId);
+
+    let resp = router
+      .dispatch(&100, None, crate::Method::Get, "/items/5", "", &[], b"")
+      .await
+      .expect("route matched")
+      .expect("handler ok");
+    assert_eq!(resp.status, 200);
+    assert_eq!(serde_json::from_slice::<i32>(&resp.body).unwrap(), 105);
+
+    // Wrong method / unknown path → no match (host 404s).
+    assert!(
+      router
+        .dispatch(&0, None, crate::Method::Post, "/items/5", "", &[], b"")
+        .await
+        .is_none()
+    );
+    assert!(
+      router
+        .dispatch(&0, None, crate::Method::Get, "/other", "", &[], b"")
+        .await
+        .is_none()
+    );
   }
 }

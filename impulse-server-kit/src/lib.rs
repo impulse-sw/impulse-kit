@@ -102,6 +102,11 @@ pub mod security_headers;
 pub mod setup;
 pub mod startup;
 
+/// Mount a transport-agnostic `impulse_endpoint::Router` into salvo, so
+/// request-handling logic is written once and can also run in the Tauri engine.
+#[cfg(feature = "endpoint")]
+pub mod endpoint;
+
 #[cfg(feature = "telemetry")]
 pub mod telemetry;
 

@@ -12,6 +12,9 @@ pub use tracing::instrument;
 pub use salvo::handler;
 pub use salvo::{Depot, Request, Response, Router};
 
+#[cfg(feature = "endpoint")]
+pub use crate::endpoint::{Anonymous, IdentityResolver, endpoint_router};
+
 #[cfg(feature = "oapi")]
 pub use salvo::oapi::endpoint;
 

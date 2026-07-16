@@ -18,6 +18,9 @@ cors = ["salvo/cors"]
 websocket = ["salvo/websocket"]
 otel = ["salvo/otel", "dep:opentelemetry", "dep:reqwest", "dep:opentelemetry-otlp", "dep:opentelemetry_sdk", "dep:tracing-opentelemetry"]
 oapi = ["salvo/oapi"]
+# Mount an `impulse_endpoint::Router` (transport-agnostic handlers, also runnable
+# in the Tauri engine) into a salvo `Router`, so request logic is written once.
+endpoint = ["dep:impulse-endpoint"]
 telemetry = ["impulse-utils/telemetry"]
 proxy = ["salvo/proxy", "reqwest/stream"]
 reqwest-http3 = ["reqwest/http3"]
@@ -122,6 +125,7 @@ fs-change-notifier = { optional = true, workspace = true }
 headers = { optional = true, workspace = true }
 http-body-util = { optional = true, workspace = true }
 impulse-utils = { workspace = true, features = ["salvo", "reqwest", "mresult"] }
+impulse-endpoint = { workspace = true, optional = true }
 impulse-ring-connector = { workspace = true, optional = true }
 impulse-ring-http = { workspace = true, optional = true }
 impulse-client-ring = { workspace = true, optional = true, features = ["async"] }

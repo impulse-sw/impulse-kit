@@ -20,3 +20,6 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 rmp-serde = { workspace = true }
 reqwest = { workspace = true, optional = true, default-features = false }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }

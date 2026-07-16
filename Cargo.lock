@@ -2576,6 +2576,7 @@ dependencies = [
  "rmp-serde",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -2646,6 +2647,7 @@ dependencies = [
  "hydration_context",
  "impulse-client-kit",
  "impulse-client-ring",
+ "impulse-endpoint",
  "impulse-ring-connector",
  "impulse-ring-http",
  "impulse-utils",
