@@ -140,6 +140,32 @@ static server) and redirect to `/{status-code}`.
 
 [Error Pages Documentation](./impulse-error-pages/README.md)
 
+## Build profiles
+
+`impulse-kit` ships two release profiles:
+
+| Profile | Used for | `panic` |
+| --- | --- | --- |
+| `release` | Native binaries (`iks` Static Server, `ring-server`, any Server Kit backend) | `unwind` (default) |
+| `wasm-release` | WASM frontends (`inherits = "release"`) | `immediate-abort` |
+
+`immediate-abort` strips the panic/formatting machinery for a much smaller WASM
+bundle — a good trade-off in the browser, where a crashed tab is recoverable.
+It is deliberately **not** applied to native release builds: there, turning
+every reachable panic into an `abort()` of the whole process is a remote-DoS
+surface for a long-running server. Native binaries therefore unwind.
+
+Build WASM with the `wasm-release` profile (the `cargo-wasm-rel` Deployer action
+already does this):
+
+```sh
+cargo build --profile wasm-release --lib --target wasm32-unknown-unknown -p <crate>
+```
+
+Trunk-driven frontends additionally pass `-Cpanic=immediate-abort` via
+`RUSTFLAGS` together with `build-std`, so they get the same size win regardless
+of profile.
+
 ## Rust Toolchain
 
 **This repository actively uses `nightly` toolchain.** While these frameworks and libraries are battle-tested anyway, consider not to choose `impulse-kit` to use if you are not aware of `nightly` toolchain.

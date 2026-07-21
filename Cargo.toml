@@ -98,8 +98,22 @@ opt-level = "z"
 debug = false
 lto = true
 codegen-units = 1
-panic = "immediate-abort"
+# NOTE: `panic` is intentionally left at the default (`unwind`) for native
+# release builds. `immediate-abort` turns every reachable panic into an
+# `abort()` of the whole process, which for a server (`iks`, `ring-server`, any
+# Server Kit binary) is a remote-DoS surface. The WASM size win it provides is
+# preserved via the dedicated `wasm-release` profile below (and the
+# `-Cpanic=immediate-abort` RUSTFLAGS used by the Trunk build actions).
 strip = true
 incremental = false
 trim-paths = "all"
+
+# WASM-only aggressive panic strategy. Rust artifacts are large; on `wasm32`
+# `immediate-abort` strips the panic/formatting machinery for a much smaller
+# bundle. Client (browser) crashes are acceptable there, unlike on the server.
+# Build wasm libraries with `cargo build --profile wasm-release` (see the
+# `cargo-wasm-rel` Deployer action).
+[profile.wasm-release]
+inherits = "release"
+panic = "immediate-abort"
 

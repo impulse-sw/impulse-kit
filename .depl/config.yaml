@@ -140,7 +140,7 @@ variables:
     value: ./impulse-client-kit/examples/ssr_showcase/dist/pkg/ssr_showcase_bg.wasm
   ssr-showcase-wasm-file:
     type: plain
-    value: ./target/wasm32-unknown-unknown/release/ssr_showcase.wasm
+    value: ./target/wasm32-unknown-unknown/wasm-release/ssr_showcase.wasm
   ssr-showcase-wasm-out-name:
     type: plain
     value: ssr_showcase
@@ -247,7 +247,7 @@ actions:
     action:
       type: staged
       stage: build
-      cmd: "{flags}cargo build --release --lib --package {package} --target wasm32-unknown-unknown{features}"
+      cmd: "{flags}cargo build --profile wasm-release --lib --package {package} --target wasm32-unknown-unknown{features}"
       placeholders:
         - "{flags}"
         - "{package}"
