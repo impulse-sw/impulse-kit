@@ -179,6 +179,36 @@ actions:
       type: staged
       stage: build
       cmd: cargo fmt -- --config tab_spaces=2,max_width=120 $(find . -name "*.rs" -not -path "*/target/*")
+  - info: cargo-fmt-check@0.1.0
+    exec_in_project_dir: true
+    skip_sync: false
+    action:
+      type: staged
+      stage: build
+      cmd: cargo fmt -- --check --config tab_spaces=2,max_width=120 $(find . -name "*.rs" -not -path "*/target/*")
+  - info: cargo-test@0.1.0
+    requirements:
+      - type: in_path
+        executable: cargo
+    action:
+      type: test
+      cmd: "{flags}cargo test --package {package}"
+      placeholders:
+        - "{flags}"
+        - "{package}"
+      show_success_output: true
+      show_cmd: false
+      success_when_found: "test result: ok."
+  - info: cargo-deny@0.1.0
+    requirements:
+      - type: in_path
+        executable: cargo-deny
+        desc: "Install with `cargo install cargo-deny` (or `taiki-e/install-action` in CI)."
+    action:
+      type: staged
+      stage: build
+      cmd: cargo deny check advisories bans licenses sources
+      show_success_output: true
   - info: cargo-generate-doc@0.1.0
     action:
       type: staged
@@ -567,8 +597,32 @@ pipelines:
           "{flags}": empty
           "{package}": package-ssr-showcase
           "{target}": target-native
+      - title: Test `impulse-utils`
+        used: cargo-test@0.1.0
+        with:
+          "{flags}": empty
+          "{package}": package-utils
+      - title: Test `impulse-server-kit`
+        used: cargo-test@0.1.0
+        with:
+          "{flags}": reqwest-unstable-flag
+          "{package}": package-server-kit
+      - title: Test `impulse-server-kit-dsl`
+        used: cargo-test@0.1.0
+        with:
+          "{flags}": empty
+          "{package}": package-dsl
+      - title: Test `impulse-static-server`
+        used: cargo-test@0.1.0
+        with:
+          "{flags}": empty
+          "{package}": package-static-server
       - title: Test docs
         used: cargo-test-doc@0.1.0
+      - title: Format check
+        used: cargo-fmt-check@0.1.0
+      - title: Dependency audit
+        used: cargo-deny@0.1.0
     gh_opts:
       on_push_branches:
         - stable
@@ -581,13 +635,17 @@ pipelines:
           with:
             target: x86_64-unknown-linux-gnu
             toolchain: nightly
-            components: clippy
+            components: clippy, rustfmt
         - name: Install Rust Toolchain for WASM
           uses: actions-rust-lang/setup-rust-toolchain@v1
           with:
             target: wasm32-unknown-unknown
             toolchain: nightly
             components: clippy
+        - name: Install cargo-deny
+          uses: taiki-e/install-action@v2
+          with:
+            tool: cargo-deny
   - title: docs
     desc: Build workspace documentation
     info: impulse-kit-docs@0.1.0

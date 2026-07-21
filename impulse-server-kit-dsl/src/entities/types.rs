@@ -205,6 +205,13 @@ mod complex_type_enumerator {
       let cleaned = self.whitespace_re.replace_all(input.trim(), " ");
       let mut chars = cleaned.chars().peekable();
       let type_node = self.parse_type(&mut chars)?;
+      // A well-formed type must consume the entire input. Without this check
+      // trailing garbage was silently ignored, e.g. `HashMap String>` parsed as
+      // the bare `HashMap` instead of being rejected as a syntax error.
+      self.skip_whitespace(&mut chars);
+      if let Some(c) = chars.next() {
+        return Err(format!("Unexpected trailing character '{c}' after type"));
+      }
       Ok(type_node.collect_type_names())
     }
 
