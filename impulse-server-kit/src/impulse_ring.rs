@@ -37,10 +37,10 @@ use impulse_ring_http::{
   REQUEST_SCHEMA, RESPONSE_BODY_CHUNK, RESPONSE_SCHEMA, RingHeader, RingHttpRequest, RingHttpResponse, RingStreamFrame,
   RingUpgradeKind, STREAM_SCHEMA, http_fn_name, opcode, stream_channel_name,
 };
-use salvo::Service;
 use salvo::conn::SocketAddr;
 use salvo::http::uri::Scheme;
 use salvo::http::{Request, Response, StatusCode};
+use salvo::{ConnCtrl, Service};
 use tokio::runtime::Handle;
 
 use impulse_utils::errors::ServerError;
@@ -290,7 +290,14 @@ impl RingHttpHandler {
     // the full routing / middleware / catcher pipeline.
     let mut res = self
       .service
-      .hyper_handler(SocketAddr::Unknown, SocketAddr::Unknown, Scheme::HTTP, None, None)
+      .hyper_handler(
+        SocketAddr::Unknown,
+        SocketAddr::Unknown,
+        Scheme::HTTP,
+        None,
+        ConnCtrl::default(),
+        None,
+      )
       .handle(salvo_req)
       .await;
     // salvo materializes its cookie jar into `Set-Cookie` headers only in
@@ -460,9 +467,14 @@ impl RingHttpHandler {
     let subscriber = subscribe_by_name(&conn, &up_name, self.key())?;
     let duplex = RingDuplex::new(conn.clone(), publisher, subscriber);
 
-    let hyper_handler = self
-      .service
-      .hyper_handler(SocketAddr::Unknown, SocketAddr::Unknown, Scheme::HTTP, None, None);
+    let hyper_handler = self.service.hyper_handler(
+      SocketAddr::Unknown,
+      SocketAddr::Unknown,
+      Scheme::HTTP,
+      None,
+      ConnCtrl::default(),
+      None,
+    );
     self.rt.spawn(async move {
       let io = TokioIo::new(duplex);
       if let Err(e) = http1::Builder::new()

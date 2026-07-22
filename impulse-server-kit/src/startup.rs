@@ -23,7 +23,7 @@ use std::task::{Context, Poll};
 
 use salvo::conn::tcp::{DynTcpAcceptors, TcpCoupler};
 use salvo::conn::{Accepted, Acceptor, Holding};
-use salvo::fuse::ArcFuseFactory;
+use salvo::fuse::ArcFusePolicy;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -76,7 +76,7 @@ const H3_ALT_SVC_MAX_AGE_SECS: u32 = 60;
 /// is configured, so clients learn they can upgrade to QUIC.
 pub async fn h3_header(depot: &mut Depot, res: &mut Response) {
   let port = depot
-    .obtain::<GenericServerState>()
+    .get_typed::<GenericServerState>()
     .ok()
     .and_then(|s| s.http3_port())
     .unwrap_or(443);
@@ -649,7 +649,7 @@ impl Acceptor for NoopAcceptor {
 
   async fn accept(
     &mut self,
-    _fuse_factory: Option<ArcFuseFactory>,
+    _fuse_policy: Option<ArcFusePolicy>,
   ) -> std::io::Result<Accepted<Self::Coupler, Self::Stream>> {
     // Never produce a connection; the server stops via its graceful-stop token.
     std::future::pending().await

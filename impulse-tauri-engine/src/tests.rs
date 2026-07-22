@@ -141,8 +141,10 @@ impl LocalBackend for MemBackend {
         Some(item) => Ok((json_resp(200, item), None)),
         None => Err(ServerError::from_public("not found").with_code(impulse_utils::prelude::StatusCode::NOT_FOUND)),
       },
-      _ => Err(ServerError::from_public("This action isn't available offline")
-        .with_code(impulse_utils::prelude::StatusCode::SERVICE_UNAVAILABLE)),
+      _ => Err(
+        ServerError::from_public("This action isn't available offline")
+          .with_code(impulse_utils::prelude::StatusCode::SERVICE_UNAVAILABLE),
+      ),
     }
   }
 
@@ -223,7 +225,13 @@ fn engine(remote: FakeRemote) -> Engine<FakeRemote, MemBackend> {
 #[tokio::test]
 async fn online_read_forwards_and_caches() {
   let remote = FakeRemote::new();
-  remote.items.lock().unwrap().insert(7, Item { id: 7, content: "hi".into() });
+  remote.items.lock().unwrap().insert(
+    7,
+    Item {
+      id: 7,
+      content: "hi".into(),
+    },
+  );
   let eng = engine(remote.clone());
 
   let resp = eng.handle(get(7)).await;
@@ -239,7 +247,13 @@ async fn online_read_forwards_and_caches() {
 #[tokio::test]
 async fn offline_write_is_queued_then_replayed() {
   let remote = FakeRemote::new();
-  remote.items.lock().unwrap().insert(7, Item { id: 7, content: "old".into() });
+  remote.items.lock().unwrap().insert(
+    7,
+    Item {
+      id: 7,
+      content: "old".into(),
+    },
+  );
   let eng = engine(remote.clone());
 
   // Go offline, edit — served locally and queued, server unchanged.

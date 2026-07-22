@@ -6,6 +6,7 @@ Collection of Rust libraries, frameworks and programs to build better Internet.
 
 | Crate | What it is |
 | --- | --- |
+| [`impulse-endpoint`](./impulse-endpoint) | Transport-agnostic HTTP wire types and a small endpoint/router abstraction. |
 | [`impulse-server-kit`](./impulse-server-kit) | Backend framework on top of Salvo: multi-protocol listener (HTTP/1.1–3 + Ring shared memory), YAML config, tracing/OTel, OpenAPI, Leptos SSR. |
 | [`impulse-server-kit-dsl`](./impulse-server-kit-dsl) | `skdsl` — DSL-to-API translator: endpoint prototypes, version bumping, Rust/JS clients. |
 | [`impulse-static-server`](./impulse-static-server) | Static frontend server (`iks` binary) and SPA routers as a library. |

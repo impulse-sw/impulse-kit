@@ -153,7 +153,7 @@ impl Handler for SecurityHeaders {
     // listener for a year is a footgun developers hit on first run; only
     // advertise it when a TLS-bearing protocol (HTTP/3 over QUIC) is served.
     let hsts_allowed = depot
-      .obtain::<GenericServerState>()
+      .get_typed::<GenericServerState>()
       .map(|s| s.uses_http3())
       .unwrap_or(true);
 

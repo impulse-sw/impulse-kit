@@ -180,7 +180,7 @@ async fn collect_telemetry_inner(req: &mut Request, depot: &mut Depot) -> MResul
   let batch = parse_batch(req).await?;
   let ctx = TelemetryRequestCtx::from_request(req);
 
-  if let Ok(sink) = depot.obtain::<Arc<dyn TelemetrySink>>() {
+  if let Ok(sink) = depot.get_typed::<Arc<dyn TelemetrySink>>() {
     let sink = sink.clone();
     for event in &batch.events {
       sink.record(event, &ctx).await;

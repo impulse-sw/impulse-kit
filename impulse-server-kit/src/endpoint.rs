@@ -104,7 +104,7 @@ where
     // Resolve identity (may read the depot/req) before borrowing the state.
     let identity = self.resolver.identity(req, depot).await;
 
-    let Ok(state) = depot.obtain::<S>() else {
+    let Ok(state) = depot.get_typed::<S>() else {
       write_response(&EndpointResponse::from_error(&missing_state_error()), res);
       return;
     };

@@ -22,7 +22,5 @@
 mod router;
 mod wire;
 
-pub use router::{
-  Endpoint, EndpointCtx, EndpointFuture, EndpointResponse, PathParams, PathPattern, Route, Router,
-};
+pub use router::{Endpoint, EndpointCtx, EndpointFuture, EndpointResponse, PathParams, PathPattern, Route, Router};
 pub use wire::{HttpRequest, HttpResponse, Method};
