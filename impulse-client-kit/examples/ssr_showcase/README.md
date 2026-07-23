@@ -31,15 +31,15 @@ A minimal manual build:
 ```sh
 cd impulse-client-kit/examples/ssr_showcase
 
-# 1) wasm bundle (hydration)
-cargo +nightly build --lib --release \
+# 1) wasm bundle (hydration) — use the wasm-release profile (immediate-abort)
+cargo +nightly build --lib --profile wasm-release \
   --target wasm32-unknown-unknown --features hydrate --no-default-features
 
 # 2) wasm-bindgen — emits dist/pkg/{ssr_showcase.js, ssr_showcase_bg.wasm}
 mkdir -p dist/pkg
 wasm-bindgen --target web \
   --out-dir dist/pkg --out-name ssr_showcase \
-  ../../../target/wasm32-unknown-unknown/release/ssr_showcase.wasm
+  ../../../target/wasm32-unknown-unknown/wasm-release/ssr_showcase.wasm
 
 # 3) tailwind — emits dist/pkg/ssr_showcase.css
 tailwindcss -i input.css -o dist/pkg/ssr_showcase.css --minify
