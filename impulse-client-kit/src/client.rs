@@ -274,11 +274,11 @@ mod ipc {
   }
 
   pub(super) async fn request(req: HttpRequest) -> CResult<HttpResponse> {
-    let args = wasm_bindgen::to_value(&Args { req })
+    let args = serde_wasm_bindgen::to_value(&Args { req })
       .map_err(|e| ClientError::from_str(format!("IPC encode failed: {e:?}")))?;
     let value = invoke("ik_http_request", args)
       .await
       .map_err(|e| ClientError::from_str(format!("IPC request failed: {e:?}")))?;
-    wasm_bindgen::from_value(value).map_err(|e| ClientError::from_str(format!("IPC decode failed: {e:?}")))
+    serde_wasm_bindgen::from_value(value).map_err(|e| ClientError::from_str(format!("IPC decode failed: {e:?}")))
   }
 }

@@ -134,6 +134,7 @@ reqwest = { workspace = true, optional = true, features = ["json"] }
 rmp-serde = { workspace = true, optional = true }
 serde = { workspace = true, optional = true, features = ["derive"] }
 serde_json = { workspace = true, optional = true }
+serde-wasm-bindgen = { version = "0.6", optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
 web-sys = { workspace = true, optional = true }
@@ -142,8 +143,3 @@ web-sys = { workspace = true, optional = true }
 # `executor` can actually reach a remote server. Features union with the base.
 [target.'cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))'.dependencies]
 reqwest = { workspace = true, optional = true, features = ["json", "rustls", "http2"] }
-
-# The Tauri IPC bridge (wasm webview only) needs to hand serialisable requests
-# to `invoke`; serde-wasm-bindgen does the JsValue conversion.
-[target.'cfg(any(target_arch = "wasm32", target_arch = "wasm64"))'.dependencies]
-serde-wasm-bindgen = { version = "0.6", optional = true }
