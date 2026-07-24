@@ -417,7 +417,13 @@ mod tests {
 
 /// Background task that invalidates cache entries on filesystem changes.
 pub async fn cache_runner(path: impl AsRef<Path>, cache_map: Arc<Mutex<CacheMap>>) -> MResult<()> {
-  let empty = std::collections::HashSet::new();
+  // `fetch_changed` only collects a changed path while iterating `exclude`, so
+  // an empty exclude set makes its inner loop run zero times: nothing is ever
+  // collected and the future never resolves, leaving the cache permanently
+  // stale. Express "exclude nothing" with a single sentinel that can never
+  // match a real relative path (filenames cannot contain a NUL byte) so the
+  // outer loop still runs once per changed file and every change is reported.
+  let exclude = std::collections::HashSet::from([PathBuf::from("\0")]);
   loop {
     let (mut wr, rx) = create_watcher(|e| tracing::error!("{e:?}")).map_err(|e| {
       ServerError::from_private_str(e.to_string())
@@ -427,7 +433,7 @@ pub async fn cache_runner(path: impl AsRef<Path>, cache_map: Arc<Mutex<CacheMap>
     wr.watch(path.as_ref(), RecursiveMode::Recursive)
       .map_err(ServerError::from_private)?;
 
-    let files = fetch_changed(path.as_ref(), rx, &empty).await;
+    let files = fetch_changed(path.as_ref(), rx, &exclude).await;
     {
       let mut guard = cache_map.lock().await;
       for file in &files {
