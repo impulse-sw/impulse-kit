@@ -60,8 +60,11 @@ async fn build_axum_request(req: &mut Request) -> Result<axum::extract::Request,
   let headers = req.headers().clone();
   let version = req.version();
 
+  // Cap the buffered body at the global secure max size (same default the rest
+  // of the request-parsing code uses) rather than reading an unbounded body
+  // into memory, which would let a single large request exhaust memory.
   let body_bytes = req
-    .payload_with_max_size(usize::MAX)
+    .payload_with_max_size(salvo::http::request::global_secure_max_size())
     .await
     .map_err(|e| format!("read body: {e}"))?
     .clone();
