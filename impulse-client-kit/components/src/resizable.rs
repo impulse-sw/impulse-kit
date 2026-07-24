@@ -156,7 +156,18 @@ pub fn ResizableHandle(#[prop(into, optional)] class: String) -> impl IntoView {
     if sum <= 2.0 * min {
       return;
     }
-    let new_left = (drag_start_left.get() + delta_pct).clamp(min, sum - min);
+
+    // Panels render as `flex: {size} 1 0%`, so each panel's rendered width is
+    // its flex-grow value divided by the sum of *all* panels' flex values.
+    // A delta expressed as a percentage of the container therefore has to be
+    // scaled by that global sum before it is added to a flex-grow value, or
+    // the divider drifts faster/slower than the pointer whenever the sizes
+    // don't sum to 100.
+    let global_sum: f64 = context.panels.with_value(|p| p.iter().map(|s| s.get_untracked()).sum());
+    let global_sum = if global_sum > 0.0 { global_sum } else { 100.0 };
+    let delta_flex = delta_pct * global_sum / 100.0;
+
+    let new_left = (drag_start_left.get() + delta_flex).clamp(min, sum - min);
     let new_right = sum - new_left;
 
     left.set(new_left);
