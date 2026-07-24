@@ -261,7 +261,7 @@ pub fn InputOTPWithSeparator(
   let handle_keydown = move |index: usize, ev: leptos::ev::KeyboardEvent| {
     let key = ev.key();
 
-    if key == "Backspace" || key == "Delete" {
+    if key == "Backspace" {
       let current_value = values.get()[index].clone();
 
       if current_value.is_empty() && index > 0 {
