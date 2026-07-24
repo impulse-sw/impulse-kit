@@ -27,8 +27,6 @@ use salvo::http::HttpRange;
 
 use crate::prelude::*;
 
-const CHUNK_SIZE: u64 = 1024 * 1024;
-
 /// `Cache-Control` applied to every cached response.
 ///
 /// `max-age=0, must-revalidate` forces the browser to revalidate with the
@@ -208,10 +206,14 @@ impl CachedFile {
       let total_size = cmp::min(length, self.length);
       res.headers_mut().typed_insert(ContentLength(total_size));
 
-      let max_bytes = cmp::min(total_size, CHUNK_SIZE) as usize;
-      let mut buf = Vec::<u8>::with_capacity(max_bytes);
-      let end = (offset as usize + max_bytes).min(self.bytes.len());
-      buf.extend_from_slice(&self.bytes[offset as usize..end]);
+      // Send exactly the requested range from the in-memory bytes. Capping the
+      // body at a fixed chunk size while advertising the full range in
+      // Content-Length would leave clients hanging on the missing bytes; cached
+      // files are already fully buffered, so there is nothing to stream in
+      // chunks.
+      let start = offset as usize;
+      let end = (start + total_size as usize).min(self.bytes.len());
+      let buf = self.bytes[start..end].to_vec();
 
       if let Err(e) = res.write_body(buf) {
         tracing::error!(error = ?e, "Failed to send file part!");
