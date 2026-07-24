@@ -144,6 +144,15 @@ pub fn SheetContent(#[prop(optional, into)] class: String, children: ChildrenFn)
     }
   });
 
+  // The effect above only restores scrolling when `is_open` flips to false. If
+  // the overlay unmounts while still open, that branch never runs and the body
+  // stays scroll-locked; restore it on disposal too.
+  on_cleanup(|| {
+    if let Some(body) = document().body() {
+      let _ = body.style().remove_property("overflow");
+    }
+  });
+
   let side_classes = match context.side {
     SheetSide::Top => {
       "inset-x-0 top-0 border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top"

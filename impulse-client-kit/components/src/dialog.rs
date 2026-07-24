@@ -119,6 +119,15 @@ pub fn DialogContent(#[prop(optional)] class: String, children: ChildrenFn) -> i
     }
   });
 
+  // The effect above only restores scrolling when `is_open` flips to false. If
+  // the overlay unmounts while still open, that branch never runs and the body
+  // stays scroll-locked; restore it on disposal too.
+  on_cleanup(|| {
+    if let Some(body) = document().body() {
+      let _ = body.style().remove_property("overflow");
+    }
+  });
+
   let children = StoredValue::new(children);
   let class = StoredValue::new(class);
 

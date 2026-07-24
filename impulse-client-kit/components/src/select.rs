@@ -210,6 +210,15 @@ pub fn SelectContent(
     }
   });
 
+  // The effect above only restores scrolling when `is_open` flips to false. If
+  // the overlay unmounts while still open, that branch never runs and the body
+  // stays scroll-locked; restore it on disposal too.
+  on_cleanup(|| {
+    if let Some(body) = document().body() {
+      let _ = body.style().remove_property("overflow");
+    }
+  });
+
   // Position calculation
   Effect::new(move |_| {
     if context.is_open.get() {
