@@ -163,8 +163,15 @@ pub fn PieChart(
   #[prop(optional)] children: Option<Children>,
 ) -> impl IntoView {
   let opts = options;
-  let slices: Vec<&PieSlice> = data.slices.iter().filter(|s| s.value > 0.0).collect();
-  let total: f64 = slices.iter().map(|s| s.value).sum();
+  // Keep each slice's original index so palette colors stay stable when
+  // zero-value slices are filtered out.
+  let slices: Vec<(usize, &PieSlice)> = data
+    .slices
+    .iter()
+    .enumerate()
+    .filter(|(_, s)| s.value > 0.0)
+    .collect();
+  let total: f64 = slices.iter().map(|(_, s)| s.value).sum();
 
   if slices.is_empty() || total <= 0.0 {
     return view! {
@@ -195,14 +202,14 @@ pub fn PieChart(
   let mut segments = Vec::new();
   let mut labels = Vec::new();
   let mut angle = opts.start_angle;
-  for (i, slice) in slices.iter().enumerate() {
+  for (i, &(orig_idx, slice)) in slices.iter().enumerate() {
     let fraction = slice.value / total;
     let sweep = fraction * 2.0 * PI;
     let a0 = angle + opts.pad_angle / 2.0;
     let a1 = angle + sweep - opts.pad_angle / 2.0;
     angle += sweep;
 
-    let color = resolve_color(&slice.color, i);
+    let color = resolve_color(&slice.color, orig_idx);
     let path = slice_path(cx, cy, r_outer, r_inner, a0, a1.max(a0));
 
     let opacity = move || match hovered.get() {
@@ -282,8 +289,7 @@ pub fn PieChart(
   let legend = (opts.show_legend).then(|| {
     let items = slices
       .iter()
-      .enumerate()
-      .map(|(i, slice)| (resolve_color(&slice.color, i), slice.label.clone()))
+      .map(|(orig_idx, slice)| (resolve_color(&slice.color, *orig_idx), slice.label.clone()))
       .collect();
     legend_view(items, &classes.legend_label)
   });
