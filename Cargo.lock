@@ -1674,9 +1674,9 @@ dependencies = [
 
 [[package]]
 name = "fs-change-notifier"
-version = "0.1.4"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d97ceec91e9970f59518cd309a4c5b584d90df53deb4c207f211a19ccac4c38"
+checksum = "4eadbb408bb34ed172b8b1dc2e24596bcdf78592c8a8b4e26d91eb748265a053"
 dependencies = [
  "anyhow",
  "notify",
@@ -4869,9 +4869,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-pki-types"
-version = "1.15.0"
+version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "764899a24af3980067ee14bc143654f297b22eaebfe3c7b6b211920a5a59b046"
+checksum = "2f4925028c7eb5d1fcdaf196971378ed9d2c1c4efc7dc5d011256f76c99c0a96"
 dependencies = [
  "web-time",
  "zeroize",
