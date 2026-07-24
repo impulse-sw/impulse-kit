@@ -2,7 +2,7 @@
 
 use crate::viewport::viewport_size;
 use impulse_client_kit::utils::cn;
-use impulse_client_kit::utils::{OverlayAlign, OverlaySide, calculate_position};
+use impulse_client_kit::utils::{OverlayAlign, OverlaySide, calculate_position, clamp_to_viewport};
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 use web_sys::Element;
@@ -458,15 +458,31 @@ pub fn DropdownMenuSubContent(#[prop(optional, into)] class: String, children: C
   let children_stored = StoredValue::new(children);
 
   Effect::new(move |_| {
-    if sub_context.is_open.get()
-      && let Some(trigger_ref) = sub_trigger_context
-      && let Some(trigger) = trigger_ref.trigger_ref.get()
-    {
-      let trigger_rect = trigger.get_bounding_client_rect();
-      let top = trigger_rect.top();
-      let left = trigger_rect.right() + 4.0;
+    if sub_context.is_open.get() {
+      // Use requestAnimationFrame to ensure content is laid out so its size
+      // can be measured for viewport clamping.
+      request_animation_frame(move || {
+        if let Some(trigger_ref) = sub_trigger_context
+          && let Some(trigger) = trigger_ref.trigger_ref.get()
+          && let Some(content) = content_ref.get()
+        {
+          let trigger_rect = trigger.get_bounding_client_rect();
+          let (viewport_width, viewport_height) = viewport_size();
 
-      position_style.set(format!("position: fixed; top: {}px; left: {}px;", top, left));
+          let top = trigger_rect.top();
+          let left = trigger_rect.right() + 4.0;
+          let (top, left) = clamp_to_viewport(
+            top,
+            left,
+            content.offset_width() as f64,
+            content.offset_height() as f64,
+            viewport_width,
+            viewport_height,
+          );
+
+          position_style.set(format!("position: fixed; top: {}px; left: {}px;", top, left));
+        }
+      });
     }
   });
 
