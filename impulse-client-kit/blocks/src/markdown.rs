@@ -249,6 +249,26 @@ pub fn render_markdown(input: &str, classes: &MarkdownClasses) -> String {
 
     // Inside a heading, collect both its inner HTML and its plain text.
     if head.is_some() {
+      // An image inside a heading captures its inner events as `alt` text and
+      // emits an `<img>` on close, mirroring the top-level image handling above.
+      if let Some(ctx) = head_image.as_mut() {
+        match event {
+          Event::Start(_) => ctx.depth += 1,
+          Event::End(_) => {
+            ctx.depth -= 1;
+            if ctx.depth == 0 {
+              let ctx = head_image.take().expect("head image context is set");
+              let h = head.as_mut().expect("heading is set");
+              push_image(&mut h.inner, &ctx, &classes.image);
+            }
+          }
+          Event::Text(text) | Event::Code(text) => ctx.alt.push_str(text.as_ref()),
+          Event::SoftBreak | Event::HardBreak => ctx.alt.push(' '),
+          _ => {}
+        }
+        continue;
+      }
+
       match event {
         Event::End(TagEnd::Heading(_)) => {
           let h = head.take().expect("heading is set");
@@ -664,6 +684,18 @@ mod tests {
         "{marker} should show {label}"
       );
     }
+  }
+
+  #[test]
+  fn image_in_heading_is_rendered() {
+    let html = render_markdown("# Hello ![alt](img.png) world", &MarkdownClasses::default());
+    // The image is emitted as an <img>, not stripped to its alt text.
+    assert!(html.contains("<img"), "heading image should render an <img>: {html}");
+    assert!(html.contains("src=\"img.png\""), "image src should be preserved: {html}");
+    assert!(html.contains("alt=\"alt\""), "image alt should be preserved: {html}");
+    // Surrounding heading text is still present.
+    assert!(html.contains("Hello "));
+    assert!(html.contains(" world"));
   }
 
   #[test]
