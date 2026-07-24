@@ -165,12 +165,7 @@ pub fn PieChart(
   let opts = options;
   // Keep each slice's original index so palette colors stay stable when
   // zero-value slices are filtered out.
-  let slices: Vec<(usize, &PieSlice)> = data
-    .slices
-    .iter()
-    .enumerate()
-    .filter(|(_, s)| s.value > 0.0)
-    .collect();
+  let slices: Vec<(usize, &PieSlice)> = data.slices.iter().enumerate().filter(|(_, s)| s.value > 0.0).collect();
   let total: f64 = slices.iter().map(|(_, s)| s.value).sum();
 
   if slices.is_empty() || total <= 0.0 {

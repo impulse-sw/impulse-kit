@@ -691,7 +691,10 @@ mod tests {
     let html = render_markdown("# Hello ![alt](img.png) world", &MarkdownClasses::default());
     // The image is emitted as an <img>, not stripped to its alt text.
     assert!(html.contains("<img"), "heading image should render an <img>: {html}");
-    assert!(html.contains("src=\"img.png\""), "image src should be preserved: {html}");
+    assert!(
+      html.contains("src=\"img.png\""),
+      "image src should be preserved: {html}"
+    );
     assert!(html.contains("alt=\"alt\""), "image alt should be preserved: {html}");
     // Surrounding heading text is still present.
     assert!(html.contains("Hello "));
