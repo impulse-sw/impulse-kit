@@ -254,6 +254,28 @@ impl GenericServerState {
       .any(|p| matches!(p, ResolvedProtocol::Http3 { .. }))
   }
 
+  /// `true` if any resolved protocol is served over TLS: HTTP/3 always, and
+  /// HTTP/1.1 or HTTP/2 when both `ssl_key_path` and `ssl_crt_path` are set.
+  ///
+  /// Used to gate HSTS, which must be advertised on every response delivered
+  /// over a secure transport (RFC 6797) — not only when HTTP/3 is enabled.
+  pub fn uses_https(&self) -> bool {
+    self.protocols.iter().any(|p| match p {
+      ResolvedProtocol::Http3 { .. } => true,
+      ResolvedProtocol::Http1 {
+        ssl_key_path,
+        ssl_crt_path,
+        ..
+      }
+      | ResolvedProtocol::Http2 {
+        ssl_key_path,
+        ssl_crt_path,
+        ..
+      } => ssl_key_path.is_some() && ssl_crt_path.is_some(),
+      _ => false,
+    })
+  }
+
   /// The advertised HTTP/3 port, if any protocol serves QUIC. Used to build the
   /// `alt-svc` upgrade header on the cleartext listeners.
   pub fn http3_port(&self) -> Option<u16> {

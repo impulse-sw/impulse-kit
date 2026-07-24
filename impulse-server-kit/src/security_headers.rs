@@ -151,10 +151,11 @@ impl Handler for SecurityHeaders {
 
     // HSTS over plain HTTP is wrong (RFC 6797) and pinning a cleartext
     // listener for a year is a footgun developers hit on first run; only
-    // advertise it when a TLS-bearing protocol (HTTP/3 over QUIC) is served.
+    // advertise it when the response is served over TLS — HTTP/3 over QUIC,
+    // or HTTPS over HTTP/1.1 / HTTP/2 when a certificate is configured.
     let hsts_allowed = depot
       .get_typed::<GenericServerState>()
-      .map(|s| s.uses_http3())
+      .map(|s| s.uses_https())
       .unwrap_or(true);
 
     self.apply(hsts_allowed, res.headers_mut());
