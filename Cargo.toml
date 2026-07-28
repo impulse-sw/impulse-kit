@@ -10,6 +10,7 @@ members = [
   "impulse-static-server",
   "impulse-client-kit",
   "impulse-client-kit/components",
+  "impulse-client-kit/native-themes",
   "impulse-client-kit/blocks",
   "impulse-client-kit/tailwind-sources",
   "impulse-client-kit/examples/showcase",
@@ -36,6 +37,7 @@ impulse-endpoint = { path = "impulse-endpoint", default-features = false }
 impulse-tauri-engine = { path = "impulse-tauri-engine", default-features = false }
 impulse-client-kit = { path = "impulse-client-kit", default-features = false }
 impulse-client-kit-components = { path = "impulse-client-kit/components", default-features = false }
+impulse-client-native-themes = { path = "impulse-client-kit/native-themes" }
 impulse-client-kit-blocks = { path = "impulse-client-kit/blocks", default-features = false }
 impulse-tailwind-sources = { path = "impulse-client-kit/tailwind-sources" }
 impulse-client-ring = { path = "impulse-client-ring", default-features = false }

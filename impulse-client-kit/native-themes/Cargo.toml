@@ -1,0 +1,21 @@
+[package]
+name = "impulse-client-native-themes"
+description = "Match a client webview's base neutral palette (background/foreground and surfaces) to the host system's native theme, so a Tauri app blends with the OS instead of looking like an arbitrary website. Brand tokens (accent, destructive, charts) are left untouched."
+version = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+
+# Webview-side only: everything meaningful lives behind `cfg(target_arch =
+# "wasm32")`. On other targets the public API compiles to a no-op so the crate
+# still builds as part of the workspace.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { workspace = true }
+web-sys = { workspace = true, features = [
+  "Window",
+  "Document",
+  "Element",
+  "HtmlHeadElement",
+  "Node",
+] }
