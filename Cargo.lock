@@ -56,9 +56,9 @@ dependencies = [
 
 [[package]]
 name = "aes"
-version = "0.9.1"
+version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1fc76eaeac4c9164506c466d4ffdd8ec9d0c5bf57ee97177c4d8eceb3a0e138"
+checksum = "f8eb277bec05f56a0e0591f155a484cbd0f4f07ff2905051a48c72f004f7ed58"
 dependencies = [
  "cipher 0.5.2",
  "cpubits",
@@ -86,7 +86,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fdf011db2e21ce0d575593d749db5554b47fed37aff429e4dc50bc91ac93a028"
 dependencies = [
  "aead 0.6.1",
- "aes 0.9.1",
+ "aes 0.9.2",
  "cipher 0.5.2",
  "ctr 0.10.1",
  "ghash 0.6.0",
@@ -480,6 +480,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
+name = "base64"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b25655df2c3cdd83c5e5b293b88acd880332b2ddadd7c30ac43144fdc0033da9"
+
+[[package]]
 name = "base64ct"
 version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -487,11 +493,11 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
 name = "bcrypt"
-version = "0.19.2"
+version = "0.19.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f3c067aa24dd4ed5c79cf222a38f260c8f23d3b82a062fba3f28c6fe563b753"
+checksum = "a0cd0bd35a28836d528d2b58ad499bc3c5641d59379421b1be9eeb0c2f2b912a"
 dependencies = [
- "base64",
+ "base64 0.23.0",
  "blowfish",
  "getrandom 0.4.3",
  "subtle",
@@ -689,9 +695,9 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "camino"
-version = "1.2.4"
+version = "1.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f2d30e4173c4026932d51d31d6b0613b1fd3014bf3f9f8943d4ba139c437ba0"
+checksum = "bb1307f12aa967b5a58416e87b3653360e0fd614a016b6e970db08fecbb1b80d"
 
 [[package]]
 name = "castaway"
@@ -704,9 +710,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.3.0"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c89588d05638b5b4594a3348a2d6c20277e43a7f5c5202b05cc56888475a47b8"
+checksum = "5add81bb678e6cb321aff7fa0dc7689ad82b112dbc032cea19f91d6b8e3582b9"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -722,7 +728,7 @@ checksum = "8b79e2b6784406ed1adc8d1e37f362af90495e7732a35296b723339835952745"
 dependencies = [
  "async-trait",
  "aws-lc-rs",
- "base64",
+ "base64 0.22.1",
  "chrono",
  "ecdsa",
  "elliptic-curve",
@@ -905,7 +911,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "client-kit-showcase"
-version = "1.7.0-alpha.1"
+version = "1.7.0"
 dependencies = [
  "chrono",
  "codee",
@@ -990,15 +996,6 @@ dependencies = [
  "serde",
  "static_assertions",
  "zmij",
-]
-
-[[package]]
-name = "concurrent-queue"
-version = "2.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
-dependencies = [
- "crossbeam-utils",
 ]
 
 [[package]]
@@ -1128,7 +1125,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ddef33a339a91ea89fb53151bd0a4689cfce27055c291dfa69945475d22c747"
 dependencies = [
  "aes-gcm 0.10.3",
- "base64",
+ "base64 0.22.1",
  "hmac 0.12.1",
  "percent-encoding",
  "rand 0.8.7",
@@ -1446,13 +1443,13 @@ dependencies = [
 
 [[package]]
 name = "displaydoc"
-version = "0.2.6"
+version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ac70aa55017e108007fbaf5aa0f54b021c98f92ff8af59d42eda9da96e3dd4f"
+checksum = "c6232dd377dcc64799954cbd3a9bb882e9cdc1308ccd87b1c098f1fb2eaf82a8"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -1484,9 +1481,9 @@ dependencies = [
 
 [[package]]
 name = "either"
-version = "1.16.0"
+version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e"
+checksum = "9e5e8f6c15a24b9a3ee5efec809ccd006d3b30e8b3bb63c39af737c7f87daa1d"
 
 [[package]]
 name = "either_of"
@@ -1594,11 +1591,10 @@ dependencies = [
 
 [[package]]
 name = "event-listener"
-version = "5.4.1"
+version = "5.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e13b66accf52311f30a0db42147dadea9850cb48cd070028831ae5f5d4b856ab"
+checksum = "5a23add41df1562121a9393cb065eab5146a1242410f23a644851e90cfd669d2"
 dependencies = [
- "concurrent-queue",
  "parking",
  "pin-project-lite",
 ]
@@ -2031,7 +2027,7 @@ version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3314d5adb5d94bcdf56771f2e50dbbc80bb4bdf88967526706205ac9eff24eb"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bytes",
  "headers-core",
  "http",
@@ -2290,7 +2286,7 @@ version = "0.1.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96547c2556ec9d12fb1578c4eaf448b04993e7fb79cbaad930a656880a6bdfa0"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bytes",
  "futures-channel",
  "futures-util",
@@ -2467,7 +2463,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit"
-version = "1.7.0-alpha.1"
+version = "1.7.0"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -2491,7 +2487,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-blocks"
-version = "1.7.0-alpha.1"
+version = "1.7.0"
 dependencies = [
  "gloo-net",
  "impulse-client-kit",
@@ -2505,7 +2501,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-components"
-version = "1.7.0-alpha.1"
+version = "1.7.0"
 dependencies = [
  "chrono",
  "codee",
@@ -2520,7 +2516,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-native-themes"
-version = "1.7.0-alpha.1"
+version = "1.7.0"
 dependencies = [
  "jni 0.21.1",
  "js-sys",
@@ -2534,7 +2530,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-ring"
-version = "1.7.0-alpha.1"
+version = "1.7.0"
 dependencies = [
  "bytes",
  "clap",
@@ -2554,7 +2550,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-store"
-version = "1.7.0-alpha.1"
+version = "1.7.0"
 dependencies = [
  "leptos",
  "log",
@@ -2566,7 +2562,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-endpoint"
-version = "1.7.0-alpha.1"
+version = "1.7.0"
 dependencies = [
  "impulse-utils",
  "reqwest",
@@ -2578,7 +2574,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-error-pages"
-version = "1.7.0-alpha.1"
+version = "1.7.0"
 dependencies = [
  "icondata",
  "impulse-client-kit",
@@ -2627,7 +2623,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-server-kit"
-version = "1.7.0-alpha.1"
+version = "1.7.0"
 dependencies = [
  "any_spawner",
  "axum",
@@ -2679,7 +2675,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-skdsl"
-version = "1.7.0-alpha.1"
+version = "1.7.0"
 dependencies = [
  "clap",
  "impulse-server-kit",
@@ -2695,7 +2691,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-static-server"
-version = "1.7.0-alpha.1"
+version = "1.7.0"
 dependencies = [
  "impulse-server-kit",
  "serde",
@@ -2704,11 +2700,11 @@ dependencies = [
 
 [[package]]
 name = "impulse-tailwind-sources"
-version = "1.7.0-alpha.1"
+version = "1.7.0"
 
 [[package]]
 name = "impulse-tauri-engine"
-version = "1.7.0-alpha.1"
+version = "1.7.0"
 dependencies = [
  "impulse-endpoint",
  "impulse-utils",
@@ -2721,7 +2717,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-utils"
-version = "1.7.0-alpha.1"
+version = "1.7.0"
 dependencies = [
  "anyhow",
  "http",
@@ -2945,7 +2941,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eba32bfb4ffdeaca3e34431072faf01745c9b26d25504aa7a6cf5684334fc4fc"
 dependencies = [
  "aws-lc-rs",
- "base64",
+ "base64 0.22.1",
  "getrandom 0.2.17",
  "js-sys",
  "pem",
@@ -3007,7 +3003,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "705e2951f3688e0c4f66bbb7a2702282782dcee716971dbd6209c2619d272479"
 dependencies = [
  "any_spawner",
- "base64",
+ "base64 0.22.1",
  "cfg-if",
  "either_of",
  "futures",
@@ -3207,7 +3203,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da974775c5ccbb6bd64be7f53f75e8321542e28f21563a416574dbe4d5447eae"
 dependencies = [
  "any_spawner",
- "base64",
+ "base64 0.22.1",
  "codee",
  "futures",
  "hydration_context",
@@ -3228,9 +3224,9 @@ checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 
 [[package]]
 name = "libflate"
-version = "2.3.0"
+version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd96e993e5f3368b0cb8497dae6c860c22af8ff18388c61c6c0b86c58d86b5df"
+checksum = "a4da9b700e758e57152a1fd1c52cbdc5727c1aa6d8743dc1acda917398f1d76c"
 dependencies = [
  "adler32",
  "crc32fast",
@@ -3849,7 +3845,7 @@ version = "3.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d30c53c26bc5b31a98cd02d20f25a7c8567146caf63ed593a9d87b2775291be"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "serde_core",
 ]
 
@@ -4581,7 +4577,7 @@ version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "219c5811de6525e5416c7d5d53bb656d3afdbc6c5af816e0802bcfa42dbdc1c3"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bytes",
  "encoding_rs",
  "futures-channel",
@@ -5060,7 +5056,7 @@ checksum = "7d508d5958e0a605c7483e849e2a89ead76511afc09e5c57233312f4a441cc74"
 dependencies = [
  "aead 0.6.1",
  "aes-gcm 0.11.0",
- "base64",
+ "base64 0.22.1",
  "bcrypt",
  "chacha20poly1305",
  "cookie",
@@ -5110,7 +5106,7 @@ version = "0.95.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9cc59f3046d72917b17cd9fa973b5136734d2292f32a5672edbb1f4dbc949083"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bytes",
  "http-body-util",
  "hyper-rustls",
@@ -5132,7 +5128,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "61e20c7d23233e09336e99efbcb02c1725ecaf5cd25519f007f27c849336e2f5"
 dependencies = [
  "anyhow",
- "base64",
+ "base64 0.22.1",
  "bytes",
  "chrono",
  "compact_str",
@@ -5237,7 +5233,7 @@ checksum = "e399ae70702e4e30a96a02851d3c3682258e6cba0dff6e0ce282d07d4d925829"
 dependencies = [
  "arc-swap",
  "async-trait",
- "base64",
+ "base64 0.22.1",
  "brotli 8.0.4",
  "bytes",
  "chardetng",
@@ -5289,7 +5285,7 @@ version = "0.95.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7fab6556b9bd76d68adb182478092be3c5e3c961c1e8acf8f65c10dbb40dadf"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "etag",
  "futures-util",
  "http-body-util",
@@ -5336,7 +5332,7 @@ dependencies = [
  "anyhow",
  "async-lock",
  "async-trait",
- "base64",
+ "base64 0.22.1",
  "blake3",
  "hmac 0.12.1",
  "postcard",
@@ -5573,7 +5569,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be8559dd05af1b5b7e363a150616589d5a88af5187273f7f331ba0dae8922812"
 dependencies = [
  "axum",
- "base64",
+ "base64 0.22.1",
  "bytes",
  "ciborium",
  "const-str",
@@ -5868,7 +5864,7 @@ dependencies = [
 
 [[package]]
 name = "ssr-showcase"
-version = "1.7.0-alpha.1"
+version = "1.7.0"
 dependencies = [
  "console_error_panic_hook",
  "impulse-client-kit",
@@ -6338,9 +6334,9 @@ dependencies = [
 
 [[package]]
 name = "toml_parser"
-version = "1.1.2+spec-1.1.0"
+version = "1.1.3+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2abe9b86193656635d2411dc43050282ca48aa31c2451210f4202550afb7526"
+checksum = "1d38ac1cf9b95face32296c0a3ede1fdc270627c9d9c02a7274dd6d960dc4d56"
 dependencies = [
  "winnow 1.0.4",
 ]
@@ -6352,7 +6348,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac2a5518c70fa84342385732db33fb3f44bc4cc748936eb5833d2df34d6445ef"
 dependencies = [
  "async-trait",
- "base64",
+ "base64 0.22.1",
  "bytes",
  "http",
  "http-body",
