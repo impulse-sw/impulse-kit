@@ -43,7 +43,7 @@
 //!    ```ignore
 //!    #[tauri::command]
 //!    fn ik_native_base_theme() -> Option<NativeBaseTheme> {
-//!      impulse_client_native_themes::native_base_theme().cloned()
+//!      impulse_client_native_themes::native_base_theme()
 //!    }
 //!
 //!    tauri::Builder::default()
@@ -100,6 +100,19 @@ pub const BASE_STYLE_ELEMENT_ID: &str = "impulse-native-base-theme";
 
 /// The `id` of the `<style>` element carrying the captured native palette.
 pub const PALETTE_STYLE_ELEMENT_ID: &str = "impulse-native-base-palette";
+
+/// The attribute this crate writes on `<html>` with the system's current scheme
+/// (`"dark"` / `"light"`), on platforms where the webview's own
+/// `prefers-color-scheme` can't be trusted. Absent means "use the media query".
+///
+/// It is the contract between this crate and a theme provider that has to
+/// resolve a "follow the system" setting — deliberately a DOM attribute, so
+/// neither crate has to depend on the other. Whoever reads it should also listen
+/// for [`SYSTEM_SCHEME_EVENT`], which fires whenever the value changes.
+pub const SYSTEM_SCHEME_ATTRIBUTE: &str = "data-impulse-system-scheme";
+
+/// The event dispatched on `window` whenever [`SYSTEM_SCHEME_ATTRIBUTE`] changes.
+pub const SYSTEM_SCHEME_EVENT: &str = "impulse:system-scheme";
 
 /// The base-neutral design tokens for one colour scheme. Values are any valid
 /// CSS colour (the providers emit `#rrggbb`).
@@ -168,12 +181,26 @@ impl BaseNeutrals {
 pub struct NativeBaseTheme {
   pub light: Option<BaseNeutrals>,
   pub dark: Option<BaseNeutrals>,
+  /// Whether the system itself is currently showing its dark scheme, on the
+  /// platforms where the webview can't be asked.
+  ///
+  /// Everywhere else this stays `None` and `prefers-color-scheme` is the better
+  /// answer, because it updates on its own. Android is the exception: its
+  /// Activity declares `configChanges="uiMode"`, so the system theme changing
+  /// doesn't recreate it, the WebView never learns, and the media query stays
+  /// frozen at whatever it was when the app started.
+  pub system_dark: Option<bool>,
 }
 
 impl NativeBaseTheme {
-  /// Whether any scheme was captured at all.
+  /// Whether the report carries nothing at all — no palette and no scheme.
   pub fn is_empty(&self) -> bool {
-    self.light.is_none() && self.dark.is_none()
+    self.light.is_none() && self.dark.is_none() && self.system_dark.is_none()
+  }
+
+  /// Whether a palette was captured (as opposed to only a scheme report).
+  pub fn has_palette(&self) -> bool {
+    self.light.is_some() || self.dark.is_some()
   }
 
   /// Renders the palette as a stylesheet. The dark block is keyed on the app's
@@ -211,12 +238,32 @@ pub fn install_native_base_theme() -> Option<&'static NativeBaseTheme> {
   PALETTE.get_or_init(capture_native_base_theme).as_ref()
 }
 
-/// The palette captured by [`install_native_base_theme`], or `None` when it was
-/// never installed, the platform has no provider, or the system exposes no
-/// dynamic palette. Cheap and callable from any thread.
+/// What to report to the webview: the palette captured by
+/// [`install_native_base_theme`], plus the system's *current* scheme.
+///
+/// The colours are cached — they don't change while the app runs — but the
+/// scheme is re-read on every call, so a webview that asks again after the user
+/// has been away in the system settings gets the new answer. Callable from any
+/// thread.
 #[cfg(not(target_arch = "wasm32"))]
-pub fn native_base_theme() -> Option<&'static NativeBaseTheme> {
-  PALETTE.get().and_then(Option::as_ref)
+pub fn native_base_theme() -> Option<NativeBaseTheme> {
+  let mut report = PALETTE.get().and_then(Option::as_ref).cloned().unwrap_or_default();
+  report.system_dark = system_prefers_dark();
+  (!report.is_empty()).then_some(report)
+}
+
+/// Whether the system is currently in its dark scheme, where the platform can
+/// say and the webview's own media query cannot be trusted (Android).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn system_prefers_dark() -> Option<bool> {
+  #[cfg(target_os = "android")]
+  {
+    android::system_prefers_dark()
+  }
+  #[cfg(not(target_os = "android"))]
+  {
+    None
+  }
 }
 
 /// Reads the palette from the platform, bypassing the cache. Prefer
@@ -266,6 +313,36 @@ pub fn apply_native_base_theme() {
   {
     ipc::fetch_and_apply();
     ipc::track_scheme_for_system_bars();
+    ipc::refetch_when_visible();
+  }
+}
+
+/// Publishes the system's scheme on `<html>` for a theme provider to resolve
+/// "follow the system" against, and announces the change.
+///
+/// `None` removes the attribute, which means "the media query is trustworthy
+/// here" — the case on every platform but Android.
+#[cfg(all(target_arch = "wasm32", feature = "tauri"))]
+fn publish_system_scheme(system_dark: Option<bool>) {
+  let Some(window) = web_sys::window() else { return };
+  let Some(root) = window.document().and_then(|d| d.document_element()) else {
+    return;
+  };
+  let previous = root.get_attribute(SYSTEM_SCHEME_ATTRIBUTE);
+  let current = system_dark.map(|dark| if dark { "dark" } else { "light" }.to_string());
+  if previous == current {
+    return;
+  }
+  match &current {
+    Some(scheme) => {
+      let _ = root.set_attribute(SYSTEM_SCHEME_ATTRIBUTE, scheme);
+    }
+    None => {
+      let _ = root.remove_attribute(SYSTEM_SCHEME_ATTRIBUTE);
+    }
+  }
+  if let Ok(event) = web_sys::Event::new(SYSTEM_SCHEME_EVENT) {
+    let _ = window.dispatch_event(&event);
   }
 }
 
@@ -374,6 +451,31 @@ mod ipc {
     std::mem::forget(observer);
   }
 
+  /// Re-asks the native side whenever the app comes back to the foreground.
+  ///
+  /// Changing the system theme means leaving the app for the settings (or the
+  /// notification shade), so returning is precisely when the answer may have
+  /// changed. This is what makes "follow the system" live on Android, where the
+  /// WebView's own media query never updates.
+  pub(super) fn refetch_when_visible() {
+    let Some(window) = web_sys::window() else { return };
+    let on_visible = wasm_bindgen::prelude::Closure::<dyn FnMut()>::new(|| {
+      let visible = web_sys::window()
+        .and_then(|w| w.document())
+        .is_none_or(|d| d.visibility_state() == web_sys::VisibilityState::Visible);
+      if visible {
+        fetch_and_apply();
+      }
+    });
+    let handler = on_visible.as_ref().unchecked_ref();
+    let _ = window.add_event_listener_with_callback("focus", handler);
+    if let Some(document) = window.document() {
+      let _ = document.add_event_listener_with_callback("visibilitychange", handler);
+    }
+    // Lives as long as the document.
+    on_visible.forget();
+  }
+
   /// Asks the native side for the palette and injects it. Any failure — no
   /// command registered, no provider for the platform, a decode error — leaves
   /// the app's own palette in place.
@@ -387,10 +489,10 @@ mod ipc {
       let Ok(Some(theme)) = serde_wasm_bindgen::from_value::<Option<NativeBaseTheme>>(value) else {
         return;
       };
-      if theme.is_empty() {
-        return;
+      if theme.has_palette() {
+        super::inject_style(PALETTE_STYLE_ELEMENT_ID, &theme.to_css());
       }
-      super::inject_style(PALETTE_STYLE_ELEMENT_ID, &theme.to_css());
+      super::publish_system_scheme(theme.system_dark);
     });
   }
 }

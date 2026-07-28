@@ -159,6 +159,7 @@ fn set_status_bar_appearance(env: &mut JNIEnv<'_>, activity: &JObject<'_>, appea
 pub(crate) fn capture() -> Option<NativeBaseTheme> {
   let vm = java_vm()?;
   let mut env = vm.attach_current_thread().ok()?;
+  let context = app_context(&mut env);
   let resources = app_resources(&mut env)?;
 
   let mut neutral = |palette: u8, shade: u16| {
@@ -222,10 +223,18 @@ pub(crate) fn capture() -> Option<NativeBaseTheme> {
     ring: n2_400,
   };
 
-  let theme = NativeBaseTheme {
+  let mut theme = NativeBaseTheme {
     light: Some(light),
     dark: Some(dark),
+    // Filled in per request by `native_base_theme`, since it can change while
+    // the app runs and the palette itself cannot.
+    system_dark: None,
   };
+  // The tonal palettes describe Material You, but not an OEM's deep/AMOLED dark
+  // mode, which lives in the platform theme.
+  if let Some(context) = &context {
+    adopt_system_background(&mut env, context, &resources, &mut theme);
+  }
   log(&format!("captured Material You palette:\n{}", theme.to_css()));
   Some(theme)
 }
@@ -262,13 +271,7 @@ fn java_vm() -> Option<JavaVM> {
 /// The `Resources` to read the palette from: the application's (which carry the
 /// dynamic-colour overlay) falling back to the framework's.
 fn app_resources<'local>(env: &mut JNIEnv<'local>) -> Option<JObject<'local>> {
-  let application = call_static_object(
-    env,
-    "android/app/ActivityThread",
-    "currentApplication",
-    "()Landroid/app/Application;",
-  );
-  if let Some(application) = application
+  if let Some(application) = app_context(env)
     && let Some(resources) = call_object(env, &application, "getResources", "()Landroid/content/res/Resources;")
   {
     return Some(resources);
@@ -284,6 +287,183 @@ fn app_resources<'local>(env: &mut JNIEnv<'local>) -> Option<JObject<'local>> {
   )
 }
 
+/// The process's `Application`, which is a `Context` carrying the dynamic-colour
+/// resource overlay.
+fn app_context<'local>(env: &mut JNIEnv<'local>) -> Option<JObject<'local>> {
+  call_static_object(
+    env,
+    "android/app/ActivityThread",
+    "currentApplication",
+    "()Landroid/app/Application;",
+  )
+}
+
+/// `Configuration.UI_MODE_NIGHT_MASK` / `UI_MODE_NIGHT_YES`.
+const UI_MODE_NIGHT_MASK: i32 = 0x30;
+const UI_MODE_NIGHT_YES: i32 = 0x20;
+
+/// Whether the system is currently showing its dark scheme, read fresh.
+///
+/// The Activity declares `configChanges="uiMode"`, so a system theme change
+/// neither recreates it nor reaches the WebView's `prefers-color-scheme`. This
+/// is therefore the only trustworthy answer on Android, and it is read on demand
+/// rather than cached so that asking again after the user has been away in the
+/// system settings gives the new value.
+pub(crate) fn system_prefers_dark() -> Option<bool> {
+  let vm = java_vm()?;
+  let mut env = vm.attach_current_thread().ok()?;
+  let resources = app_resources(&mut env)?;
+  system_prefers_dark_with(&mut env, &resources)
+}
+
+/// Whether the system is currently showing its dark scheme.
+fn system_prefers_dark_with(env: &mut JNIEnv<'_>, resources: &JObject<'_>) -> Option<bool> {
+  let configuration = call_object(
+    env,
+    resources,
+    "getConfiguration",
+    "()Landroid/content/res/Configuration;",
+  )?;
+  let ui_mode = env.get_field(&configuration, "uiMode", "I").ok()?.i().ok()?;
+  clear_exception(env);
+  Some(ui_mode & UI_MODE_NIGHT_MASK == UI_MODE_NIGHT_YES)
+}
+
+/// `TypedValue.TYPE_INT_COLOR_*`, the four types a resolved colour can come back
+/// as.
+const TYPE_INT_COLOR_RANGE: std::ops::RangeInclusive<i32> = 0x1c..=0x1f;
+
+/// The background colour the **system's own** theme is using right now.
+///
+/// This is what answers "is the deep/AMOLED dark mode on?", for which Android
+/// has no API: such a mode is an OEM overlay on the platform theme, so instead
+/// of asking whether it is enabled we ask the system what its background
+/// actually is. `Theme.DeviceDefault.DayNight` is the platform's own theme (the
+/// app's is a MaterialComponents one, which carries Material's colours rather
+/// than the device's), and being DayNight it resolves to whichever scheme the
+/// system is in.
+fn system_window_background(env: &mut JNIEnv<'_>, context: &JObject<'_>, resources: &JObject<'_>) -> Option<i32> {
+  let style = identifier(env, resources, "Theme.DeviceDefault.DayNight", "style")?;
+  let attribute = identifier(env, resources, "colorBackground", "attr")?;
+
+  let themed = env
+    .new_object(
+      "android/view/ContextThemeWrapper",
+      "(Landroid/content/Context;I)V",
+      &[JValue::Object(context), JValue::Int(style)],
+    )
+    .ok()?;
+  let theme = call_object(env, &themed, "getTheme", "()Landroid/content/res/Resources$Theme;")?;
+  let value = env.new_object("android/util/TypedValue", "()V", &[]).ok()?;
+
+  let resolved = env
+    .call_method(
+      &theme,
+      "resolveAttribute",
+      "(ILandroid/util/TypedValue;Z)Z",
+      &[JValue::Int(attribute), JValue::Object(&value), JValue::Bool(1)],
+    )
+    .ok()?
+    .z()
+    .ok()?;
+  if !resolved {
+    return None;
+  }
+  // A colour attribute resolves to a literal; anything else (a reference to a
+  // state list, say) isn't a plain background we can use.
+  let kind = env.get_field(&value, "type", "I").ok()?.i().ok()?;
+  if !TYPE_INT_COLOR_RANGE.contains(&kind) {
+    return None;
+  }
+  env.get_field(&value, "data", "I").ok()?.i().ok()
+}
+
+/// Adopts the system's own background for the scheme the system is currently
+/// in, when it is more extreme than the one derived from the tonal palettes.
+///
+/// Normally the two agree and nothing changes, so the Material You tint is kept.
+/// When the device is in a deep/AMOLED dark mode its background is *darker* than
+/// the palette's `neutral1` step — that difference is the signal, and adopting
+/// it is what makes the app go black alongside the rest of the system. Only the
+/// page background is taken: cards stay on the tonal ramp, which is exactly how
+/// such modes look natively.
+fn adopt_system_background(
+  env: &mut JNIEnv<'_>,
+  context: &JObject<'_>,
+  resources: &JObject<'_>,
+  theme: &mut NativeBaseTheme,
+) {
+  let (Some(night), Some(argb)) = (
+    system_prefers_dark_with(env, resources),
+    system_window_background(env, context, resources),
+  ) else {
+    clear_exception(env);
+    log("could not read the system's own background; keeping the tonal-palette one");
+    return;
+  };
+  clear_exception(env);
+
+  let system = rgb_hex(argb);
+  let system_luminance = luminance(argb);
+  let scheme = if night { theme.dark.as_mut() } else { theme.light.as_mut() };
+  let Some(scheme) = scheme else { return };
+
+  let Some(current_luminance) = hex_luminance(&scheme.background) else {
+    return;
+  };
+  // Darker than the ramp in dark mode, or lighter than it in light mode.
+  let more_extreme = if night {
+    system_luminance < current_luminance
+  } else {
+    system_luminance > current_luminance
+  };
+  if more_extreme {
+    log(&format!(
+      "system background {system} is beyond the tonal ramp's {} — adopting it (deep dark or equivalent)",
+      scheme.background
+    ));
+    scheme.background = system;
+  } else {
+    log(&format!("system background {system} matches the tonal ramp; keeping it"));
+  }
+}
+
+/// Resolves a framework resource id, or `None` when there is no such resource.
+fn identifier(env: &mut JNIEnv<'_>, resources: &JObject<'_>, name: &str, kind: &str) -> Option<i32> {
+  let j_name = env.new_string(name).ok()?;
+  let j_kind = env.new_string(kind).ok()?;
+  let j_package = env.new_string("android").ok()?;
+  let id = env
+    .call_method(
+      resources,
+      "getIdentifier",
+      "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I",
+      &[
+        JValue::Object(&j_name),
+        JValue::Object(&j_kind),
+        JValue::Object(&j_package),
+      ],
+    )
+    .ok()?
+    .i()
+    .ok()?;
+  (id != 0).then_some(id)
+}
+
+/// Perceptual luminance of an ARGB colour int, in `0.0..=1.0`.
+fn luminance(argb: i32) -> f64 {
+  let c = argb as u32;
+  let channel = |shift: u32| f64::from((c >> shift) & 0xff) / 255.0;
+  0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0)
+}
+
+/// Perceptual luminance of a `#rrggbb` string, for comparing against a colour we
+/// already formatted.
+fn hex_luminance(hex: &str) -> Option<f64> {
+  let value = i32::from_str_radix(hex.strip_prefix('#')?, 16).ok()?;
+  Some(luminance(value))
+}
+
 /// Resolves `android.R.color.system_neutral{palette}_{shade}` to `#rrggbb`.
 fn color_hex(env: &mut JNIEnv<'_>, resources: &JObject<'_>, palette: u8, shade: u16) -> Option<String> {
   let name = format!("system_neutral{palette}_{shade}");
@@ -293,28 +473,8 @@ fn color_hex(env: &mut JNIEnv<'_>, resources: &JObject<'_>, palette: u8, shade: 
 }
 
 fn lookup(env: &mut JNIEnv<'_>, resources: &JObject<'_>, name: &str) -> Option<String> {
-  let j_name = env.new_string(name).ok()?;
-  let j_type = env.new_string("color").ok()?;
-  let j_package = env.new_string("android").ok()?;
-
-  let id = env
-    .call_method(
-      resources,
-      "getIdentifier",
-      "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I",
-      &[
-        JValue::Object(&j_name),
-        JValue::Object(&j_type),
-        JValue::Object(&j_package),
-      ],
-    )
-    .ok()?
-    .i()
-    .ok()?;
-  // 0 means "no such resource" — the system predates dynamic colour.
-  if id == 0 {
-    return None;
-  }
+  // A missing id means the system predates dynamic colour.
+  let id = identifier(env, resources, name, "color")?;
 
   // `getColor(int, Resources.Theme)`; a null theme means "no theme attributes",
   // which is right for a plain colour resource.

@@ -171,11 +171,14 @@ pub(crate) fn capture() -> Option<NativeBaseTheme> {
     NativeBaseTheme {
       light: None,
       dark: Some(neutrals),
+      // The desktop webview's own `prefers-color-scheme` is reliable.
+      system_dark: None,
     }
   } else {
     NativeBaseTheme {
       light: Some(neutrals),
       dark: None,
+      system_dark: None,
     }
   };
   tracing::info!("captured GTK desktop palette:\n{}", theme.to_css());

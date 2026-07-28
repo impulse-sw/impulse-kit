@@ -69,6 +69,8 @@ fn theme(light: Scheme, dark: Scheme) -> Option<NativeBaseTheme> {
   Some(NativeBaseTheme {
     light: Some(light.into_neutrals()),
     dark: Some(dark.into_neutrals()),
+    // These webviews report `prefers-color-scheme` correctly.
+    system_dark: None,
   })
 }
 

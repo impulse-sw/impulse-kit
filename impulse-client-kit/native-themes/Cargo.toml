@@ -30,9 +30,12 @@ web-sys = { workspace = true, features = [
   "DomTokenList",
   "Element",
   "HtmlHeadElement",
+  "Event",
+  "EventTarget",
   "MutationObserver",
   "MutationObserverInit",
   "Node",
+  "VisibilityState",
 ] }
 js-sys = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
