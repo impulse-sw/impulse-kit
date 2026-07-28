@@ -1,105 +1,235 @@
 //! Make a Tauri webview's **base neutral** palette follow the host system's
-//! native theme, so the app blends into the OS chrome instead of looking like a
-//! random website — while the app keeps its own brand colours.
+//! native theme, so the app blends into the OS instead of looking like a random
+//! website — while the app keeps its own brand colours.
 //!
-//! # Why a runtime, client-side approach
+//! # What this does and doesn't set
 //!
-//! Each app already defines its identity colours (`--primary`, `--destructive`,
-//! `--chart-*`) in its Tailwind `input.css`. What it *doesn't* know is the
-//! system's base neutrals — the exact background, text and surface shades the OS
-//! uses. In a browser a bespoke neutral palette is fine; inside a Tauri window
-//! on macOS, Windows, a Linux desktop, or Android (Material Design 3) it reads
-//! as foreign.
+//! Every app already defines its identity colours (`--primary`, `--destructive`,
+//! `--chart-*`) in its Tailwind `input.css`. Those are left completely alone.
+//! What an app can't know is the system's base neutrals — the exact background,
+//! text and surface shades the OS uses — so only those tokens are overridden:
+//! `--background`, `--foreground`, `--card`, `--popover`, `--muted`,
+//! `--secondary`, `--accent` (all with their `-foreground` pairs), `--border`,
+//! `--input` and `--ring`.
 //!
-//! Rather than baking a per-OS palette at build time, we let the webview read
-//! the *live* system colours through the CSS system-color keywords
-//! ([`Canvas`], [`CanvasText`], [`GrayText`]). Every Tauri webview engine —
-//! WebKitGTK (Linux), WKWebView (macOS), WebView2 (Windows) and Android's
-//! Chromium WebView — resolves these from the real OS theme, and they update
-//! live when the user changes it. [`color-mix()`] derives the intermediate
-//! surfaces from those anchors.
+//! # Why the palette is read natively
 //!
-//! [`apply_native_base_theme`] injects a small stylesheet that maps the
-//! **base-neutral** design tokens onto those system colours and ties
-//! `color-scheme` to the app's `.dark` class, so the system colours resolve for
-//! whichever scheme the app is actually showing (not just the OS default). It
-//! is appended after the app's stylesheet, so at equal specificity these win;
-//! and because it only sets the neutral tokens, `--primary` & friends are
-//! untouched.
+//! The obvious trick — pointing the tokens at the CSS system-color keywords
+//! (`Canvas`, `CanvasText`, …) — does **not** work: WebKitGTK and Android's
+//! WebView both resolve them to a generic grey rather than the real desktop
+//! theme or the Material You palette, which silently replaces a nicer app
+//! palette with grey. So the colours are read on the native side, where the real
+//! system APIs live, and pushed into the webview as explicit CSS variables.
 //!
-//! Degradation is graceful: an engine that doesn't understand a system color or
-//! `color-mix()` simply drops that declaration, and the token falls back to the
-//! app's own value from `input.css`.
+//! # Wiring an app up
 //!
-//! # Usage
+//! 1. **Native, in the Tauri shell** — capture the palette once at startup and
+//!    expose it under the conventional command name
+//!    [`NATIVE_BASE_THEME_COMMAND`]:
 //!
-//! Call once at webview startup, only in the Tauri build (a plain website should
-//! keep its own neutrals):
+//!    ```ignore
+//!    #[tauri::command]
+//!    fn ik_native_base_theme() -> Option<NativeBaseTheme> {
+//!      impulse_client_native_themes::native_base_theme().cloned()
+//!    }
+//!    ```
 //!
-//! ```ignore
-//! #[cfg(feature = "tauri")]
-//! impulse_client_native_themes::apply_native_base_theme();
-//! ```
+//! 2. **Webview, at startup** — call [`apply_native_base_theme`] (with the
+//!    `tauri` feature enabled so it fetches over IPC).
 //!
-//! [`Canvas`]: https://developer.mozilla.org/en-US/docs/Web/CSS/system-color
-//! [`CanvasText`]: https://developer.mozilla.org/en-US/docs/Web/CSS/system-color
-//! [`GrayText`]: https://developer.mozilla.org/en-US/docs/Web/CSS/system-color
-//! [`color-mix()`]: https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/color-mix
+//! Every step degrades gracefully: a platform with no provider, an app that
+//! didn't register the command, or a system too old for dynamic colour all end
+//! with the app keeping its own palette from `input.css`.
 
 #![deny(warnings)]
 
-/// The `id` of the injected `<style>` element, used to keep injection idempotent.
-pub const STYLE_ELEMENT_ID: &str = "impulse-native-base-theme";
+use serde::{Deserialize, Serialize};
 
-/// The stylesheet injected by [`apply_native_base_theme`].
+#[cfg(target_os = "android")]
+mod android;
+
+/// The conventional Tauri command name an app registers to serve the captured
+/// palette to its webview. Mirrors the kit's other IPC conventions
+/// (`ik_http_request`, `ik_ws_send`).
+pub const NATIVE_BASE_THEME_COMMAND: &str = "ik_native_base_theme";
+
+/// The `id` of the `<style>` element carrying the platform-independent hints.
+pub const BASE_STYLE_ELEMENT_ID: &str = "impulse-native-base-theme";
+
+/// The `id` of the `<style>` element carrying the captured native palette.
+pub const PALETTE_STYLE_ELEMENT_ID: &str = "impulse-native-base-palette";
+
+/// The base-neutral design tokens for one colour scheme. Values are any valid
+/// CSS colour (the providers emit `#rrggbb`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BaseNeutrals {
+  pub background: String,
+  pub foreground: String,
+  pub card: String,
+  pub card_foreground: String,
+  pub popover: String,
+  pub popover_foreground: String,
+  pub muted: String,
+  pub muted_foreground: String,
+  pub secondary: String,
+  pub secondary_foreground: String,
+  pub accent: String,
+  pub accent_foreground: String,
+  pub border: String,
+  pub input: String,
+  pub ring: String,
+}
+
+impl BaseNeutrals {
+  /// The token/value pairs, in stylesheet order.
+  fn vars(&self) -> [(&'static str, &str); 15] {
+    [
+      ("--background", &self.background),
+      ("--foreground", &self.foreground),
+      ("--card", &self.card),
+      ("--card-foreground", &self.card_foreground),
+      ("--popover", &self.popover),
+      ("--popover-foreground", &self.popover_foreground),
+      ("--muted", &self.muted),
+      ("--muted-foreground", &self.muted_foreground),
+      ("--secondary", &self.secondary),
+      ("--secondary-foreground", &self.secondary_foreground),
+      ("--accent", &self.accent),
+      ("--accent-foreground", &self.accent_foreground),
+      ("--border", &self.border),
+      ("--input", &self.input),
+      ("--ring", &self.ring),
+    ]
+  }
+
+  fn write_block(&self, selector: &str, out: &mut String) {
+    out.push_str(selector);
+    out.push_str(" {\n");
+    for (name, value) in self.vars() {
+      out.push_str("  ");
+      out.push_str(name);
+      out.push_str(": ");
+      out.push_str(value);
+      out.push_str(";\n");
+    }
+    out.push_str("}\n");
+  }
+}
+
+/// A system palette, per colour scheme.
 ///
-/// * `color-scheme` is tied to the app's `.dark` class so the system colours
-///   resolve for the scheme the app is *showing*, even if it differs from the OS
-///   default. This also gives native dark form controls and scrollbars.
-/// * Only base-neutral tokens are set. Brand tokens (`--primary`,
-///   `--destructive`, `--chart-*`, …) are deliberately omitted.
-/// * `--background`/`--foreground`/surfaces map to system colours directly;
-///   intermediate surfaces are mixed from the same anchors, so everything tracks
-///   one coherent system palette.
-pub const NATIVE_BASE_THEME_CSS: &str = "\
-:root { color-scheme: light; }\n\
-:root.dark { color-scheme: dark; }\n\
-:root {\n\
-  --background: Canvas;\n\
-  --foreground: CanvasText;\n\
-  --card: Canvas;\n\
-  --card-foreground: CanvasText;\n\
-  --popover: Canvas;\n\
-  --popover-foreground: CanvasText;\n\
-  --muted: color-mix(in srgb, Canvas 92%, CanvasText);\n\
-  --muted-foreground: GrayText;\n\
-  --secondary: color-mix(in srgb, Canvas 90%, CanvasText);\n\
-  --secondary-foreground: CanvasText;\n\
-  --accent: color-mix(in srgb, Canvas 90%, CanvasText);\n\
-  --accent-foreground: CanvasText;\n\
-  --border: color-mix(in srgb, Canvas 86%, CanvasText);\n\
-  --input: color-mix(in srgb, Canvas 86%, CanvasText);\n\
-  --ring: color-mix(in srgb, Canvas 55%, CanvasText);\n\
-}\n";
+/// A provider fills in whichever schemes the platform can actually describe:
+/// Android derives **both** from the Material You tonal palettes, while a
+/// desktop that only exposes its current theme fills in just that one. A scheme
+/// left as `None` simply keeps the app's own colours from `input.css`.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct NativeBaseTheme {
+  pub light: Option<BaseNeutrals>,
+  pub dark: Option<BaseNeutrals>,
+}
 
-/// Injects [`NATIVE_BASE_THEME_CSS`] into `<head>` so the app's base-neutral
-/// tokens follow the system theme. Idempotent (a second call is a no-op) and
-/// safe to call before hydration. No-op on non-webview targets.
+impl NativeBaseTheme {
+  /// Whether any scheme was captured at all.
+  pub fn is_empty(&self) -> bool {
+    self.light.is_none() && self.dark.is_none()
+  }
+
+  /// Renders the palette as a stylesheet. The dark block is keyed on the app's
+  /// `.dark` class, so the palette follows the scheme the app is *showing*
+  /// rather than the OS default — the app's own theme toggle stays authoritative.
+  pub fn to_css(&self) -> String {
+    let mut css = String::new();
+    if let Some(light) = &self.light {
+      light.write_block(":root", &mut css);
+    }
+    if let Some(dark) = &self.dark {
+      dark.write_block(":root.dark", &mut css);
+    }
+    css
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Native side
+// ---------------------------------------------------------------------------
+
+/// The captured system palette, or `None` on a platform without a provider (or
+/// when the system has no dynamic palette to offer).
+///
+/// Captured once on first call and cached, so the IPC command can serve it
+/// cheaply from any thread.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn native_base_theme() -> Option<&'static NativeBaseTheme> {
+  use std::sync::OnceLock;
+  static PALETTE: OnceLock<Option<NativeBaseTheme>> = OnceLock::new();
+  PALETTE.get_or_init(capture_native_base_theme).as_ref()
+}
+
+/// Reads the palette from the platform, bypassing the [`native_base_theme`]
+/// cache. Returns `None` when the platform has no provider or exposes no
+/// dynamic palette.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn capture_native_base_theme() -> Option<NativeBaseTheme> {
+  #[cfg(target_os = "android")]
+  {
+    let theme = android::capture()?;
+    (!theme.is_empty()).then_some(theme)
+  }
+  // Desktop providers (GTK on Linux, macOS, Windows) land in later increments;
+  // until then those platforms keep the app's own palette.
+  #[cfg(not(target_os = "android"))]
+  {
+    None
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Webview side
+// ---------------------------------------------------------------------------
+
+/// Platform-independent hints, applied synchronously before the palette arrives.
+///
+/// Tying `color-scheme` to the app's `.dark` class gives native-looking
+/// scrollbars, form controls and (on mobile) overscroll glow for the scheme the
+/// app is actually showing. It sets no colour tokens, so the app's palette is
+/// untouched if no native palette turns up.
+#[cfg(target_arch = "wasm32")]
+const BASE_HINTS_CSS: &str = ":root { color-scheme: light; }\n:root.dark { color-scheme: dark; }\n";
+
+/// Applies the system-native base theme to the current document: the
+/// platform-independent hints immediately, then — with the `tauri` feature — the
+/// captured native palette once it arrives over IPC.
+///
+/// Idempotent and safe to call before hydration. A no-op off wasm.
 #[cfg(target_arch = "wasm32")]
 pub fn apply_native_base_theme() {
+  inject_style(BASE_STYLE_ELEMENT_ID, BASE_HINTS_CSS);
+  #[cfg(feature = "tauri")]
+  ipc::fetch_and_apply();
+}
+
+/// No-op stand-in off wasm, so call sites need no target gating of their own.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn apply_native_base_theme() {}
+
+/// Appends (or replaces the contents of) a `<style>` element with `id`.
+///
+/// Appending to the end of `<head>` puts these rules after the app's stylesheet,
+/// so they win at equal specificity.
+#[cfg(target_arch = "wasm32")]
+fn inject_style(id: &str, css: &str) {
   let Some(document) = web_sys::window().and_then(|w| w.document()) else {
     return;
   };
-  // Already injected — nothing to do.
-  if document.get_element_by_id(STYLE_ELEMENT_ID).is_some() {
+  if let Some(existing) = document.get_element_by_id(id) {
+    existing.set_text_content(Some(css));
     return;
   }
   let Ok(style) = document.create_element("style") else {
     return;
   };
-  let _ = style.set_attribute("id", STYLE_ELEMENT_ID);
-  style.set_text_content(Some(NATIVE_BASE_THEME_CSS));
-  // Append after the app's stylesheet so these rules win at equal specificity.
+  let _ = style.set_attribute("id", id);
+  style.set_text_content(Some(css));
   if let Some(head) = document.head() {
     let _ = head.append_child(&style);
   } else if let Some(root) = document.document_element() {
@@ -107,7 +237,38 @@ pub fn apply_native_base_theme() {
   }
 }
 
-/// No-op stand-in on non-webview targets, so the crate builds everywhere and
-/// call sites need no target gating of their own.
-#[cfg(not(target_arch = "wasm32"))]
-pub fn apply_native_base_theme() {}
+/// Pulls the captured palette from the native side over Tauri IPC.
+#[cfg(all(target_arch = "wasm32", feature = "tauri"))]
+mod ipc {
+  use wasm_bindgen::JsValue;
+  use wasm_bindgen::prelude::wasm_bindgen;
+
+  use super::{NativeBaseTheme, PALETTE_STYLE_ELEMENT_ID};
+
+  #[wasm_bindgen]
+  extern "C" {
+    // Tauri v2 global binding (requires `withGlobalTauri: true`).
+    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], js_name = invoke, catch)]
+    async fn invoke(cmd: &str, args: JsValue) -> Result<JsValue, JsValue>;
+  }
+
+  /// Asks the native side for the palette and injects it. Any failure — no
+  /// command registered, no provider for the platform, a decode error — leaves
+  /// the app's own palette in place.
+  pub(super) fn fetch_and_apply() {
+    wasm_bindgen_futures::spawn_local(async {
+      // `undefined` lets Tauri's `invoke(cmd, args = {})` default kick in — the
+      // command takes no arguments.
+      let Ok(value) = invoke(super::NATIVE_BASE_THEME_COMMAND, JsValue::UNDEFINED).await else {
+        return;
+      };
+      let Ok(Some(theme)) = serde_wasm_bindgen::from_value::<Option<NativeBaseTheme>>(value) else {
+        return;
+      };
+      if theme.is_empty() {
+        return;
+      }
+      super::inject_style(PALETTE_STYLE_ELEMENT_ID, &theme.to_css());
+    });
+  }
+}
