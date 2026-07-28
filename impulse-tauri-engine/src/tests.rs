@@ -48,6 +48,9 @@ struct FakeRemote {
   reachable: Arc<AtomicBool>,
   items: Arc<Mutex<HashMap<i64, Item>>>,
   next_id: Arc<AtomicI64>,
+  /// When set, the server rejects any request whose `Authorization` header
+  /// doesn't match — a stand-in for an expired or rotated session.
+  accepts_token: Arc<Mutex<Option<String>>>,
 }
 
 impl FakeRemote {
@@ -56,10 +59,14 @@ impl FakeRemote {
       reachable: Arc::new(AtomicBool::new(true)),
       items: Arc::new(Mutex::new(HashMap::new())),
       next_id: Arc::new(AtomicI64::new(100)),
+      accepts_token: Arc::new(Mutex::new(None)),
     }
   }
   fn set_reachable(&self, v: bool) {
     self.reachable.store(v, Ordering::Relaxed);
+  }
+  fn accept_only(&self, token: Option<&str>) {
+    *self.accepts_token.lock().unwrap() = token.map(str::to_string);
   }
   fn content_of(&self, id: i64) -> Option<String> {
     self.items.lock().unwrap().get(&id).map(|i| i.content.clone())
@@ -73,6 +80,21 @@ impl Remote for FakeRemote {
   async fn send(&self, req: HttpRequest) -> CResult<HttpResponse> {
     if !self.reachable.load(Ordering::Relaxed) {
       return Err(ClientError::from_str("network down"));
+    }
+    if let Some(expected) = self.accepts_token.lock().unwrap().as_deref() {
+      let presented = req
+        .headers
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("authorization"))
+        .map(|(_, v)| v.as_str());
+      if presented != Some(expected) {
+        return Ok(json_resp(401, &serde_json::json!({ "err": "session expired" })));
+      }
+    }
+    // The auth-check-shaped endpoint: a POST that mutates nothing and answers
+    // with who the caller is.
+    if path_and_query(&req.url).starts_with("/probe") {
+      return Ok(json_resp(200, &serde_json::json!({ "user": "author@example.com" })));
     }
     let body: Option<Item> = req.body.as_ref().and_then(|b| serde_json::from_slice(b).ok());
     let mut items = self.items.lock().unwrap();
@@ -109,6 +131,18 @@ impl Remote for FakeRemote {
 struct MemBackend {
   items: Mutex<HashMap<i64, Item>>,
   cached_reads: Mutex<usize>,
+  /// Whose data this is, learned from a successful online `POST /session` — the
+  /// shape of an auth check that answers with the signed-in identity.
+  identity: Mutex<Option<String>>,
+  /// The credentials to stamp on a replay, refreshed after a new sign-in.
+  token: Mutex<Option<String>>,
+}
+
+/// `POST /probe` stands for an endpoint that is a write by verb but changes
+/// nothing on the server (an auth check, a heartbeat) — answered locally while
+/// offline, never queued for replay.
+fn is_probe(req: &HttpRequest) -> bool {
+  matches!(req.method, Method::Post) && path_and_query(&req.url).starts_with("/probe")
 }
 
 impl LocalBackend for MemBackend {
@@ -117,6 +151,9 @@ impl LocalBackend for MemBackend {
     req: &HttpRequest,
     provisional: &dyn Fn() -> i64,
   ) -> Result<(HttpResponse, Option<i64>), ServerError> {
+    if is_probe(req) {
+      return Ok((json_resp(200, &serde_json::json!({ "local": true })), None));
+    }
     let body: Option<Item> = req.body.as_ref().and_then(|b| serde_json::from_slice(b).ok());
     let mut items = self.items.lock().unwrap();
     match (req.method, item_id(&req.url)) {
@@ -154,6 +191,29 @@ impl LocalBackend for MemBackend {
       *self.cached_reads.lock().unwrap() += 1;
     }
     let _ = req;
+  }
+
+  async fn observe_write(&self, req: &HttpRequest, resp: &HttpResponse) {
+    if !is_probe(req) {
+      return;
+    }
+    if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&resp.body)
+      && let Some(who) = v.get("user").and_then(|u| u.as_str())
+    {
+      *self.identity.lock().unwrap() = Some(who.to_string());
+    }
+  }
+
+  fn should_queue(&self, req: &HttpRequest) -> bool {
+    !req.method.is_read() && !is_probe(req)
+  }
+
+  fn prepare_replay(&self, mut req: HttpRequest) -> HttpRequest {
+    if let Some(token) = self.token.lock().unwrap().clone() {
+      req.headers.retain(|(k, _)| !k.eq_ignore_ascii_case("authorization"));
+      req.headers.push(("Authorization".into(), token));
+    }
+    req
   }
 
   fn created_id(&self, resp: &HttpResponse) -> Option<i64> {
@@ -195,6 +255,16 @@ fn put(id: i64, content: &str) -> HttpRequest {
     url: format!("/items/{id}"),
     headers: vec![],
     body: Some(serde_json::to_vec(&serde_json::json!({ "id": id, "content": content })).unwrap()),
+    credentials: true,
+  }
+}
+
+fn probe() -> HttpRequest {
+  HttpRequest {
+    method: Method::Post,
+    url: "/probe".into(),
+    headers: vec![],
+    body: None,
     credentials: true,
   }
 }
@@ -270,6 +340,114 @@ async fn offline_write_is_queued_then_replayed() {
   eng.sync().await.unwrap();
   assert_eq!(eng.pending_sync(), 0);
   assert_eq!(remote.content_of(7).as_deref(), Some("new"));
+}
+
+/// The no-connection state has to be distinguishable from a server verdict:
+/// anything the engine answered itself is marked, anything off the wire isn't.
+#[tokio::test]
+async fn engine_answers_are_marked_offline_server_answers_are_not() {
+  let remote = FakeRemote::new();
+  let eng = engine(remote.clone());
+
+  // Off the wire — even a rejection — is never marked.
+  remote.accept_only(Some("Bearer good"));
+  let rejected = eng.handle(get(7)).await;
+  assert_eq!(rejected.status, 401);
+  assert!(!rejected.is_offline(), "a server's own 401 must not look like offline");
+  remote.accept_only(None);
+
+  remote.set_reachable(false);
+  eng.set_online(false);
+
+  // Served from the local store: a success, but flagged as not-from-the-server.
+  eng.backend().items.lock().unwrap().insert(
+    7,
+    Item {
+      id: 7,
+      content: "cached".into(),
+    },
+  );
+  let local = eng.handle(get(7)).await;
+  assert_eq!(local.status, 200);
+  assert!(local.is_offline());
+
+  // Not available offline at all: still flagged, so the caller can tell this
+  // from the server refusing the request.
+  let unavailable = eng.handle(get(999)).await;
+  assert_eq!(unavailable.status, 404);
+  assert!(unavailable.is_offline());
+}
+
+/// A failed remote attempt flips the engine offline immediately, so the next
+/// request doesn't pay for its own timeout before the shell's probe notices.
+#[tokio::test]
+async fn a_failed_remote_attempt_flips_the_engine_offline() {
+  let remote = FakeRemote::new();
+  let eng = engine(remote.clone());
+  assert!(eng.is_online());
+
+  remote.set_reachable(false);
+  eng.handle(get(7)).await;
+  assert!(!eng.is_online());
+}
+
+/// A write by verb that changes nothing on the server (an auth check) is served
+/// locally without being scheduled for replay.
+#[tokio::test]
+async fn a_local_probe_is_not_queued_for_replay() {
+  let remote = FakeRemote::new();
+  let eng = engine(remote.clone());
+
+  // Online: the response is observed, so the backend learns whose data it holds.
+  eng.handle(probe()).await;
+  assert_eq!(
+    eng.backend().identity.lock().unwrap().as_deref(),
+    Some("author@example.com")
+  );
+
+  remote.set_reachable(false);
+  eng.set_online(false);
+  let resp = eng.handle(probe()).await;
+  assert_eq!(resp.status, 200);
+  assert!(resp.is_offline());
+  assert_eq!(eng.pending_sync(), 0, "a probe must never be queued");
+}
+
+/// Offline work outlives an expired session: the queue is kept intact across a
+/// rejected sync and replays with fresh credentials once the user signs back in.
+#[tokio::test]
+async fn expired_session_keeps_the_queue_until_the_next_sign_in() {
+  let remote = FakeRemote::new();
+  remote.items.lock().unwrap().insert(
+    7,
+    Item {
+      id: 7,
+      content: "old".into(),
+    },
+  );
+  let eng = engine(remote.clone());
+  eng.backend().token.lock().unwrap().replace("Bearer stale".into());
+
+  // Edit offline.
+  remote.set_reachable(false);
+  eng.set_online(false);
+  eng.handle(put(7, "written offline")).await;
+  assert_eq!(eng.pending_sync(), 1);
+
+  // Back online, but the session expired meanwhile: the replay is rejected and
+  // the write stays queued rather than being dropped on the floor.
+  remote.set_reachable(true);
+  eng.set_online(true);
+  remote.accept_only(Some("Bearer fresh"));
+  assert!(eng.sync().await.is_err());
+  assert_eq!(eng.pending_sync(), 1);
+  assert_eq!(remote.content_of(7).as_deref(), Some("old"));
+
+  // The user signs in again; the new credentials are stamped on the replay.
+  eng.backend().token.lock().unwrap().replace("Bearer fresh".into());
+  eng.sync().await.unwrap();
+  assert_eq!(eng.pending_sync(), 0);
+  assert_eq!(remote.content_of(7).as_deref(), Some("written offline"));
 }
 
 #[tokio::test]

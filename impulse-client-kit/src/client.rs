@@ -254,11 +254,17 @@ async fn dispatch(req: HttpRequest) -> CResult<HttpResponse> {
 /// The wasm ⇄ Tauri IPC bridge. Calls the engine's `ik_http_request` command via
 /// the global `window.__TAURI__.core.invoke` (requires `withGlobalTauri` in the
 /// app's `tauri.conf.json`).
+///
+/// [`command`] exposes the same bridge for an app's *own* Tauri commands, so a
+/// frontend doesn't have to re-declare the `invoke` binding just to ask the
+/// native side something that isn't shaped like an HTTP request (connectivity,
+/// pending-sync counters, handing over credentials).
 #[cfg(tauri)]
-mod ipc {
+pub mod ipc {
   use super::{ClientError, HttpRequest, HttpResponse};
   use impulse_utils::prelude::CResult;
   use serde::Serialize;
+  use serde::de::DeserializeOwned;
   use wasm_bindgen::JsValue;
   use wasm_bindgen::prelude::wasm_bindgen;
 
@@ -280,5 +286,25 @@ mod ipc {
       .await
       .map_err(|e| ClientError::from_str(format!("IPC request failed: {e:?}")))?;
     serde_wasm_bindgen::from_value(value).map_err(|e| ClientError::from_str(format!("IPC decode failed: {e:?}")))
+  }
+
+  /// Invokes an app-defined Tauri command by name with `args` (serialised as the
+  /// command's named parameters) and decodes its return value.
+  ///
+  /// ```rust,ignore
+  /// #[derive(serde::Serialize)]
+  /// struct SetIdentity<'a> { email: &'a str }
+  /// let _: () = ipc::command("set_identity", SetIdentity { email }).await?;
+  /// ```
+  ///
+  /// Use `()` as the return type for a command that answers nothing.
+  pub async fn command<T: DeserializeOwned>(cmd: &str, args: impl Serialize) -> CResult<T> {
+    let args = serde_wasm_bindgen::to_value(&args)
+      .map_err(|e| ClientError::from_str(format!("IPC encode failed for `{cmd}`: {e:?}")))?;
+    let value = invoke(cmd, args)
+      .await
+      .map_err(|e| ClientError::from_str(format!("IPC command `{cmd}` failed: {e:?}")))?;
+    serde_wasm_bindgen::from_value(value)
+      .map_err(|e| ClientError::from_str(format!("IPC decode failed for `{cmd}`: {e:?}")))
   }
 }

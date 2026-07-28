@@ -62,6 +62,18 @@ impl From<Method> for reqwest::Method {
   }
 }
 
+/// Response header an offline-capable client engine (`impulse-tauri-engine`)
+/// stamps on every response it produced **without reaching the server** — both a
+/// locally-served success and a "not available offline" error.
+///
+/// It is the wire form of a *no-connection* state, which a plain status code
+/// can't express: a `401` from the server means the session is genuinely
+/// rejected, while a `503` carrying this header means nobody was asked. Callers
+/// that must tell the two apart — an auth gate deciding between "sign in again"
+/// and "keep working from the local copy" — check
+/// [`HttpResponse::is_offline`].
+pub const OFFLINE_HEADER: &str = "x-ik-offline";
+
 /// A fully-described request. Serialisable so it can be executed in-process
 /// (reqwest) or across Tauri IPC by the native engine.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -110,6 +122,13 @@ impl HttpResponse {
       .iter()
       .find(|(k, _)| k.eq_ignore_ascii_case(name))
       .map(|(_, v)| v.as_str())
+  }
+
+  /// Whether this response was produced without reaching the server — i.e. it
+  /// carries [`OFFLINE_HEADER`]. `false` for anything that came off the wire, so
+  /// a server's own `401`/`503` is never mistaken for a lost connection.
+  pub fn is_offline(&self) -> bool {
+    self.header(OFFLINE_HEADER).is_some()
   }
 
   /// The body as UTF-8 text.
