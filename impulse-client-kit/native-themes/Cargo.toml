@@ -12,7 +12,7 @@ default = []
 # Fetch the captured native palette from the webview over Tauri IPC. Enable this
 # on the wasm frontend bundled into a Tauri webview; without it the webview side
 # only applies the (platform-independent) `color-scheme` hint.
-tauri = ["dep:serde-wasm-bindgen", "dep:wasm-bindgen", "dep:wasm-bindgen-futures"]
+tauri = ["dep:serde-wasm-bindgen", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys"]
 
 [dependencies]
 # `std` is explicit: the workspace default is `default-features = false`, which
@@ -27,10 +27,14 @@ tracing = { workspace = true }
 web-sys = { workspace = true, features = [
   "Window",
   "Document",
+  "DomTokenList",
   "Element",
   "HtmlHeadElement",
+  "MutationObserver",
+  "MutationObserverInit",
   "Node",
 ] }
+js-sys = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
 serde-wasm-bindgen = { version = "0.6", optional = true }

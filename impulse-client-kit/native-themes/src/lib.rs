@@ -58,6 +58,13 @@ mod dynsym;
 #[cfg(target_os = "android")]
 mod android;
 
+/// Matches the Android system bars to the scheme the app is showing. Call it
+/// from the [`SYSTEM_BARS_COMMAND`] handler, inside
+/// `PlatformWebview::jni_handle().exec(..)` so it runs on the UI thread with the
+/// real Activity.
+#[cfg(target_os = "android")]
+pub use android::apply_status_bar_appearance;
+
 #[cfg(target_os = "linux")]
 mod gtk_desktop;
 
@@ -65,6 +72,12 @@ mod gtk_desktop;
 /// palette to its webview. Mirrors the kit's other IPC conventions
 /// (`ik_http_request`, `ik_ws_send`).
 pub const NATIVE_BASE_THEME_COMMAND: &str = "ik_native_base_theme";
+
+/// The conventional Tauri command name for matching the system bars to the
+/// app's current scheme. Called with `{ dark: bool }` whenever the app's `dark`
+/// class changes. An app that doesn't register it simply keeps the system's
+/// default bar styling.
+pub const SYSTEM_BARS_COMMAND: &str = "ik_system_bars";
 
 /// The `id` of the `<style>` element carrying the platform-independent hints.
 pub const BASE_STYLE_ELEMENT_ID: &str = "impulse-native-base-theme";
@@ -228,7 +241,20 @@ const BASE_HINTS_CSS: &str = ":root { color-scheme: light; }\n:root.dark { color
 pub fn apply_native_base_theme() {
   inject_style(BASE_STYLE_ELEMENT_ID, BASE_HINTS_CSS);
   #[cfg(feature = "tauri")]
-  ipc::fetch_and_apply();
+  {
+    ipc::fetch_and_apply();
+    ipc::track_scheme_for_system_bars();
+  }
+}
+
+/// Whether the document is currently showing the dark scheme, i.e. carries the
+/// `dark` class the kit's `ThemeProvider` manages.
+#[cfg(all(target_arch = "wasm32", feature = "tauri"))]
+fn is_dark_scheme() -> bool {
+  web_sys::window()
+    .and_then(|w| w.document())
+    .and_then(|d| d.document_element())
+    .is_some_and(|root| root.class_list().contains("dark"))
 }
 
 /// No-op stand-in off wasm, so call sites need no target gating of their own.
@@ -263,6 +289,7 @@ fn inject_style(id: &str, css: &str) {
 /// Pulls the captured palette from the native side over Tauri IPC.
 #[cfg(all(target_arch = "wasm32", feature = "tauri"))]
 mod ipc {
+  use wasm_bindgen::JsCast;
   use wasm_bindgen::JsValue;
   use wasm_bindgen::prelude::wasm_bindgen;
 
@@ -273,6 +300,56 @@ mod ipc {
     // Tauri v2 global binding (requires `withGlobalTauri: true`).
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], js_name = invoke, catch)]
     async fn invoke(cmd: &str, args: JsValue) -> Result<JsValue, JsValue>;
+  }
+
+  /// Tells the native side which scheme the app is showing, so it can match the
+  /// system bars to it.
+  fn report_scheme() {
+    #[derive(serde::Serialize)]
+    struct Args {
+      dark: bool,
+    }
+    let Ok(args) = serde_wasm_bindgen::to_value(&Args {
+      dark: super::is_dark_scheme(),
+    }) else {
+      return;
+    };
+    wasm_bindgen_futures::spawn_local(async move {
+      let _ = invoke(super::SYSTEM_BARS_COMMAND, args).await;
+    });
+  }
+
+  /// Reports the current scheme, then keeps reporting it whenever the app's
+  /// `dark` class changes.
+  ///
+  /// The app owns its light/dark choice (the kit's `ThemeProvider` toggles that
+  /// class), and the system bars are drawn over the app's own background because
+  /// a Tauri app goes edge-to-edge — so the native side has to be told, or the
+  /// bars keep the icon colour Android picked from the app's *theme* at startup
+  /// and, after a switch, become invisible against the new background.
+  pub(super) fn track_scheme_for_system_bars() {
+    report_scheme();
+
+    let Some(root) = web_sys::window()
+      .and_then(|w| w.document())
+      .and_then(|d| d.document_element())
+    else {
+      return;
+    };
+    let callback = wasm_bindgen::prelude::Closure::<dyn FnMut()>::new(report_scheme);
+    let Ok(observer) = web_sys::MutationObserver::new(callback.as_ref().unchecked_ref()) else {
+      return;
+    };
+    let options = web_sys::MutationObserverInit::new();
+    options.set_attributes(true);
+    options.set_attribute_filter(&js_sys::Array::of1(&"class".into()));
+    if observer.observe_with_options(&root, &options).is_err() {
+      return;
+    }
+    // The observer and its callback must outlive this call; they live as long as
+    // the document does.
+    callback.forget();
+    std::mem::forget(observer);
   }
 
   /// Asks the native side for the palette and injects it. Any failure — no

@@ -109,6 +109,52 @@ fn log(message: &str) {
   unsafe { write(ANDROID_LOG_INFO, tag.as_ptr(), text.as_ptr()) };
 }
 
+/// `WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS` — dark icons, for use
+/// over a light background.
+const APPEARANCE_LIGHT_STATUS_BARS: i32 = 0x0000_0008;
+
+/// Matches the status bar icons to the background the app is drawing under them.
+///
+/// A Tauri app draws edge-to-edge, so the status bar sits over the app's own
+/// background. Android picks the icon colour once, from the app's theme, and
+/// never revisits it — so an app whose theme is switched at runtime ends up with
+/// (say) white icons on a white background. Pass `dark_background = true` for a
+/// dark app background (light icons) and `false` for a light one (dark icons).
+///
+/// Must run on the UI thread with the real Activity — i.e. from
+/// `PlatformWebview::jni_handle().exec(..)`. Failures are logged and otherwise
+/// ignored: a mis-tinted status bar is not worth taking the app down for.
+pub fn apply_status_bar_appearance(env: &mut JNIEnv<'_>, activity: &JObject<'_>, dark_background: bool) {
+  let appearance = if dark_background { 0 } else { APPEARANCE_LIGHT_STATUS_BARS };
+  if set_status_bar_appearance(env, activity, appearance).is_none() {
+    clear_exception(env);
+    log("could not set the status bar appearance (needs Android 11 / API 30)");
+  }
+}
+
+fn set_status_bar_appearance(env: &mut JNIEnv<'_>, activity: &JObject<'_>, appearance: i32) -> Option<()> {
+  let window = call_object(env, activity, "getWindow", "()Landroid/view/Window;")?;
+  // `Window.getInsetsController()` is API 30+; older systems keep the icon
+  // colour the theme gave them.
+  let controller = call_object(
+    env,
+    &window,
+    "getInsetsController",
+    "()Landroid/view/WindowInsetsController;",
+  )?;
+  env
+    .call_method(
+      &controller,
+      "setSystemBarsAppearance",
+      "(II)V",
+      // The mask restricts the change to the status-bar bit, leaving the
+      // navigation bar's appearance alone.
+      &[JValue::Int(appearance), JValue::Int(APPEARANCE_LIGHT_STATUS_BARS)],
+    )
+    .ok()?;
+  Some(())
+}
+
 /// Reads the Material You tonal palettes and derives both colour schemes.
 pub(crate) fn capture() -> Option<NativeBaseTheme> {
   let vm = java_vm()?;
