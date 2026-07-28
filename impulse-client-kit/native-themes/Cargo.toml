@@ -13,6 +13,11 @@ default = []
 # on the wasm frontend bundled into a Tauri webview; without it the webview side
 # only applies the (platform-independent) `color-scheme` hint.
 tauri = ["dep:serde-wasm-bindgen", "dep:wasm-bindgen", "dep:wasm-bindgen-futures"]
+# The Linux desktop provider, which reads the GTK theme's named colours. Off by
+# default because it links GTK 3: a consumer that only lints or builds headless
+# (no Tauri desktop bundle) must not be forced to have the GTK development
+# headers installed. Enable it wherever the Tauri desktop app itself is built.
+gtk-desktop = ["dep:gtk"]
 
 [dependencies]
 # `std` is explicit: the workspace default is `default-features = false`, which
@@ -39,3 +44,8 @@ serde-wasm-bindgen = { version = "0.6", optional = true }
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
 ndk-context = "0.1"
+
+# Linux desktop side, behind `gtk-desktop`. The version matches the GTK 3 stack
+# Tauri's own Linux backend links, so no second GTK ends up in the graph.
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = { version = "0.18", optional = true }

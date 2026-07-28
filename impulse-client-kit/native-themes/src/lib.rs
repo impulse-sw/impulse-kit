@@ -23,16 +23,26 @@
 //!
 //! # Wiring an app up
 //!
-//! 1. **Native, in the Tauri shell** — capture the palette once at startup and
-//!    expose it under the conventional command name
-//!    [`NATIVE_BASE_THEME_COMMAND`]:
+//! 1. **Native, in the Tauri shell** — capture the palette in `setup` (on the
+//!    main thread, which the GTK provider requires) and expose it under the
+//!    conventional command name [`NATIVE_BASE_THEME_COMMAND`]:
 //!
 //!    ```ignore
 //!    #[tauri::command]
 //!    fn ik_native_base_theme() -> Option<NativeBaseTheme> {
 //!      impulse_client_native_themes::native_base_theme().cloned()
 //!    }
+//!
+//!    tauri::Builder::default()
+//!      .setup(|_app| {
+//!        impulse_client_native_themes::install_native_base_theme();
+//!        Ok(())
+//!      })
+//!      .invoke_handler(tauri::generate_handler![ik_native_base_theme])
 //!    ```
+//!
+//!    Enable the `gtk-desktop` feature wherever the Linux desktop bundle is
+//!    built, so the GTK provider is compiled in.
 //!
 //! 2. **Webview, at startup** — call [`apply_native_base_theme`] (with the
 //!    `tauri` feature enabled so it fetches over IPC).
@@ -47,6 +57,9 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(target_os = "android")]
 mod android;
+
+#[cfg(all(target_os = "linux", feature = "gtk-desktop"))]
+mod gtk_desktop;
 
 /// The conventional Tauri command name an app registers to serve the captured
 /// palette to its webview. Mirrors the kit's other IPC conventions
@@ -153,34 +166,44 @@ impl NativeBaseTheme {
 // Native side
 // ---------------------------------------------------------------------------
 
-/// The captured system palette, or `None` on a platform without a provider (or
-/// when the system has no dynamic palette to offer).
-///
-/// Captured once on first call and cached, so the IPC command can serve it
-/// cheaply from any thread.
 #[cfg(not(target_arch = "wasm32"))]
-pub fn native_base_theme() -> Option<&'static NativeBaseTheme> {
-  use std::sync::OnceLock;
-  static PALETTE: OnceLock<Option<NativeBaseTheme>> = OnceLock::new();
+static PALETTE: std::sync::OnceLock<Option<NativeBaseTheme>> = std::sync::OnceLock::new();
+
+/// Captures the system palette and caches it for [`native_base_theme`].
+///
+/// **Call this from the Tauri `setup` hook**, i.e. on the main thread: the GTK
+/// provider may only touch GTK from the thread that initialised it, so capturing
+/// lazily from an IPC worker would silently come up empty. Caching here lets the
+/// IPC command serve the palette from any thread afterwards.
+///
+/// Capture happens once; later calls return the same result.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn install_native_base_theme() -> Option<&'static NativeBaseTheme> {
   PALETTE.get_or_init(capture_native_base_theme).as_ref()
 }
 
-/// Reads the palette from the platform, bypassing the [`native_base_theme`]
-/// cache. Returns `None` when the platform has no provider or exposes no
-/// dynamic palette.
+/// The palette captured by [`install_native_base_theme`], or `None` when it was
+/// never installed, the platform has no provider, or the system exposes no
+/// dynamic palette. Cheap and callable from any thread.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn native_base_theme() -> Option<&'static NativeBaseTheme> {
+  PALETTE.get().and_then(Option::as_ref)
+}
+
+/// Reads the palette from the platform, bypassing the cache. Prefer
+/// [`install_native_base_theme`]; the same threading rules apply.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn capture_native_base_theme() -> Option<NativeBaseTheme> {
   #[cfg(target_os = "android")]
-  {
-    let theme = android::capture()?;
-    (!theme.is_empty()).then_some(theme)
-  }
-  // Desktop providers (GTK on Linux, macOS, Windows) land in later increments;
-  // until then those platforms keep the app's own palette.
-  #[cfg(not(target_os = "android"))]
-  {
-    None
-  }
+  let captured = android::capture();
+  #[cfg(all(target_os = "linux", feature = "gtk-desktop"))]
+  let captured = gtk_desktop::capture();
+  // macOS and Windows providers land in a later increment; until then those
+  // platforms (and a Linux build without `gtk-desktop`) keep the app's palette.
+  #[cfg(not(any(target_os = "android", all(target_os = "linux", feature = "gtk-desktop"))))]
+  let captured: Option<NativeBaseTheme> = None;
+
+  captured.filter(|theme| !theme.is_empty())
 }
 
 // ---------------------------------------------------------------------------
