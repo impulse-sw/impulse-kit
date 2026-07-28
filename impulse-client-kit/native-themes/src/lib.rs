@@ -12,14 +12,27 @@
 //! `--secondary`, `--accent` (all with their `-foreground` pairs), `--border`,
 //! `--input` and `--ring`.
 //!
-//! # Why the palette is read natively
+//! # Where the palette comes from
 //!
 //! The obvious trick — pointing the tokens at the CSS system-color keywords
 //! (`Canvas`, `CanvasText`, …) — does **not** work: WebKitGTK and Android's
 //! WebView both resolve them to a generic grey rather than the real desktop
 //! theme or the Material You palette, which silently replaces a nicer app
-//! palette with grey. So the colours are read on the native side, where the real
-//! system APIs live, and pushed into the webview as explicit CSS variables.
+//! palette with grey. So the palette is produced natively and pushed into the
+//! webview as explicit CSS variables.
+//!
+//! Platforms fall into two camps, and the providers reflect that:
+//!
+//! * **The user picks the neutrals** — Linux (the chosen GTK theme) and Android
+//!   (Material You, derived from the wallpaper). These are read at runtime
+//!   through the platform's own APIs.
+//! * **The neutrals are part of the design language** — Windows (Fluent), macOS
+//!   (AppKit) and iOS (UIKit). Every app there draws on the same published
+//!   surface and text colours, with light/dark the only variable, so those are
+//!   tabled rather than queried.
+//!
+//! A provider fills in whichever schemes its platform can describe: the tabled
+//! ones publish both, while GTK can only describe the theme currently in use.
 //!
 //! # Wiring an app up
 //!
@@ -67,6 +80,9 @@ pub use android::apply_status_bar_appearance;
 
 #[cfg(target_os = "linux")]
 mod gtk_desktop;
+
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "ios"))]
+mod fixed_palettes;
 
 /// The conventional Tauri command name an app registers to serve the captured
 /// palette to its webview. Mirrors the kit's other IPC conventions
@@ -211,9 +227,15 @@ pub fn capture_native_base_theme() -> Option<NativeBaseTheme> {
   let captured = android::capture();
   #[cfg(target_os = "linux")]
   let captured = gtk_desktop::capture();
-  // macOS and Windows providers land in a later increment; until then those
-  // platforms keep the app's own palette.
-  #[cfg(not(any(target_os = "android", target_os = "linux")))]
+  #[cfg(any(target_os = "windows", target_os = "macos", target_os = "ios"))]
+  let captured = fixed_palettes::capture();
+  #[cfg(not(any(
+    target_os = "android",
+    target_os = "linux",
+    target_os = "windows",
+    target_os = "macos",
+    target_os = "ios"
+  )))]
   let captured: Option<NativeBaseTheme> = None;
 
   captured.filter(|theme| !theme.is_empty())
