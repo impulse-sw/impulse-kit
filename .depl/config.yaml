@@ -51,6 +51,9 @@ variables:
   featureset-endpoint-reqwest:
     type: plain
     value: " --features=reqwest"
+  featureset-native-themes-tauri:
+    type: plain
+    value: " --features=tauri"
   featureset-server-kit-endpoint:
     type: plain
     value: " --features=endpoint"
@@ -84,6 +87,9 @@ variables:
   package-client-kit-showcase:
     type: plain
     value: client-kit-showcase
+  package-client-native-themes:
+    type: plain
+    value: impulse-client-native-themes
   package-dsl:
     type: plain
     value: impulse-skdsl
@@ -105,6 +111,9 @@ variables:
   package-static-server:
     type: plain
     value: impulse-static-server
+  package-tailwind-sources:
+    type: plain
+    value: impulse-tailwind-sources
   package-utils:
     type: plain
     value: impulse-utils
@@ -144,6 +153,9 @@ variables:
   ssr-showcase-wasm-out-name:
     type: plain
     value: ssr_showcase
+  target-android:
+    type: plain
+    value: aarch64-linux-android
   target-native:
     type: from_cmd
     cmd: rustc -vV | grep host | cut -d' ' -f2
@@ -520,6 +532,34 @@ pipelines:
           "{flags}": empty
           "{package}": package-client-kit-blocks
           "{target}": target-wasm
+      - title: Lint `impulse-tailwind-sources`
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-tailwind-sources
+          "{target}": target-wasm
+      - title: Lint `impulse-client-native-themes` on x86-64
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-client-native-themes
+          "{target}": target-native
+      - title: Lint `impulse-client-native-themes` on Android
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": empty
+          "{flags}": empty
+          "{package}": package-client-native-themes
+          "{target}": target-android
+      - title: Lint `impulse-client-native-themes` on wasm32
+        used: cargo-lint@0.2.0
+        with:
+          "{features}": featureset-native-themes-tauri
+          "{flags}": empty
+          "{package}": package-client-native-themes
+          "{target}": target-wasm
       - title: Lint `showcase`
         used: cargo-lint@0.2.0
         with:
@@ -640,6 +680,12 @@ pipelines:
           uses: actions-rust-lang/setup-rust-toolchain@v1
           with:
             target: wasm32-unknown-unknown
+            toolchain: nightly
+            components: clippy
+        - name: Install Rust Toolchain for Android
+          uses: actions-rust-lang/setup-rust-toolchain@v1
+          with:
+            target: aarch64-linux-android
             toolchain: nightly
             components: clippy
         - name: Install cargo-deny
