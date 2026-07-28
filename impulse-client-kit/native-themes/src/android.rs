@@ -12,10 +12,12 @@
 //! does here: Tauri's Android backend (tao/wry) talks to `ndk`/`jni` directly
 //! and never calls `initialize_android_context`. Under `panic = "abort"` that
 //! panic takes the whole app down at startup, so this provider avoids the crate
-//! entirely: it resolves the JNI invocation API's `JNI_GetCreatedJavaVMs` from
-//! the runtime already loaded in the process and asks it for the VM. Every step
-//! from there yields `Option`, so a device that can't answer simply leaves the
-//! app with its own palette.
+//! entirely and takes the `JavaVM` straight from the JVM, in [`JNI_OnLoad`] —
+//! no Activity, no initialisation order to rely on. (Asking the JNI invocation
+//! API by symbol is kept only as a fallback: the Android runtime's own symbols
+//! are not necessarily visible from an app's linker namespace.) Every step
+//! yields an `Option`, so a device that can't answer simply leaves the app with
+//! its own palette.
 //!
 //! # Which `Resources` we read
 //!
@@ -44,6 +46,9 @@
 //! On API < 31 the resources don't exist, `getIdentifier` answers `0`, and the
 //! provider reports nothing.
 
+use std::ffi::{CString, c_char, c_int, c_void};
+use std::sync::atomic::{AtomicPtr, Ordering};
+
 use jni::objects::{JObject, JValue};
 use jni::{JNIEnv, JavaVM};
 
@@ -55,13 +60,70 @@ type FnGetCreatedJavaVMs = unsafe extern "C" fn(*mut *mut jni::sys::JavaVM, i32,
 
 const JNI_OK: i32 = 0;
 
+/// The `JavaVM` handed to us when the app's library was loaded. See [`JNI_OnLoad`].
+static VM: AtomicPtr<jni::sys::JavaVM> = AtomicPtr::new(std::ptr::null_mut());
+
+/// The JVM calls this when the app loads the native library, which is the
+/// earliest and most reliable way to get hold of the `JavaVM` — no Activity, no
+/// initialisation order to depend on, and none of the linker-namespace
+/// uncertainty that surrounds looking up the JNI invocation API by symbol.
+///
+/// Tauri's Android stack (tao/wry) defines no `JNI_OnLoad` of its own, so this
+/// entry point is free to claim. It only records the pointer; returning the JNI
+/// version the app is built against keeps the library load succeeding.
+///
+/// # Safety
+///
+/// Called by the JVM with a valid `JavaVM` pointer.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _reserved: *mut c_void) -> jni::sys::jint {
+  VM.store(vm, Ordering::Release);
+  jni::sys::JNI_VERSION_1_6
+}
+
+/// Keeps [`JNI_OnLoad`] in the final library. A `#[no_mangle]` function that
+/// lives in a dependency and is called by nobody can be dropped when the linker
+/// garbage-collects sections; referencing it from a `#[used]` static in the same
+/// crate — which *is* linked in, since the app calls
+/// [`crate::install_native_base_theme`] — pins it.
+#[used]
+static KEEP_JNI_ON_LOAD: unsafe extern "C" fn(*mut jni::sys::JavaVM, *mut c_void) -> jni::sys::jint = JNI_OnLoad;
+
+/// `int __android_log_write(int prio, const char *tag, const char *text)`
+type FnLogWrite = unsafe extern "C" fn(c_int, *const c_char, *const c_char) -> c_int;
+
+const ANDROID_LOG_INFO: c_int = 4;
+const LOG_TAG: &str = "impulse-native-themes";
+
+/// Writes a line to logcat. Android apps rarely install a `tracing` subscriber,
+/// so the platform's own log is what actually reaches `adb logcat`.
+fn log(message: &str) {
+  // SAFETY: matches `__android_log_write`'s signature; liblog is always loaded.
+  let Some(write) = (unsafe { dynsym::symbol::<FnLogWrite>("__android_log_write") }) else {
+    return;
+  };
+  let (Ok(tag), Ok(text)) = (CString::new(LOG_TAG), CString::new(message)) else {
+    return;
+  };
+  // SAFETY: both pointers are valid NUL-terminated strings for the call.
+  unsafe { write(ANDROID_LOG_INFO, tag.as_ptr(), text.as_ptr()) };
+}
+
 /// Reads the Material You tonal palettes and derives both colour schemes.
 pub(crate) fn capture() -> Option<NativeBaseTheme> {
   let vm = java_vm()?;
   let mut env = vm.attach_current_thread().ok()?;
   let resources = app_resources(&mut env)?;
 
-  let mut neutral = |palette: u8, shade: u16| color_hex(&mut env, &resources, palette, shade);
+  let mut neutral = |palette: u8, shade: u16| {
+    let colour = color_hex(&mut env, &resources, palette, shade);
+    if colour.is_none() {
+      log(&format!(
+        "system_neutral{palette}_{shade} unavailable — dynamic colour needs Android 12 (API 31)"
+      ));
+    }
+    colour
+  };
 
   // Neutral 1 — surfaces and the text on them.
   let n1_0 = neutral(1, 0)?;
@@ -118,19 +180,33 @@ pub(crate) fn capture() -> Option<NativeBaseTheme> {
     light: Some(light),
     dark: Some(dark),
   };
-  tracing::info!("captured Material You palette:\n{}", theme.to_css());
+  log(&format!("captured Material You palette:\n{}", theme.to_css()));
   Some(theme)
 }
 
-/// The running JVM, via the JNI invocation API exported by the Android runtime.
+/// The running JVM: the one [`JNI_OnLoad`] recorded, falling back to asking the
+/// JNI invocation API. The fallback covers the case where the linker dropped our
+/// `JNI_OnLoad` from the final library; it may itself find nothing, since the
+/// Android runtime's symbols aren't necessarily visible from an app's linker
+/// namespace.
 fn java_vm() -> Option<JavaVM> {
+  let recorded = VM.load(Ordering::Acquire);
+  if !recorded.is_null() {
+    // SAFETY: the pointer came from the JVM itself via `JNI_OnLoad`.
+    return unsafe { JavaVM::from_raw(recorded) }.ok();
+  }
+
   // SAFETY: matches `jint JNI_GetCreatedJavaVMs(JavaVM**, jsize, jsize*)`.
-  let get_vms: FnGetCreatedJavaVMs = unsafe { dynsym::symbol("JNI_GetCreatedJavaVMs") }?;
+  let Some(get_vms) = (unsafe { dynsym::symbol::<FnGetCreatedJavaVMs>("JNI_GetCreatedJavaVMs") }) else {
+    log("no JavaVM: JNI_OnLoad did not run and JNI_GetCreatedJavaVMs is not visible");
+    return None;
+  };
   let mut vms: [*mut jni::sys::JavaVM; 1] = [std::ptr::null_mut()];
   let mut found: i32 = 0;
   // SAFETY: `vms` has room for the one VM we ask for, and `found` is writable.
   let status = unsafe { get_vms(vms.as_mut_ptr(), 1, &mut found) };
   if status != JNI_OK || found < 1 || vms[0].is_null() {
+    log("no JavaVM: the runtime reported none");
     return None;
   }
   // SAFETY: the pointer came from the runtime's own VM list.
@@ -153,7 +229,7 @@ fn app_resources<'local>(env: &mut JNIEnv<'local>) -> Option<JObject<'local>> {
   }
   // Overlay-free framework resources: always available, but may answer with the
   // stock ramp rather than the user's palette.
-  tracing::warn!("no application context; reading the framework's own resources");
+  log("no application context; falling back to the framework's own resources (may be the stock ramp)");
   call_static_object(
     env,
     "android/content/res/Resources",
