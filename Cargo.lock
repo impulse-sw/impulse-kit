@@ -2523,9 +2523,9 @@ name = "impulse-client-native-themes"
 version = "1.7.0-alpha.1"
 dependencies = [
  "jni 0.21.1",
- "ndk-context",
  "serde",
  "serde-wasm-bindgen",
+ "tracing",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",

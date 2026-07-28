@@ -32,6 +32,7 @@
 
 use std::ffi::{CString, c_char, c_double, c_int, c_void};
 
+use crate::dynsym;
 use crate::{BaseNeutrals, NativeBaseTheme};
 
 /// `GdkRGBA`: four doubles in `0.0..=1.0`. Stable GTK 3 ABI.
@@ -52,32 +53,6 @@ type FnDisplayGetDefault = unsafe extern "C" fn() -> GdkDisplayPtr;
 type FnLabelNew = unsafe extern "C" fn(*const c_char) -> GtkWidgetPtr;
 type FnWidgetGetStyleContext = unsafe extern "C" fn(GtkWidgetPtr) -> GtkStyleContextPtr;
 type FnLookupColor = unsafe extern "C" fn(GtkStyleContextPtr, *const c_char, *mut GdkRgba) -> c_int;
-
-unsafe extern "C" {
-  /// Looks a symbol up across everything already loaded in this process.
-  /// `RTLD_DEFAULT` is the null handle on Linux.
-  fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
-}
-
-/// Resolves a GTK function already loaded in this process, or `None` when GTK
-/// isn't linked in (a headless build, a test binary, a non-GTK host).
-///
-/// # Safety
-///
-/// The caller must instantiate `F` with the symbol's real C signature.
-unsafe fn symbol<F: Copy>(name: &str) -> Option<F> {
-  debug_assert_eq!(size_of::<F>(), size_of::<*mut c_void>());
-  let cname = CString::new(name).ok()?;
-  // SAFETY: `cname` is a valid NUL-terminated string; a null handle means
-  // "search the global scope", and a missing symbol yields null.
-  let addr = unsafe { dlsym(std::ptr::null_mut(), cname.as_ptr()) };
-  if addr.is_null() {
-    return None;
-  }
-  // SAFETY: `addr` is a live function pointer for as long as the process holds
-  // the library open, and `F` matches its signature per this fn's contract.
-  Some(unsafe { *(&addr as *const *mut c_void as *const F) })
-}
 
 /// A colour as `0.0..=1.0` components, so we can mix and measure before
 /// emitting CSS.
@@ -116,10 +91,10 @@ impl Rgb {
 pub(crate) fn capture() -> Option<NativeBaseTheme> {
   // SAFETY (all four): each type alias mirrors the function's documented GTK 3
   // signature.
-  let display_get_default: FnDisplayGetDefault = unsafe { symbol("gdk_display_get_default") }?;
-  let label_new: FnLabelNew = unsafe { symbol("gtk_label_new") }?;
-  let widget_style_context: FnWidgetGetStyleContext = unsafe { symbol("gtk_widget_get_style_context") }?;
-  let lookup_color: FnLookupColor = unsafe { symbol("gtk_style_context_lookup_color") }?;
+  let display_get_default: FnDisplayGetDefault = unsafe { dynsym::symbol("gdk_display_get_default") }?;
+  let label_new: FnLabelNew = unsafe { dynsym::symbol("gtk_label_new") }?;
+  let widget_style_context: FnWidgetGetStyleContext = unsafe { dynsym::symbol("gtk_widget_get_style_context") }?;
+  let lookup_color: FnLookupColor = unsafe { dynsym::symbol("gtk_style_context_lookup_color") }?;
 
   // A default display exists only once GTK has been initialised. Calling into
   // widget code before that is undefined behaviour, and with `panic = "abort"`
@@ -192,17 +167,19 @@ pub(crate) fn capture() -> Option<NativeBaseTheme> {
   };
 
   // A GTK theme is one scheme; publish it as the one it actually is.
-  if bg.luminance() < 0.5 {
-    Some(NativeBaseTheme {
+  let theme = if bg.luminance() < 0.5 {
+    NativeBaseTheme {
       light: None,
       dark: Some(neutrals),
-    })
+    }
   } else {
-    Some(NativeBaseTheme {
+    NativeBaseTheme {
       light: Some(neutrals),
       dark: None,
-    })
-  }
+    }
+  };
+  tracing::info!("captured GTK desktop palette:\n{}", theme.to_css());
+  Some(theme)
 }
 
 #[cfg(test)]
@@ -242,7 +219,7 @@ mod tests {
     }
 
     // SAFETY: matches `gboolean gtk_init_check(int*, char***)`.
-    let Some(init_check): Option<FnInitCheck> = (unsafe { symbol("gtk_init_check") }) else {
+    let Some(init_check): Option<FnInitCheck> = (unsafe { dynsym::symbol("gtk_init_check") }) else {
       eprintln!("skipping: gtk_init_check not found");
       return;
     };

@@ -52,6 +52,9 @@
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(any(target_os = "android", target_os = "linux"))]
+mod dynsym;
+
 #[cfg(target_os = "android")]
 mod android;
 

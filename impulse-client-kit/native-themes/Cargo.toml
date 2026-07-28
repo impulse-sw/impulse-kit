@@ -18,6 +18,8 @@ tauri = ["dep:serde-wasm-bindgen", "dep:wasm-bindgen", "dep:wasm-bindgen-futures
 # `std` is explicit: the workspace default is `default-features = false`, which
 # leaves `String` without a `Deserialize` impl.
 serde = { workspace = true, features = ["derive", "std"] }
+# Diagnostics for the native providers; surfaces in logcat / the app's log.
+tracing = { workspace = true }
 
 # Webview side. `web-sys` is always needed there (stylesheet injection); the IPC
 # bits come in with the `tauri` feature.
@@ -34,8 +36,9 @@ wasm-bindgen-futures = { workspace = true, optional = true }
 serde-wasm-bindgen = { version = "0.6", optional = true }
 
 # Android native side: reads the Material You (MD3) tonal palettes via JNI.
-# `jni` is pinned to the version Tauri's Android runtime uses so the shared
-# JavaVM / Activity pointers line up.
+# `jni` is pinned to the version Tauri's Android runtime uses so the JavaVM
+# pointers line up. Deliberately no `ndk-context`: its `android_context()`
+# panics unless something called `initialize_android_context`, and Tauri's
+# Android backend never does — see `android.rs`.
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
-ndk-context = "0.1"

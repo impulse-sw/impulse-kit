@@ -3,8 +3,27 @@
 //! Android 12 (API 31) and later publish the user's wallpaper-derived tonal
 //! palettes as framework colour resources: `android.R.color.system_neutral1_*`
 //! and `system_neutral2_*` (plus accent ramps this crate deliberately ignores —
-//! the app keeps its own brand accent). We read them through JNI using the
-//! `Activity` and `JavaVM` Tauri's Android runtime publishes via `ndk-context`.
+//! the app keeps its own brand accent).
+//!
+//! # Getting at the JVM without `ndk-context`
+//!
+//! The usual way to reach JNI from Rust on Android is `ndk_context`, but its
+//! `android_context()` **panics** when nothing has initialised it — and nothing
+//! does here: Tauri's Android backend (tao/wry) talks to `ndk`/`jni` directly
+//! and never calls `initialize_android_context`. Under `panic = "abort"` that
+//! panic takes the whole app down at startup, so this provider avoids the crate
+//! entirely: it resolves the JNI invocation API's `JNI_GetCreatedJavaVMs` from
+//! the runtime already loaded in the process and asks it for the VM. Every step
+//! from there yields `Option`, so a device that can't answer simply leaves the
+//! app with its own palette.
+//!
+//! # Which `Resources` we read
+//!
+//! Dynamic colour reaches an app through a resource overlay on **its** resource
+//! table, so the palette is read from the application context's `Resources`
+//! (via `ActivityThread.currentApplication()`). `Resources.getSystem()` is kept
+//! as a fallback: it always resolves, but being overlay-free it can hand back
+//! the stock, un-personalised ramp.
 //!
 //! # Shades vs MD3 tones
 //!
@@ -22,30 +41,27 @@
 //! | outline                      | n2 500 / n2 400|
 //! | outline-variant              | n2 200 / n2 700|
 //!
-//! On API < 31 the resources don't exist, `getIdentifier` answers `0`, and we
-//! return `None` so the app keeps its own palette.
+//! On API < 31 the resources don't exist, `getIdentifier` answers `0`, and the
+//! provider reports nothing.
 
-use jni::JNIEnv;
 use jni::objects::{JObject, JValue};
+use jni::{JNIEnv, JavaVM};
 
+use crate::dynsym;
 use crate::{BaseNeutrals, NativeBaseTheme};
+
+/// `jint JNI_GetCreatedJavaVMs(JavaVM **vmBuf, jsize bufLen, jsize *nVMs)`
+type FnGetCreatedJavaVMs = unsafe extern "C" fn(*mut *mut jni::sys::JavaVM, i32, *mut i32) -> i32;
+
+const JNI_OK: i32 = 0;
 
 /// Reads the Material You tonal palettes and derives both colour schemes.
 pub(crate) fn capture() -> Option<NativeBaseTheme> {
-  let ctx = ndk_context::android_context();
-  // SAFETY: `ndk-context` hands out the process-wide JavaVM and Activity that
-  // Tauri's Android runtime registered at startup.
-  let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.ok()?;
-  let context = unsafe { JObject::from_raw(ctx.context().cast()) };
+  let vm = java_vm()?;
   let mut env = vm.attach_current_thread().ok()?;
+  let resources = app_resources(&mut env)?;
 
-  let resources = env
-    .call_method(&context, "getResources", "()Landroid/content/res/Resources;", &[])
-    .ok()?
-    .l()
-    .ok()?;
-
-  let mut neutral = |palette: u8, shade: u16| color_hex(&mut env, &context, &resources, palette, shade);
+  let mut neutral = |palette: u8, shade: u16| color_hex(&mut env, &resources, palette, shade);
 
   // Neutral 1 — surfaces and the text on them.
   let n1_0 = neutral(1, 0)?;
@@ -98,32 +114,63 @@ pub(crate) fn capture() -> Option<NativeBaseTheme> {
     ring: n2_400,
   };
 
-  Some(NativeBaseTheme {
+  let theme = NativeBaseTheme {
     light: Some(light),
     dark: Some(dark),
-  })
+  };
+  tracing::info!("captured Material You palette:\n{}", theme.to_css());
+  Some(theme)
+}
+
+/// The running JVM, via the JNI invocation API exported by the Android runtime.
+fn java_vm() -> Option<JavaVM> {
+  // SAFETY: matches `jint JNI_GetCreatedJavaVMs(JavaVM**, jsize, jsize*)`.
+  let get_vms: FnGetCreatedJavaVMs = unsafe { dynsym::symbol("JNI_GetCreatedJavaVMs") }?;
+  let mut vms: [*mut jni::sys::JavaVM; 1] = [std::ptr::null_mut()];
+  let mut found: i32 = 0;
+  // SAFETY: `vms` has room for the one VM we ask for, and `found` is writable.
+  let status = unsafe { get_vms(vms.as_mut_ptr(), 1, &mut found) };
+  if status != JNI_OK || found < 1 || vms[0].is_null() {
+    return None;
+  }
+  // SAFETY: the pointer came from the runtime's own VM list.
+  unsafe { JavaVM::from_raw(vms[0]) }.ok()
+}
+
+/// The `Resources` to read the palette from: the application's (which carry the
+/// dynamic-colour overlay) falling back to the framework's.
+fn app_resources<'local>(env: &mut JNIEnv<'local>) -> Option<JObject<'local>> {
+  let application = call_static_object(
+    env,
+    "android/app/ActivityThread",
+    "currentApplication",
+    "()Landroid/app/Application;",
+  );
+  if let Some(application) = application
+    && let Some(resources) = call_object(env, &application, "getResources", "()Landroid/content/res/Resources;")
+  {
+    return Some(resources);
+  }
+  // Overlay-free framework resources: always available, but may answer with the
+  // stock ramp rather than the user's palette.
+  tracing::warn!("no application context; reading the framework's own resources");
+  call_static_object(
+    env,
+    "android/content/res/Resources",
+    "getSystem",
+    "()Landroid/content/res/Resources;",
+  )
 }
 
 /// Resolves `android.R.color.system_neutral{palette}_{shade}` to `#rrggbb`.
-///
-/// Returns `None` when the resource doesn't exist (API < 31) or any JNI call
-/// fails, clearing a pending Java exception so later calls aren't poisoned.
-fn color_hex(
-  env: &mut JNIEnv<'_>,
-  context: &JObject<'_>,
-  resources: &JObject<'_>,
-  palette: u8,
-  shade: u16,
-) -> Option<String> {
+fn color_hex(env: &mut JNIEnv<'_>, resources: &JObject<'_>, palette: u8, shade: u16) -> Option<String> {
   let name = format!("system_neutral{palette}_{shade}");
-  let result = lookup(env, context, resources, &name);
-  if result.is_none() && env.exception_check().unwrap_or(false) {
-    let _ = env.exception_clear();
-  }
+  let result = lookup(env, resources, &name);
+  clear_exception(env);
   result
 }
 
-fn lookup(env: &mut JNIEnv<'_>, context: &JObject<'_>, resources: &JObject<'_>, name: &str) -> Option<String> {
+fn lookup(env: &mut JNIEnv<'_>, resources: &JObject<'_>, name: &str) -> Option<String> {
   let j_name = env.new_string(name).ok()?;
   let j_type = env.new_string("color").ok()?;
   let j_package = env.new_string("android").ok()?;
@@ -147,12 +194,60 @@ fn lookup(env: &mut JNIEnv<'_>, context: &JObject<'_>, resources: &JObject<'_>, 
     return None;
   }
 
+  // `getColor(int, Resources.Theme)`; a null theme means "no theme attributes",
+  // which is right for a plain colour resource.
   let argb = env
-    .call_method(context, "getColor", "(I)I", &[JValue::Int(id)])
+    .call_method(
+      resources,
+      "getColor",
+      "(ILandroid/content/res/Resources$Theme;)I",
+      &[JValue::Int(id), JValue::Object(&JObject::null())],
+    )
     .ok()?
     .i()
     .ok()?;
   Some(rgb_hex(argb))
+}
+
+/// Calls a no-argument static method returning an object, or `None` if it isn't
+/// there or threw. Never leaves a Java exception pending.
+fn call_static_object<'local>(
+  env: &mut JNIEnv<'local>,
+  class: &str,
+  method: &str,
+  signature: &str,
+) -> Option<JObject<'local>> {
+  let result = env
+    .call_static_method(class, method, signature, &[])
+    .ok()
+    .and_then(|value| value.l().ok())
+    .filter(|object| !object.is_null());
+  clear_exception(env);
+  result
+}
+
+/// Calls a no-argument instance method returning an object, with the same
+/// guarantees as [`call_static_object`].
+fn call_object<'local>(
+  env: &mut JNIEnv<'local>,
+  object: &JObject<'_>,
+  method: &str,
+  signature: &str,
+) -> Option<JObject<'local>> {
+  let result = env
+    .call_method(object, method, signature, &[])
+    .ok()
+    .and_then(|value| value.l().ok())
+    .filter(|object| !object.is_null());
+  clear_exception(env);
+  result
+}
+
+/// Drops a pending Java exception so it can't poison later JNI calls.
+fn clear_exception(env: &mut JNIEnv<'_>) {
+  if env.exception_check().unwrap_or(false) {
+    let _ = env.exception_clear();
+  }
 }
 
 /// Formats an Android ARGB colour int as CSS `#rrggbb`. The alpha byte is
