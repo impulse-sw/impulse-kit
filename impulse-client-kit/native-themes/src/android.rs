@@ -125,7 +125,11 @@ const APPEARANCE_LIGHT_STATUS_BARS: i32 = 0x0000_0008;
 /// `PlatformWebview::jni_handle().exec(..)`. Failures are logged and otherwise
 /// ignored: a mis-tinted status bar is not worth taking the app down for.
 pub fn apply_status_bar_appearance(env: &mut JNIEnv<'_>, activity: &JObject<'_>, dark_background: bool) {
-  let appearance = if dark_background { 0 } else { APPEARANCE_LIGHT_STATUS_BARS };
+  let appearance = if dark_background {
+    0
+  } else {
+    APPEARANCE_LIGHT_STATUS_BARS
+  };
   if set_status_bar_appearance(env, activity, appearance).is_none() {
     clear_exception(env);
     log("could not set the status bar appearance (needs Android 11 / API 30)");
@@ -405,7 +409,11 @@ fn adopt_system_background(
 
   let system = rgb_hex(argb);
   let system_luminance = luminance(argb);
-  let scheme = if night { theme.dark.as_mut() } else { theme.light.as_mut() };
+  let scheme = if night {
+    theme.dark.as_mut()
+  } else {
+    theme.light.as_mut()
+  };
   let Some(scheme) = scheme else { return };
 
   let Some(current_luminance) = hex_luminance(&scheme.background) else {
@@ -424,7 +432,9 @@ fn adopt_system_background(
     ));
     scheme.background = system;
   } else {
-    log(&format!("system background {system} matches the tonal ramp; keeping it"));
+    log(&format!(
+      "system background {system} matches the tonal ramp; keeping it"
+    ));
   }
 }
 
