@@ -41,9 +41,6 @@
 //!      .invoke_handler(tauri::generate_handler![ik_native_base_theme])
 //!    ```
 //!
-//!    Enable the `gtk-desktop` feature wherever the Linux desktop bundle is
-//!    built, so the GTK provider is compiled in.
-//!
 //! 2. **Webview, at startup** — call [`apply_native_base_theme`] (with the
 //!    `tauri` feature enabled so it fetches over IPC).
 //!
@@ -58,7 +55,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(target_os = "android")]
 mod android;
 
-#[cfg(all(target_os = "linux", feature = "gtk-desktop"))]
+#[cfg(target_os = "linux")]
 mod gtk_desktop;
 
 /// The conventional Tauri command name an app registers to serve the captured
@@ -196,11 +193,11 @@ pub fn native_base_theme() -> Option<&'static NativeBaseTheme> {
 pub fn capture_native_base_theme() -> Option<NativeBaseTheme> {
   #[cfg(target_os = "android")]
   let captured = android::capture();
-  #[cfg(all(target_os = "linux", feature = "gtk-desktop"))]
+  #[cfg(target_os = "linux")]
   let captured = gtk_desktop::capture();
   // macOS and Windows providers land in a later increment; until then those
-  // platforms (and a Linux build without `gtk-desktop`) keep the app's palette.
-  #[cfg(not(any(target_os = "android", all(target_os = "linux", feature = "gtk-desktop"))))]
+  // platforms keep the app's own palette.
+  #[cfg(not(any(target_os = "android", target_os = "linux")))]
   let captured: Option<NativeBaseTheme> = None;
 
   captured.filter(|theme| !theme.is_empty())

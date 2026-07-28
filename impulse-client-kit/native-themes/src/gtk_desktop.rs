@@ -6,25 +6,80 @@
 //! real thing: they follow whatever theme the user picked, which is exactly what
 //! the webview's CSS system colours fail to expose.
 //!
+//! # Why the handful of `extern "C"` declarations
+//!
+//! Linking the `gtk` crate would drag GTK 3's development headers into *every*
+//! build of every consumer — including headless CI lint runs and the Android
+//! build, which have no business needing them. Instead we resolve the four GTK
+//! entry points we need from the symbols **already loaded in this process**:
+//! a Tauri Linux app links GTK itself, so they're right there, and anywhere else
+//! the lookup simply comes up empty and the app keeps its own palette. The C
+//! signatures used here are stable GTK 3 public API, and `GdkRGBA` is a plain
+//! four-`double` struct.
+//!
+//! # Threading and scheme
+//!
+//! GTK may only be touched from the thread that initialised it, so [`capture`]
+//! is meant to run from the Tauri `setup` hook (see
+//! [`crate::install_native_base_theme`]); the default GDK display being present
+//! is what tells us GTK is initialised at all.
+//!
 //! A GTK theme describes **one** scheme at a time (a dark theme is simply a
 //! theme whose background is dark), so this provider fills in only the scheme
 //! the desktop is currently using, detected from the background's luminance. The
 //! other scheme is left to the app's own palette — inventing an inverse of the
 //! user's theme would look worse than the app's designed colours.
-//!
-//! # Threading
-//!
-//! GTK may only be touched from the thread that initialised it, so
-//! [`capture`] refuses to run anywhere else ([`gtk::is_initialized_main_thread`]).
-//! Call it from the Tauri `setup` hook and cache the result — which is what
-//! [`crate::install_native_base_theme`] does — so the IPC command can serve it
-//! from a worker thread later.
 
-use gtk::prelude::*;
+use std::ffi::{CString, c_char, c_double, c_int, c_void};
 
 use crate::{BaseNeutrals, NativeBaseTheme};
 
-/// A colour as linear `0.0..=1.0` components, so we can mix and measure before
+/// `GdkRGBA`: four doubles in `0.0..=1.0`. Stable GTK 3 ABI.
+#[repr(C)]
+#[derive(Default, Clone, Copy)]
+struct GdkRgba {
+  red: c_double,
+  green: c_double,
+  blue: c_double,
+  alpha: c_double,
+}
+
+type GdkDisplayPtr = *mut c_void;
+type GtkWidgetPtr = *mut c_void;
+type GtkStyleContextPtr = *mut c_void;
+
+type FnDisplayGetDefault = unsafe extern "C" fn() -> GdkDisplayPtr;
+type FnLabelNew = unsafe extern "C" fn(*const c_char) -> GtkWidgetPtr;
+type FnWidgetGetStyleContext = unsafe extern "C" fn(GtkWidgetPtr) -> GtkStyleContextPtr;
+type FnLookupColor = unsafe extern "C" fn(GtkStyleContextPtr, *const c_char, *mut GdkRgba) -> c_int;
+
+unsafe extern "C" {
+  /// Looks a symbol up across everything already loaded in this process.
+  /// `RTLD_DEFAULT` is the null handle on Linux.
+  fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
+}
+
+/// Resolves a GTK function already loaded in this process, or `None` when GTK
+/// isn't linked in (a headless build, a test binary, a non-GTK host).
+///
+/// # Safety
+///
+/// The caller must instantiate `F` with the symbol's real C signature.
+unsafe fn symbol<F: Copy>(name: &str) -> Option<F> {
+  debug_assert_eq!(size_of::<F>(), size_of::<*mut c_void>());
+  let cname = CString::new(name).ok()?;
+  // SAFETY: `cname` is a valid NUL-terminated string; a null handle means
+  // "search the global scope", and a missing symbol yields null.
+  let addr = unsafe { dlsym(std::ptr::null_mut(), cname.as_ptr()) };
+  if addr.is_null() {
+    return None;
+  }
+  // SAFETY: `addr` is a live function pointer for as long as the process holds
+  // the library open, and `F` matches its signature per this fn's contract.
+  Some(unsafe { *(&addr as *const *mut c_void as *const F) })
+}
+
+/// A colour as `0.0..=1.0` components, so we can mix and measure before
 /// emitting CSS.
 #[derive(Clone, Copy)]
 struct Rgb {
@@ -34,16 +89,6 @@ struct Rgb {
 }
 
 impl Rgb {
-  /// `f64::from` accepts both `f32` and `f64` components, so this compiles
-  /// against either gdk RGBA accessor signature.
-  fn from_rgba(rgba: gtk::gdk::RGBA) -> Self {
-    Self {
-      r: f64::from(rgba.red()),
-      g: f64::from(rgba.green()),
-      b: f64::from(rgba.blue()),
-    }
-  }
-
   /// Blends `self` toward `other` by `t` (0 keeps `self`, 1 becomes `other`).
   fn mix(self, other: Rgb, t: f64) -> Self {
     Self {
@@ -66,20 +111,53 @@ impl Rgb {
   }
 }
 
-/// Reads the current GTK theme's palette. `None` when GTK isn't initialised, we
-/// aren't on its thread, or the theme doesn't define the basic named colours.
+/// Reads the current GTK theme's palette. `None` when GTK isn't loaded or
+/// initialised, or the theme doesn't define the basic named colours.
 pub(crate) fn capture() -> Option<NativeBaseTheme> {
-  // Touching GTK off its own thread (or before `gtk_init`) is undefined
-  // behaviour; with `panic = "abort"` in release that would take the app down.
-  if !gtk::is_initialized_main_thread() {
+  // SAFETY (all four): each type alias mirrors the function's documented GTK 3
+  // signature.
+  let display_get_default: FnDisplayGetDefault = unsafe { symbol("gdk_display_get_default") }?;
+  let label_new: FnLabelNew = unsafe { symbol("gtk_label_new") }?;
+  let widget_style_context: FnWidgetGetStyleContext = unsafe { symbol("gtk_widget_get_style_context") }?;
+  let lookup_color: FnLookupColor = unsafe { symbol("gtk_style_context_lookup_color") }?;
+
+  // A default display exists only once GTK has been initialised. Calling into
+  // widget code before that is undefined behaviour, and with `panic = "abort"`
+  // in release it would take the app down.
+  // SAFETY: no arguments, and the pointer is only compared against null.
+  if unsafe { display_get_default() }.is_null() {
     return None;
   }
 
   // Any widget's style context resolves the screen-wide theme providers, which
-  // is where the named colours live. A `Label` is the cheapest one and is never
-  // realised or shown.
-  let style = gtk::Label::new(None).style_context();
-  let lookup = |name: &str| style.lookup_color(name).map(Rgb::from_rgba);
+  // is where the named colours live. A `Label` is the cheapest one; it is never
+  // realised or shown. Its initial floating reference is deliberately left
+  // alone — one tiny object, once per process.
+  // SAFETY: a null label text is valid (an empty label), and the returned
+  // widget's style context is owned by the widget.
+  let style = unsafe {
+    let label = label_new(std::ptr::null());
+    if label.is_null() {
+      return None;
+    }
+    widget_style_context(label)
+  };
+  if style.is_null() {
+    return None;
+  }
+
+  let lookup = |name: &str| -> Option<Rgb> {
+    let cname = CString::new(name).ok()?;
+    let mut rgba = GdkRgba::default();
+    // SAFETY: `style` is a live GtkStyleContext, `cname` is NUL-terminated, and
+    // `rgba` is a valid writable GdkRGBA.
+    let found = unsafe { lookup_color(style, cname.as_ptr(), &mut rgba) };
+    (found != 0).then_some(Rgb {
+      r: rgba.red,
+      g: rgba.green,
+      b: rgba.blue,
+    })
+  };
 
   // Every GTK theme defines these two; without them we have no palette to speak
   // of and the app keeps its own.
@@ -124,5 +202,79 @@ pub(crate) fn capture() -> Option<NativeBaseTheme> {
       light: Some(neutrals),
       dark: None,
     })
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  unsafe extern "C" {
+    fn dlopen(filename: *const c_char, flags: c_int) -> *mut c_void;
+  }
+
+  const RTLD_NOW: c_int = 2;
+  const RTLD_GLOBAL: c_int = 0x100;
+
+  type FnInitCheck = unsafe extern "C" fn(*mut c_int, *mut *mut *mut c_char) -> c_int;
+
+  /// Exercises both halves of the contract in one process: with GTK absent the
+  /// provider must stay quiet, and with GTK loaded and initialised it must come
+  /// back with the live theme's colours.
+  ///
+  /// Needs a display (run under `xvfb-run` in a headless environment); it skips
+  /// itself when GTK or a display isn't there, so it never fails a build for
+  /// reasons unrelated to the code.
+  #[test]
+  fn reads_the_live_gtk_theme() {
+    assert!(
+      capture().is_none(),
+      "must report nothing while GTK isn't loaded in this process"
+    );
+
+    let soname = CString::new("libgtk-3.so.0").expect("static string");
+    // SAFETY: valid NUL-terminated soname; RTLD_GLOBAL publishes the symbols so
+    // the provider's `dlsym(RTLD_DEFAULT, …)` can find them.
+    let handle = unsafe { dlopen(soname.as_ptr(), RTLD_NOW | RTLD_GLOBAL) };
+    if handle.is_null() {
+      eprintln!("skipping: libgtk-3.so.0 not available");
+      return;
+    }
+
+    // SAFETY: matches `gboolean gtk_init_check(int*, char***)`.
+    let Some(init_check): Option<FnInitCheck> = (unsafe { symbol("gtk_init_check") }) else {
+      eprintln!("skipping: gtk_init_check not found");
+      return;
+    };
+    // SAFETY: GTK 3 accepts NULL for both arguments.
+    if unsafe { init_check(std::ptr::null_mut(), std::ptr::null_mut()) } == 0 {
+      eprintln!("skipping: no display, GTK could not initialise");
+      return;
+    }
+
+    let theme = capture().expect("a palette once GTK is initialised");
+    let neutrals = theme
+      .light
+      .as_ref()
+      .or(theme.dark.as_ref())
+      .expect("exactly one scheme is filled in");
+
+    // Every token must be a fully-formed CSS hex colour.
+    for (name, value) in neutrals.vars() {
+      assert!(
+        value.len() == 7 && value.starts_with('#') && value[1..].chars().all(|c| c.is_ascii_hexdigit()),
+        "{name} is not a hex colour: {value}"
+      );
+    }
+    // Exactly one scheme, and a palette you could actually read text on.
+    assert!(
+      theme.light.is_some() != theme.dark.is_some(),
+      "a GTK theme is one scheme, not both"
+    );
+    assert_ne!(
+      neutrals.background, neutrals.foreground,
+      "background and foreground must differ"
+    );
+    eprintln!("captured GTK palette: {}", theme.to_css());
   }
 }
