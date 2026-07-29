@@ -141,16 +141,28 @@ pub trait LocalBackend {
     !req.method.is_read()
   }
 
-  /// Last-chance rewrite of a queued request just before it is replayed,
-  /// *after* [`rewrite_ids`](Self::rewrite_ids). Defaults to identity.
+  /// Last-chance rewrite of a request the **engine itself** is about to send —
+  /// a queued write being replayed (after [`rewrite_ids`](Self::rewrite_ids)) or
+  /// a [`prefetch`](Engine::prefetch). Defaults to identity.
   ///
-  /// A queued write carries the headers it was built with, possibly weeks
-  /// earlier — including an `Authorization` header whose access token has long
-  /// since rotated. Override this to stamp the current credentials on the
-  /// request so the replay is authenticated as of *now*, not as of the moment
-  /// the user went offline.
-  fn prepare_replay(&self, req: HttpRequest) -> HttpRequest {
+  /// Requests that didn't come straight from the UI have no current credentials
+  /// on them: a queued write carries the headers it was built with, possibly
+  /// weeks ago and with a long-rotated access token, and a prefetch was never
+  /// built by the UI at all. Override this to stamp the current credentials.
+  fn prepare_outgoing(&self, req: HttpRequest) -> HttpRequest {
     req
+  }
+
+  /// Requests worth running while online purely to fill the local store, so the
+  /// data is there when the network isn't. Defaults to none.
+  ///
+  /// Caching only what the user happened to open leaves an app half-usable
+  /// offline — you find out which documents you *didn't* read at exactly the
+  /// wrong moment. Returning "everything I know about but haven't fully cached"
+  /// here lets [`Engine::prefetch`] close that gap in the background. Responses
+  /// go through [`cache_read`](Self::cache_read) like any other read.
+  async fn prefetch_requests(&self) -> Vec<HttpRequest> {
+    Vec::new()
   }
 
   /// The server-assigned id in a create's replay response, used to reconcile it
@@ -297,7 +309,7 @@ impl<R: Remote, L: LocalBackend> Engine<R, L> {
   pub async fn sync(&self) -> Result<(), String> {
     let mut id_map: HashMap<i64, i64> = HashMap::new();
     for entry in self.queue.pending() {
-      let mut req = self.backend.prepare_replay(self.backend.rewrite_ids(&entry.req, &id_map));
+      let mut req = self.backend.prepare_outgoing(self.backend.rewrite_ids(&entry.req, &id_map));
       req.url = self.remote_url(&req.url);
       match self.remote.send(req).await {
         Ok(resp) if resp.is_success() => {
@@ -314,6 +326,39 @@ impl<R: Remote, L: LocalBackend> Engine<R, L> {
       }
     }
     Ok(())
+  }
+
+  /// Fills the local store ahead of time, so what the user hasn't opened yet is
+  /// still there when the network goes away. Runs the backend's
+  /// [`prefetch_requests`](LocalBackend::prefetch_requests) against the server
+  /// and caches each success; returns how many landed.
+  ///
+  /// Best-effort by design: a request that fails is skipped, and losing the
+  /// connection mid-pass ends it (flipping the engine offline) rather than
+  /// grinding through the rest. Call it periodically while online, and after a
+  /// sync — nothing here is on the user's critical path.
+  pub async fn prefetch(&self) -> usize {
+    if !self.is_online() {
+      return 0;
+    }
+    let mut cached = 0;
+    for req in self.backend.prefetch_requests().await {
+      let mut outgoing = self.backend.prepare_outgoing(req.clone());
+      outgoing.url = self.remote_url(&outgoing.url);
+      match self.remote.send(outgoing).await {
+        Ok(resp) if resp.is_success() => {
+          self.backend.cache_read(&req, &resp).await;
+          cached += 1;
+        }
+        Ok(resp) => tracing::debug!("prefetch skipped {}: HTTP {}", req.url, resp.status()),
+        Err(e) => {
+          tracing::warn!("prefetch stopped, connection lost: {e}");
+          self.set_online(false);
+          break;
+        }
+      }
+    }
+    cached
   }
 
   fn remote_url(&self, url: &str) -> String {

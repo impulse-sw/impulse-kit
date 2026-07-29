@@ -136,6 +136,8 @@ struct MemBackend {
   identity: Mutex<Option<String>>,
   /// The credentials to stamp on a replay, refreshed after a new sign-in.
   token: Mutex<Option<String>>,
+  /// Ids this backend knows of but hasn't cached — what a prefetch should fetch.
+  wanted: Mutex<Vec<i64>>,
 }
 
 /// `POST /probe` stands for an endpoint that is a write by verb but changes
@@ -208,12 +210,24 @@ impl LocalBackend for MemBackend {
     !req.method.is_read() && !is_probe(req)
   }
 
-  fn prepare_replay(&self, mut req: HttpRequest) -> HttpRequest {
+  fn prepare_outgoing(&self, mut req: HttpRequest) -> HttpRequest {
     if let Some(token) = self.token.lock().unwrap().clone() {
       req.headers.retain(|(k, _)| !k.eq_ignore_ascii_case("authorization"));
       req.headers.push(("Authorization".into(), token));
     }
     req
+  }
+
+  async fn prefetch_requests(&self) -> Vec<HttpRequest> {
+    let cached = self.items.lock().unwrap();
+    self
+      .wanted
+      .lock()
+      .unwrap()
+      .iter()
+      .filter(|id| !cached.contains_key(id))
+      .map(|id| get(*id))
+      .collect()
   }
 
   fn created_id(&self, resp: &HttpResponse) -> Option<i64> {
@@ -411,6 +425,41 @@ async fn a_local_probe_is_not_queued_for_replay() {
   assert_eq!(resp.status, 200);
   assert!(resp.is_offline());
   assert_eq!(eng.pending_sync(), 0, "a probe must never be queued");
+}
+
+/// What the user hasn't opened is fetched ahead of time, so it's there when the
+/// network isn't — and the prefetch carries current credentials, since nothing in
+/// the UI built those requests.
+#[tokio::test]
+async fn prefetch_fills_the_local_store_before_the_network_goes_away() {
+  let remote = FakeRemote::new();
+  for id in [1, 2, 3] {
+    remote.items.lock().unwrap().insert(
+      id,
+      Item {
+        id,
+        content: format!("item {id}"),
+      },
+    );
+  }
+  let eng = engine(remote.clone());
+  eng.backend().token.lock().unwrap().replace("Bearer good".into());
+  eng.backend().wanted.lock().unwrap().extend([1, 2, 3]);
+  remote.accept_only(Some("Bearer good"));
+
+  assert_eq!(eng.prefetch().await, 3);
+
+  // All three are readable with the server gone, though none was ever opened.
+  remote.set_reachable(false);
+  eng.set_online(false);
+  for id in [1, 2, 3] {
+    let resp = eng.handle(get(id)).await;
+    assert_eq!(resp.status, 200, "item {id} was prefetched");
+    assert_eq!(
+      serde_json::from_slice::<Item>(&resp.body).unwrap().content,
+      format!("item {id}")
+    );
+  }
 }
 
 /// Offline work outlives an expired session: the queue is kept intact across a

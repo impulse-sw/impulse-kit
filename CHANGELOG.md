@@ -20,9 +20,15 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   `observe_write` (see successful online *writes*, e.g. an auth check answering
   `POST` with the signed-in identity — `cache_read` only ever sees reads),
   `should_queue` (keep verb-writes that change nothing on the server out of the
-  replay queue), and `prepare_replay` (stamp current credentials on a queued
-  request, so a write made weeks ago doesn't replay with a long-rotated token).
-  All three have defaults, so existing backends are unaffected.
+  replay queue), and `prepare_outgoing` (stamp current credentials on a request
+  the engine sends itself, so a write made weeks ago doesn't replay with a
+  long-rotated token). All have defaults, so existing backends are unaffected.
+- **`Engine::prefetch` + `LocalBackend::prefetch_requests`.** Caching only what
+  the user happened to open leaves an app half-usable offline — you find out
+  which data you *didn't* read at exactly the wrong moment. A backend can now
+  name the requests worth running purely to fill the local store; the engine runs
+  them while online, authenticating each through `prepare_outgoing` (they never
+  passed through the UI, so nothing else would).
 - **`impulse_client_kit::client::ipc::command`** — the wasm ⇄ Tauri IPC bridge
   for an app's own commands, so a frontend no longer re-declares the `invoke`
   binding to ask the native side something that isn't an HTTP request.
