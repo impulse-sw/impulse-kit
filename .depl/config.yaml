@@ -54,6 +54,9 @@ variables:
   featureset-native-themes-tauri:
     type: plain
     value: " --features=tauri"
+  featureset-tauri-engine-ws:
+    type: plain
+    value: " --features=ws"
   featureset-server-kit-endpoint:
     type: plain
     value: " --features=endpoint"
@@ -204,10 +207,11 @@ actions:
         executable: cargo
     action:
       type: test
-      cmd: "{flags}cargo test --package {package}"
+      cmd: "{flags}cargo test --package {package}{features}"
       placeholders:
         - "{flags}"
         - "{package}"
+        - "{features}"
       show_success_output: true
       show_cmd: false
       success_when_found: "test result: ok."
@@ -612,7 +616,7 @@ pipelines:
       - title: Lint `impulse-tauri-engine`
         used: cargo-lint@0.2.0
         with:
-          "{features}": empty
+          "{features}": featureset-tauri-engine-ws
           "{flags}": empty
           "{package}": package-tauri-engine
           "{target}": target-native
@@ -640,23 +644,33 @@ pipelines:
       - title: Test `impulse-utils`
         used: cargo-test@0.1.0
         with:
+          "{features}": empty
           "{flags}": empty
           "{package}": package-utils
       - title: Test `impulse-server-kit`
         used: cargo-test@0.1.0
         with:
+          "{features}": empty
           "{flags}": reqwest-unstable-flag
           "{package}": package-server-kit
       - title: Test `impulse-server-kit-dsl`
         used: cargo-test@0.1.0
         with:
+          "{features}": empty
           "{flags}": empty
           "{package}": package-dsl
       - title: Test `impulse-static-server`
         used: cargo-test@0.1.0
         with:
+          "{features}": empty
           "{flags}": empty
           "{package}": package-static-server
+      - title: Test `impulse-tauri-engine` (ws/wt offline engine)
+        used: cargo-test@0.1.0
+        with:
+          "{features}": featureset-tauri-engine-ws
+          "{flags}": empty
+          "{package}": package-tauri-engine
       - title: Test docs
         used: cargo-test-doc@0.1.0
       - title: Format check

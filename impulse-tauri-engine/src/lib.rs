@@ -48,6 +48,11 @@ use impulse_utils::prelude::{CResult, ServerError};
 mod queue;
 pub use queue::{Entry, Queue};
 
+#[cfg(feature = "ws")]
+mod ws;
+#[cfg(feature = "ws")]
+pub use ws::{Emit, LocalReply, WsBackend, WsEngine, WsEntry, WsQueue, WsRemote, WsSink, WsStream};
+
 /// The remote transport the engine forwards to when online. Injected so the
 /// engine can be exercised against a fake server in tests.
 ///

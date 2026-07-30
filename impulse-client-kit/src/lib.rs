@@ -47,6 +47,10 @@ pub mod ws;
 pub mod ws_ipc;
 #[cfg(feature = "webtransport")]
 pub mod wt;
+/// Tauri-IPC backend for the WebTransport surface (mirrors [`wt`]); active under
+/// `cfg(tauri)` so the frontend routes frames through the native engine.
+#[cfg(all(tauri, feature = "webtransport"))]
+pub mod wt_ipc;
 
 #[cfg(feature = "ssr")]
 pub mod ssr;

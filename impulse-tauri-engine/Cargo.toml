@@ -14,6 +14,12 @@ default = ["executor"]
 # the server" transport). Turn it off for headless tests that inject a fake
 # `Remote`.
 executor = ["dep:reqwest", "impulse-endpoint/reqwest"]
+# Streaming offline engine (`WsEngine` + `WsBackend`) for a WebSocket/WebTransport
+# app surface — the sibling of the request/response `Engine`. Transport-agnostic
+# like the request/response side: the app shell supplies the concrete socket
+# `WsRemote`, so this only pulls tokio's `sync`/`time` (no socket library).
+# Off by default so request/response-only apps don't compile it.
+ws = ["dep:tokio"]
 
 [dependencies]
 impulse-endpoint = { workspace = true }
@@ -21,7 +27,8 @@ impulse-utils = { workspace = true, features = ["cresult", "mresult"] }
 reqwest = { workspace = true, optional = true, features = ["json", "rustls", "http2"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+tokio = { workspace = true, optional = true, features = ["sync", "time"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt"] }
+tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
