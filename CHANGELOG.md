@@ -35,6 +35,11 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
 
 ### Changed
 
+- **The engine reports where a request's time went** — network versus local store
+  — at debug level, and as a `slow request: …` warning past 750 ms. A local
+  backend is written while the UI waits for the response, so a slow store is
+  indistinguishable from a slow server from the user's seat unless the two are
+  named separately.
 - **A failed remote attempt flips the engine offline immediately** instead of
   letting each following request pay for its own timeout until the shell's
   connectivity probe notices.

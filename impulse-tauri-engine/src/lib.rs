@@ -40,6 +40,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Instant;
 
 use impulse_endpoint::{HttpRequest, HttpResponse, OFFLINE_HEADER};
 use impulse_utils::prelude::{CResult, ServerError};
@@ -259,8 +260,11 @@ impl<R: Remote, L: LocalBackend> Engine<R, L> {
     if self.is_online() {
       let mut remote = req.clone();
       remote.url = self.remote_url(&req.url);
+      let started = Instant::now();
       match self.remote.send(remote).await {
         Ok(resp) => {
+          let network = started.elapsed();
+          let cached = Instant::now();
           if resp.is_success() {
             if req.method.is_read() {
               self.backend.cache_read(&req, &resp).await;
@@ -268,6 +272,10 @@ impl<R: Remote, L: LocalBackend> Engine<R, L> {
               self.backend.observe_write(&req, &resp).await;
             }
           }
+          // The local store is written while the UI waits for this response, so a
+          // slow backend is indistinguishable from a slow server from the user's
+          // seat. Name both, and say so out loud when it's bad enough to feel.
+          report_timing(&req, network, cached.elapsed());
           return resp;
         }
         Err(e) => {
@@ -341,6 +349,7 @@ impl<R: Remote, L: LocalBackend> Engine<R, L> {
     if !self.is_online() {
       return 0;
     }
+    let started = Instant::now();
     let mut cached = 0;
     for req in self.backend.prefetch_requests().await {
       let mut outgoing = self.backend.prepare_outgoing(req.clone());
@@ -358,11 +367,44 @@ impl<R: Remote, L: LocalBackend> Engine<R, L> {
         }
       }
     }
+    // Requests run one after another, so a first pass over a large backlog is
+    // expected to take a while; the log makes the cost visible instead of leaving
+    // it to be guessed at from a spinner.
+    tracing::debug!("prefetch cached {cached} response(s) in {:?}", started.elapsed());
     cached
   }
 
   fn remote_url(&self, url: &str) -> String {
     format!("{}{}", self.remote_base.trim_end_matches('/'), path_and_query(url))
+  }
+}
+
+/// A request the user is waiting on shouldn't take longer than this. Past it, the
+/// breakdown is logged as a warning rather than at debug level — the point being
+/// that "the app feels slow" should never require a rebuild to investigate.
+const SLOW_REQUEST: std::time::Duration = std::time::Duration::from_millis(750);
+
+/// Logs where an online request's time went: on the wire, or in the local store.
+fn report_timing(req: &HttpRequest, network: std::time::Duration, local: std::time::Duration) {
+  let total = network + local;
+  if total >= SLOW_REQUEST {
+    tracing::warn!(
+      "slow request: {} {} took {:?} ({:?} network, {:?} local store)",
+      req.method.as_str(),
+      path_and_query(&req.url),
+      total,
+      network,
+      local,
+    );
+  } else {
+    tracing::debug!(
+      "{} {}: {:?} ({:?} network, {:?} local store)",
+      req.method.as_str(),
+      path_and_query(&req.url),
+      total,
+      network,
+      local,
+    );
   }
 }
 
