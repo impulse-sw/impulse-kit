@@ -871,9 +871,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.6.4"
+version = "4.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d91e0c145792ef73a6ad36d27c75ac09f1832222a3c209689d90f534685ee5b7"
+checksum = "301b56658598e48f3648647ac6fc887be7e7108eddfa4e9b63fcf3ec58c0cadf"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -881,9 +881,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.6.2"
+version = "4.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f09628afdcc538b57f3c6341e9c8e9970f18e4a481690a64974d7023bd33548b"
+checksum = "94a65403d1a1bd28f7dc68eb8506e8874808ee5eecb59298de588e2e1407a078"
 dependencies = [
  "anstream",
  "anstyle",
@@ -911,7 +911,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "client-kit-showcase"
-version = "1.7.3"
+version = "1.7.4"
 dependencies = [
  "chrono",
  "codee",
@@ -2203,9 +2203,9 @@ checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
 name = "hybrid-array"
-version = "0.4.13"
+version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "818356c5132c1fede50f837ca96afbe78ff42413047f4abb886217845e1b6c8c"
+checksum = "707114b52a152fa7bdb290cd7cd5912d9467273b6d74e21b8d81aca1f8533f6b"
 dependencies = [
  "subtle",
  "typenum",
@@ -2463,7 +2463,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit"
-version = "1.7.3"
+version = "1.7.4"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -2487,7 +2487,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-blocks"
-version = "1.7.3"
+version = "1.7.4"
 dependencies = [
  "gloo-net",
  "impulse-client-kit",
@@ -2501,7 +2501,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-components"
-version = "1.7.3"
+version = "1.7.4"
 dependencies = [
  "chrono",
  "codee",
@@ -2516,7 +2516,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-native-themes"
-version = "1.7.3"
+version = "1.7.4"
 dependencies = [
  "jni 0.21.1",
  "js-sys",
@@ -2530,7 +2530,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-ring"
-version = "1.7.3"
+version = "1.7.4"
 dependencies = [
  "bytes",
  "clap",
@@ -2550,7 +2550,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-store"
-version = "1.7.3"
+version = "1.7.4"
 dependencies = [
  "leptos",
  "log",
@@ -2562,7 +2562,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-endpoint"
-version = "1.7.3"
+version = "1.7.4"
 dependencies = [
  "impulse-utils",
  "reqwest",
@@ -2574,7 +2574,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-error-pages"
-version = "1.7.3"
+version = "1.7.4"
 dependencies = [
  "icondata",
  "impulse-client-kit",
@@ -2623,7 +2623,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-server-kit"
-version = "1.7.3"
+version = "1.7.4"
 dependencies = [
  "any_spawner",
  "axum",
@@ -2675,7 +2675,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-skdsl"
-version = "1.7.3"
+version = "1.7.4"
 dependencies = [
  "clap",
  "impulse-server-kit",
@@ -2691,7 +2691,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-static-server"
-version = "1.7.3"
+version = "1.7.4"
 dependencies = [
  "impulse-server-kit",
  "serde",
@@ -2700,11 +2700,11 @@ dependencies = [
 
 [[package]]
 name = "impulse-tailwind-sources"
-version = "1.7.3"
+version = "1.7.4"
 
 [[package]]
 name = "impulse-tauri-engine"
-version = "1.7.3"
+version = "1.7.4"
 dependencies = [
  "impulse-endpoint",
  "impulse-utils",
@@ -2717,7 +2717,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-utils"
-version = "1.7.3"
+version = "1.7.4"
 dependencies = [
  "anyhow",
  "http",
@@ -5873,7 +5873,7 @@ dependencies = [
 
 [[package]]
 name = "ssr-showcase"
-version = "1.7.3"
+version = "1.7.4"
 dependencies = [
  "console_error_panic_hook",
  "impulse-client-kit",

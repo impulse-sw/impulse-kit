@@ -322,7 +322,9 @@ impl<R: Remote, L: LocalBackend> Engine<R, L> {
   pub async fn sync(&self) -> Result<(), String> {
     let mut id_map: HashMap<i64, i64> = HashMap::new();
     for entry in self.queue.pending() {
-      let mut req = self.backend.prepare_outgoing(self.backend.rewrite_ids(&entry.req, &id_map));
+      let mut req = self
+        .backend
+        .prepare_outgoing(self.backend.rewrite_ids(&entry.req, &id_map));
       req.url = self.remote_url(&req.url);
       match self.remote.send(req).await {
         Ok(resp) if resp.is_success() => {

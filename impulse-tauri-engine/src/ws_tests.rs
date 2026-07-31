@@ -104,7 +104,12 @@ impl WsRemote for FakeRemote {
     }
     let (tx, rx) = mpsc::unbounded_channel();
     *self.server.out.lock().unwrap() = Some(tx);
-    Ok((FakeSink { server: self.server.clone() }, FakeStream { rx }))
+    Ok((
+      FakeSink {
+        server: self.server.clone(),
+      },
+      FakeStream { rx },
+    ))
   }
 }
 
@@ -131,7 +136,9 @@ impl WsBackend for MemBackend {
       Some("hello") => {
         let items = self.items.lock().unwrap();
         let list: Vec<Value> = items.iter().map(|(id, c)| json!({ "id": id, "content": c })).collect();
-        Ok(LocalReply::frames([json!({ "type": "snapshot", "items": list }).to_string()]))
+        Ok(LocalReply::frames([
+          json!({ "type": "snapshot", "items": list }).to_string()
+        ]))
       }
       Some("create") => {
         let id = provisional();
@@ -268,11 +275,19 @@ async fn offline_send_serves_locally_and_queues() {
   .unwrap();
 
   // Never connected → offline. A create is served locally and queued.
-  engine.send(json!({ "type": "create", "tmp": 0, "content": "hi" }).to_string()).await;
+  engine
+    .send(json!({ "type": "create", "tmp": 0, "content": "hi" }).to_string())
+    .await;
 
   assert_eq!(engine.pending_sync(), 1, "the create should be queued for replay");
-  assert!(engine.backend().has(-1), "the create should be stored under a provisional id");
-  assert!(emitted.any("\"created\""), "an optimistic event should reach the webview");
+  assert!(
+    engine.backend().has(-1),
+    "the create should be stored under a provisional id"
+  );
+  assert!(
+    emitted.any("\"created\""),
+    "an optimistic event should reach the webview"
+  );
   // The server never saw it.
   assert_eq!(server.items.lock().unwrap().len(), 0);
 }
@@ -311,8 +326,12 @@ async fn reconnect_replays_queue_and_reconciles_id() {
   );
 
   // Offline: create, then edit that same offline-created item.
-  engine.send(json!({ "type": "create", "tmp": 0, "content": "first" }).to_string()).await;
-  engine.send(json!({ "type": "edit", "id": -1, "content": "second" }).to_string()).await;
+  engine
+    .send(json!({ "type": "create", "tmp": 0, "content": "first" }).to_string())
+    .await;
+  engine
+    .send(json!({ "type": "edit", "id": -1, "content": "second" }).to_string())
+    .await;
   assert_eq!(engine.pending_sync(), 2);
 
   // Reconnect: the receive loop + replay run concurrently.
@@ -324,8 +343,14 @@ async fn reconnect_replays_queue_and_reconciles_id() {
   });
 
   // The queue drains and the provisional id is reconciled to the server's real id.
-  assert!(eventually(|| engine.pending_sync() == 0).await, "queue should drain on reconnect");
-  assert!(eventually(|| engine.backend().has(100)).await, "local row should move to the real id");
+  assert!(
+    eventually(|| engine.pending_sync() == 0).await,
+    "queue should drain on reconnect"
+  );
+  assert!(
+    eventually(|| engine.backend().has(100)).await,
+    "local row should move to the real id"
+  );
   assert!(!engine.backend().has(-1), "the provisional id should be gone");
   // The server holds the create and the follow-up edit against the real id.
   assert!(eventually(|| server.items.lock().unwrap().get(&100).map(String::as_str) == Some("second")).await);
@@ -355,12 +380,18 @@ async fn online_send_forwards_and_broadcast_is_applied() {
       let _ = engine.connect_and_run().await;
     }
   });
-  assert!(eventually(|| engine.is_online()).await, "engine should come online after connect");
+  assert!(
+    eventually(|| engine.is_online()).await,
+    "engine should come online after connect"
+  );
 
   // Online hello → forwarded to the server → snapshot broadcast → applied locally.
   engine.send(json!({ "type": "hello" }).to_string()).await;
   assert!(eventually(|| engine.backend().content(100).as_deref() == Some("existing")).await);
-  assert!(emitted.any("\"snapshot\""), "the server snapshot should reach the webview");
+  assert!(
+    emitted.any("\"snapshot\""),
+    "the server snapshot should reach the webview"
+  );
   assert_eq!(engine.pending_sync(), 0, "online sends are not queued");
 
   bg.abort();
