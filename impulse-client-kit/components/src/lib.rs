@@ -1,6 +1,5 @@
 #![deny(warnings)]
-// Leptos' `TypedBuilder` derive (used by `#[component]`) can emit phantom
-// lifetimes that newer clippy flags; the generated code is correct.
+#![recursion_limit = "256"]
 #![allow(clippy::extra_unused_lifetimes)]
 
 pub mod accordion;
