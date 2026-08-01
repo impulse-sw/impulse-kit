@@ -145,13 +145,13 @@ pub struct MarkdownClasses {
 impl Default for MarkdownClasses {
   fn default() -> Self {
     Self {
-      h1: "mt-8 mb-4 text-3xl font-bold tracking-tight text-foreground".into(),
-      h2: "mt-8 mb-3 border-b border-border/60 pb-2 text-2xl font-semibold tracking-tight text-foreground".into(),
-      h3: "mt-6 mb-3 text-xl font-semibold tracking-tight text-foreground".into(),
-      h4: "mt-6 mb-2 text-lg font-semibold text-foreground".into(),
-      h5: "mt-4 mb-2 text-base font-semibold text-foreground".into(),
-      h6: "mt-4 mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground".into(),
-      paragraph: "my-4 leading-7 text-foreground/90".into(),
+      h1: "mt-6 mb-3 text-3xl font-bold tracking-tight text-foreground".into(),
+      h2: "mt-6 mb-2 border-b border-border/60 pb-1 text-2xl font-semibold tracking-tight text-foreground".into(),
+      h3: "mt-5 mb-2 text-xl font-semibold tracking-tight text-foreground".into(),
+      h4: "mt-4 mb-2 text-lg font-semibold text-foreground".into(),
+      h5: "mt-3 mb-1 text-base font-semibold text-foreground".into(),
+      h6: "mt-3 mb-1 text-sm font-semibold uppercase tracking-wide text-muted-foreground".into(),
+      paragraph: "my-2 leading-relaxed text-foreground/90".into(),
       link: "font-medium text-primary underline underline-offset-4 hover:text-primary/80".into(),
       emphasis: "italic".into(),
       strong: "font-semibold text-foreground".into(),
@@ -159,35 +159,35 @@ impl Default for MarkdownClasses {
       inline_code: "rounded border border-border/40 bg-muted/70 px-1.5 py-0.5 font-mono text-[0.85em] text-foreground/90"
         .into(),
       code_block:
-        "my-4 overflow-x-auto rounded-lg border border-border/60 bg-muted/40 p-4 text-sm leading-relaxed font-mono text-foreground/90"
+        "my-3 overflow-x-auto rounded-lg border border-border/60 bg-muted/40 p-3 text-sm leading-relaxed font-mono text-foreground/90"
           .into(),
-      blockquote: "my-4 border-l-4 border-border pl-4 italic text-muted-foreground".into(),
+      blockquote: "my-3 border-l-4 border-border pl-4 italic text-muted-foreground".into(),
       alert_note: AlertClasses {
-        container: "my-4 space-y-2 rounded-md border-l-4 border-blue-500 bg-blue-500/10 px-4 py-3 [&>p]:my-0".into(),
+        container: "my-3 space-y-1 rounded-md border-l-4 border-blue-500 bg-blue-500/10 px-4 py-2 [&>p]:my-0".into(),
         title: "flex items-center gap-2 font-semibold text-blue-600 dark:text-blue-400".into(),
       },
       alert_tip: AlertClasses {
-        container: "my-4 space-y-2 rounded-md border-l-4 border-emerald-500 bg-emerald-500/10 px-4 py-3 [&>p]:my-0".into(),
+        container: "my-3 space-y-1 rounded-md border-l-4 border-emerald-500 bg-emerald-500/10 px-4 py-2 [&>p]:my-0".into(),
         title: "flex items-center gap-2 font-semibold text-emerald-600 dark:text-emerald-400".into(),
       },
       alert_important: AlertClasses {
-        container: "my-4 space-y-2 rounded-md border-l-4 border-violet-500 bg-violet-500/10 px-4 py-3 [&>p]:my-0".into(),
+        container: "my-3 space-y-1 rounded-md border-l-4 border-violet-500 bg-violet-500/10 px-4 py-2 [&>p]:my-0".into(),
         title: "flex items-center gap-2 font-semibold text-violet-600 dark:text-violet-400".into(),
       },
       alert_warning: AlertClasses {
-        container: "my-4 space-y-2 rounded-md border-l-4 border-amber-500 bg-amber-500/10 px-4 py-3 [&>p]:my-0".into(),
+        container: "my-3 space-y-1 rounded-md border-l-4 border-amber-500 bg-amber-500/10 px-4 py-2 [&>p]:my-0".into(),
         title: "flex items-center gap-2 font-semibold text-amber-600 dark:text-amber-400".into(),
       },
       alert_caution: AlertClasses {
-        container: "my-4 space-y-2 rounded-md border-l-4 border-red-500 bg-red-500/10 px-4 py-3 [&>p]:my-0".into(),
+        container: "my-3 space-y-1 rounded-md border-l-4 border-red-500 bg-red-500/10 px-4 py-2 [&>p]:my-0".into(),
         title: "flex items-center gap-2 font-semibold text-red-600 dark:text-red-400".into(),
       },
-      unordered_list: "my-4 ml-6 list-disc space-y-2 marker:text-muted-foreground".into(),
-      ordered_list: "my-4 ml-6 list-decimal space-y-2 marker:text-muted-foreground".into(),
-      list_item: "leading-7 text-foreground/90".into(),
-      image: "my-4 max-w-full rounded-lg border border-border/60".into(),
-      horizontal_rule: "my-8 border-border/60".into(),
-      table: "my-4 w-full border-collapse overflow-hidden rounded-lg border border-border/60 text-sm".into(),
+      unordered_list: "my-2 ml-6 list-disc space-y-1 marker:text-muted-foreground".into(),
+      ordered_list: "my-2 ml-6 list-decimal space-y-1 marker:text-muted-foreground".into(),
+      list_item: "leading-relaxed text-foreground/90".into(),
+      image: "my-3 max-w-full rounded-lg border border-border/60".into(),
+      horizontal_rule: "my-6 border-border/60".into(),
+      table: "my-3 w-full border-collapse overflow-hidden rounded-lg border border-border/60 text-sm".into(),
       table_head: "bg-muted/50".into(),
       table_row: "border-b border-border/40 last:border-0".into(),
       table_header_cell: "px-4 py-2 text-left font-semibold text-foreground".into(),
@@ -196,7 +196,72 @@ impl Default for MarkdownClasses {
   }
 }
 
+impl MarkdownClasses {
+  /// A tighter set of classes for previews — a task card, a list row, a tooltip
+  /// — where a document's own vertical rhythm is more room than the surrounding
+  /// box has. Block spacing collapses to a single small gap, headings drop to
+  /// sizes that sit next to body text, and lines are set solid.
+  ///
+  /// ```
+  /// use impulse_client_kit_blocks::markdown::{render_markdown, MarkdownClasses};
+  ///
+  /// let html = render_markdown("# Title\n\nBody.", &MarkdownClasses::compact());
+  /// assert!(html.contains("my-1"));
+  /// ```
+  pub fn compact() -> Self {
+    let default = Self::default();
+    Self {
+      h1: "mt-2 mb-1 text-lg font-semibold tracking-tight text-foreground".into(),
+      h2: "mt-2 mb-1 text-base font-semibold tracking-tight text-foreground".into(),
+      h3: "mt-2 mb-1 text-sm font-semibold tracking-tight text-foreground".into(),
+      h4: "mt-2 mb-1 text-sm font-semibold text-foreground".into(),
+      h5: "mt-1 mb-0.5 text-sm font-semibold text-foreground".into(),
+      h6: "mt-1 mb-0.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground".into(),
+      paragraph: "my-1 leading-snug text-foreground/90".into(),
+      code_block:
+        "my-1 overflow-x-auto rounded-md border border-border/60 bg-muted/40 p-2 text-xs leading-snug font-mono text-foreground/90"
+          .into(),
+      blockquote: "my-1 border-l-2 border-border pl-3 italic text-muted-foreground".into(),
+      alert_note: AlertClasses {
+        container: "my-1 rounded-md border-l-2 border-blue-500 bg-blue-500/10 px-3 py-1.5 [&>p]:my-0".into(),
+        ..default.alert_note
+      },
+      alert_tip: AlertClasses {
+        container: "my-1 rounded-md border-l-2 border-emerald-500 bg-emerald-500/10 px-3 py-1.5 [&>p]:my-0".into(),
+        ..default.alert_tip
+      },
+      alert_important: AlertClasses {
+        container: "my-1 rounded-md border-l-2 border-violet-500 bg-violet-500/10 px-3 py-1.5 [&>p]:my-0".into(),
+        ..default.alert_important
+      },
+      alert_warning: AlertClasses {
+        container: "my-1 rounded-md border-l-2 border-amber-500 bg-amber-500/10 px-3 py-1.5 [&>p]:my-0".into(),
+        ..default.alert_warning
+      },
+      alert_caution: AlertClasses {
+        container: "my-1 rounded-md border-l-2 border-red-500 bg-red-500/10 px-3 py-1.5 [&>p]:my-0".into(),
+        ..default.alert_caution
+      },
+      unordered_list: "my-1 ml-5 list-disc marker:text-muted-foreground".into(),
+      ordered_list: "my-1 ml-5 list-decimal marker:text-muted-foreground".into(),
+      list_item: "leading-snug text-foreground/90".into(),
+      image: "my-1 max-w-full rounded-md border border-border/60".into(),
+      horizontal_rule: "my-2 border-border/60".into(),
+      table: "my-1 w-full border-collapse overflow-hidden rounded-md border border-border/60 text-xs".into(),
+      table_header_cell: "px-2 py-1 text-left font-semibold text-foreground".into(),
+      table_cell: "px-2 py-1 text-foreground/90".into(),
+      ..default
+    }
+  }
+}
+
 const CONTAINER_BASE: &str = "impulse-markdown w-full max-w-none break-words";
+
+/// The rendered document's own leading and trailing block margins are dropped:
+/// a paragraph's `my-*` belongs *between* blocks, but at the edges it reads as
+/// padding the caller never asked for — which is what makes a short snippet in a
+/// card look like it is floating in the middle of it.
+const CONTENT_TRIM: &str = "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0";
 
 /// Render a Markdown document into an HTML string, injecting the per-element
 /// Tailwind classes from `classes`.
@@ -597,15 +662,24 @@ async fn fetch_markdown(url: &str) -> Result<String, String> {
 ///
 /// * `source` — inline Markdown text or a URL to fetch it from.
 /// * `classes` — per-element Tailwind overrides; defaults follow the Client Kit theme.
+///   Use [`MarkdownClasses::compact`] for previews inside a card or a list row.
 /// * `class` — extra classes for the wrapping container.
 ///
+/// The document's leading and trailing block margins are always trimmed, so the
+/// block starts and ends flush with whatever contains it.
+///
 /// ```rust,ignore
-/// use impulse_client_kit_blocks::markdown::{Markdown, MarkdownSource};
+/// use impulse_client_kit_blocks::markdown::{Markdown, MarkdownClasses, MarkdownSource};
 /// use leptos::prelude::*;
 ///
 /// view! {
 ///   <Markdown source=MarkdownSource::inline("# Title\n\nHello **world**.") />
 ///   <Markdown source=MarkdownSource::url("/docs/readme.md") />
+///   // A tight preview, e.g. a task card on a board.
+///   <Markdown
+///     source=MarkdownSource::inline("Short **description**.")
+///     classes=MarkdownClasses::compact()
+///   />
 /// }
 /// ```
 #[component]
@@ -617,7 +691,7 @@ pub fn Markdown(
   match source {
     MarkdownSource::Inline(text) => {
       let html = render_markdown(&text, &classes);
-      view! { <div class=cn(&[CONTAINER_BASE, class.as_str()]) inner_html=html></div> }.into_any()
+      view! { <div class=cn(&[CONTAINER_BASE, CONTENT_TRIM, class.as_str()]) inner_html=html></div> }.into_any()
     }
     MarkdownSource::Url(url) => {
       let classes = StoredValue::new(classes);
@@ -635,7 +709,7 @@ pub fn Markdown(
         .into_any(),
         Some(Ok(text)) => {
           let html = classes.with_value(|classes| render_markdown(&text, classes));
-          view! { <div inner_html=html></div> }.into_any()
+          view! { <div class=CONTENT_TRIM inner_html=html></div> }.into_any()
         }
         Some(Err(error)) => view! {
           <div class="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -699,6 +773,20 @@ mod tests {
     // Surrounding heading text is still present.
     assert!(html.contains("Hello "));
     assert!(html.contains(" world"));
+  }
+
+  #[test]
+  fn compact_classes_are_tighter_than_the_defaults() {
+    let source = "# Title\n\nFirst paragraph.\n\nSecond paragraph.";
+    let default = render_markdown(source, &MarkdownClasses::default());
+    let compact = render_markdown(source, &MarkdownClasses::compact());
+
+    // Paragraphs keep a gap, but a single-step one.
+    assert!(default.contains("my-2"), "{default}");
+    assert!(compact.contains("my-1"), "{compact}");
+    // Compact headings sit at body-text scale instead of towering over a card.
+    assert!(default.contains("text-3xl"));
+    assert!(!compact.contains("text-3xl"), "{compact}");
   }
 
   #[test]

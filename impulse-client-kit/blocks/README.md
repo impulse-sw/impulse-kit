@@ -96,8 +96,24 @@ view! {
 
   // Fetched from a URL at render time (a spinner shows while loading).
   <Markdown source=MarkdownSource::url("/docs/readme.md") />
+
+  // A tight preview — a task card, a list row, a tooltip.
+  <Markdown
+    source=MarkdownSource::inline("Short **description**.")
+    classes=MarkdownClasses::compact()
+  />
 }
 ```
+
+### Spacing
+
+Block elements carry a single-step vertical rhythm, and the document's own
+leading and trailing margins are trimmed, so the block starts and ends flush
+with whatever contains it instead of padding itself out.
+
+For previews where even that is too much room — a card on a board, a row in a
+list — `MarkdownClasses::compact()` collapses block spacing to a single small gap
+and drops headings to body-text scale.
 
 ### Props
 
@@ -134,6 +150,9 @@ Fields: `h1`–`h6`, `paragraph`, `link`, `emphasis`, `strong`, `strikethrough`,
 `table_header_cell`, `table_cell`, plus one `AlertClasses` per alert kind:
 `alert_note`, `alert_tip`, `alert_important`, `alert_warning`, `alert_caution`
 (each with a `container` and `title` field).
+
+`MarkdownClasses::compact()` is the same set at preview density; it composes with
+overrides the same way (`MarkdownClasses { h1: "…".into(), ..MarkdownClasses::compact() }`).
 
 `render_markdown(input: &str, classes: &MarkdownClasses) -> String` is also
 exposed if you want the HTML string without the component wrapper.

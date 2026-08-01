@@ -1135,6 +1135,17 @@ Read more at the [Impulse Kit repo](https://github.com/impulse-sw/impulse-kit).
 That's it!
 "#;
 
+/// Short document used by the preview-density demo — the kind of text a task
+/// card on a board carries.
+const MARKDOWN_PREVIEW: &str = r#"### Ship the board
+
+Drag a card to move it between columns. The **description** is Markdown, so it
+can carry `code`, a [link](https://github.com/impulse-sw/impulse-kit) or a list:
+
+- one
+- two
+"#;
+
 #[component]
 fn BlocksSection() -> impl IntoView {
   let markdown = RwSignal::new(MARKDOWN_SAMPLE.to_string());
@@ -1435,6 +1446,30 @@ fn BlocksSection() -> impl IntoView {
             <Label>"Rendered output"</Label>
             <div class="min-h-[28rem] overflow-auto rounded-md border bg-card p-4">
               {move || view! { <Markdown source=MarkdownSource::inline(markdown.get()) /> }}
+            </div>
+          </div>
+        </div>
+      </ComponentCard>
+
+      // Preview density.
+      <ComponentCard
+        title="Compact preview"
+        description="MarkdownClasses::compact() — preview density for cards, list rows and tooltips"
+      >
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div class="space-y-2">
+            <Label>"Default"</Label>
+            <div class="rounded-md border bg-card p-3">
+              <Markdown source=MarkdownSource::inline(MARKDOWN_PREVIEW) />
+            </div>
+          </div>
+          <div class="space-y-2">
+            <Label>"Compact"</Label>
+            <div class="rounded-md border bg-card p-3">
+              <Markdown
+                source=MarkdownSource::inline(MARKDOWN_PREVIEW)
+                classes=MarkdownClasses::compact()
+              />
             </div>
           </div>
         </div>

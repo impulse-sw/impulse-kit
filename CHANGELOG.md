@@ -49,6 +49,14 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
 
 ### Fixed
 
+- **`<Markdown>` padded itself out of every tight box it was put in.** A
+  document's block rhythm was set a step too generously (`my-4` paragraphs,
+  `mt-8` headings, `leading-7` lines), and — worse — the first block's top and
+  the last block's bottom margins were rendered too, so a two-line description in
+  a task card floated in the middle of it. Spacing is now one step tighter and
+  the leading/trailing margins are trimmed. `MarkdownClasses::compact()` is a
+  ready-made preview density for cards, list rows and tooltips.
+
 - **SK DSL type parser silently ignored trailing input.** `TypeParser::parse`
   did not require the whole input to be consumed, so malformed types such as
   `HashMap String>` parsed as the bare `HashMap` instead of erroring. It now
