@@ -1202,15 +1202,19 @@ Theme management component. `ThemeProvider` syncs the `<html class="dark">` and 
 
 **Props (ThemeToggle):**
 - `variant`, `size`, `class` - Forwarded to the underlying `Button`
-- `system_icon`, `light_icon`, `dark_icon`: `Option<ViewFn>` - Icon shown for the mode the toggle is currently in
+- `system_icon`, `light_icon`, `dark_icon`: `Option<ViewFn>` - Icon shown for the mode the toggle is currently in; defaults to the built-in monitor / sun / moon
 - `system_text`, `light_text`, `dark_text`: `Option<TextProp>` - Label shown for that mode
-- `children` - Rendered as-is when no per-mode icon or text is given
+- `children` - Rendered instead of the built-in icons when no per-mode icon or text is given
 
 **Example:**
 ```rust
-use impulse_client_kit_components::{icon::Icon, theme::ThemeToggle};
+use impulse_client_kit_components::{button::{ButtonSize, ButtonVariant}, icon::Icon, theme::ThemeToggle};
 
 view! {
+    // Built-in icons: sun for light, moon for dark, monitor for "follow the OS".
+    <ThemeToggle size=ButtonSize::IconSm variant=ButtonVariant::Ghost />
+
+    // Or your own, with labels next to them.
     <ThemeToggle
         system_icon=|| view! { <Icon icon=icondata::LuMonitor /> }
         light_icon=|| view! { <Icon icon=icondata::LuSun /> }

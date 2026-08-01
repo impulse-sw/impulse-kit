@@ -983,13 +983,14 @@ fn UtilityComponentsSection() -> impl IntoView {
             light_text="Light"
             dark_text="Dark"
           />
-          // Icons only.
+          // Bare: the built-in sun / moon / monitor icons.
+          <ThemeToggle variant=ButtonVariant::Ghost size=ButtonSize::IconSm />
+          // Built-in icons with labels next to them.
           <ThemeToggle
-            variant=ButtonVariant::Ghost
-            size=ButtonSize::IconSm
-            system_icon=|| view! { <Icon icon=icondata::LuMonitor /> }
-            light_icon=|| view! { <Icon icon=icondata::LuSun /> }
-            dark_icon=|| view! { <Icon icon=icondata::LuMoon /> }
+            variant=ButtonVariant::Outline
+            system_text="System"
+            light_text="Light"
+            dark_text="Dark"
           />
         </div>
       </ComponentCard>

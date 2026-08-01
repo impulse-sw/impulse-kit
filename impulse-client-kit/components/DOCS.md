@@ -2493,20 +2493,27 @@ use components::theme::{ThemeProvider, ThemeToggle};
     </div>
 </ThemeProvider>
 
-// Theme toggle button
-<ThemeToggle size=ButtonSize::Sm variant=ButtonVariant::Outline>
-    <span>"Toggle Theme"</span>
-</ThemeToggle>
+// Theme toggle button — bare, it shows the built-in icon of the mode it is in
+<ThemeToggle size=ButtonSize::IconSm variant=ButtonVariant::Ghost />
 
-// …or let the toggle label itself with the mode it is currently in
+// …with labels next to the built-in icons
 <ThemeToggle
-    system_icon=|| view! { <Icon icon=icondata::LuMonitor /> }
-    light_icon=|| view! { <Icon icon=icondata::LuSun /> }
-    dark_icon=|| view! { <Icon icon=icondata::LuMoon /> }
     system_text="System"
     light_text="Light"
     dark_text="Dark"
 />
+
+// …with your own icons instead
+<ThemeToggle
+    system_icon=|| view! { <Icon icon=icondata::LuMonitor /> }
+    light_icon=|| view! { <Icon icon=icondata::LuSun /> }
+    dark_icon=|| view! { <Icon icon=icondata::LuMoon /> }
+/>
+
+// …or labelled entirely by hand
+<ThemeToggle size=ButtonSize::Sm variant=ButtonVariant::Outline>
+    <span>"Toggle Theme"</span>
+</ThemeToggle>
 ```
 
 #### Props (ThemeToggle)
@@ -2516,16 +2523,18 @@ use components::theme::{ThemeProvider, ThemeToggle};
 | `variant` | `ButtonVariant` | `Default` | Forwarded to the `Button` |
 | `size` | `ButtonSize` | `Sm` | Forwarded to the `Button` |
 | `class` | `String` | `""` | Additional CSS classes |
-| `system_icon` | `Option<ViewFn>` | - | Icon for the "follow the OS" mode |
-| `light_icon` | `Option<ViewFn>` | - | Icon for the light mode |
-| `dark_icon` | `Option<ViewFn>` | - | Icon for the dark mode |
+| `system_icon` | `Option<ViewFn>` | monitor | Icon for the "follow the OS" mode |
+| `light_icon` | `Option<ViewFn>` | sun | Icon for the light mode |
+| `dark_icon` | `Option<ViewFn>` | moon | Icon for the dark mode |
 | `system_text` | `Option<TextProp>` | - | Label for the "follow the OS" mode |
 | `light_text` | `Option<TextProp>` | - | Label for the light mode |
 | `dark_text` | `Option<TextProp>` | - | Label for the dark mode |
-| `children` | - | - | Rendered as-is when no per-mode icon or text is given |
+| `children` | - | - | Rendered instead of the built-in icons when no per-mode icon or text is given |
 
 The toggle shows the face of the mode it is *currently in*, icon first and text
-after; any subset may be left out. Under `ssr` the mode is unknown to the
+after. The icons default to the built-in sun / moon / monitor, so a bare
+`<ThemeToggle/>` is already a usable control; pass `light_icon=|| ()` for a mode
+that should show no icon at all. Under `ssr` the mode is unknown to the
 component, so the `System` face is rendered and hydration corrects it.
 
 ---

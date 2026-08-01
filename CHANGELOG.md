@@ -45,7 +45,12 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   the button render the face of the mode it is *currently in*, icon first and
   text after. A three-state control that never says which state it is in leaves
   the user to click and find out; each face is optional, and with none of them
-  set the toggle renders its children exactly as before.
+  set the toggle renders its children exactly as before. The three icons now
+  **default to a built-in sun, moon and monitor**, so `<ThemeToggle/>` on its own
+  is a finished icon button — every app that had one was re-drawing the same
+  glyphs (or pulling in an icon set to name them) to get there. An icon prop
+  overrides one mode and leaves the rest built-in; `light_icon=|| ()` drops a
+  mode's icon entirely, and children still replace the label wholesale.
 - **`impulse_client_kit::client::ipc::command`** — the wasm ⇄ Tauri IPC bridge
   for an app's own commands, so a frontend no longer re-declares the `invoke`
   binding to ask the native side something that isn't an HTTP request.

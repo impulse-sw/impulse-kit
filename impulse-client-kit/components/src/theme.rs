@@ -194,12 +194,82 @@ pub fn ThemeProvider(children: Children) -> impl IntoView {
   view! { {children()} }
 }
 
+/// The icon a mode falls back to when the caller named none: a sun, a moon and
+/// a monitor, drawn in the same 24×24 stroked style as the rest of the kit's
+/// built-in glyphs.
+///
+/// A theme control is an icon button in almost every app that has one, so
+/// making every caller supply the same three SVGs (or take on an icon set to
+/// name them) is a toll on the common case. Defaults mean `<ThemeToggle/>` is a
+/// finished control; a caller who wants their own passes it and nothing here
+/// applies. Note that these say which mode the toggle is *in*, not which one it
+/// would switch to — the sun is the light theme, not "go light".
+fn default_icon(mode: ThemeMode) -> AnyView {
+  match mode {
+    ThemeMode::Light => view! {
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="size-4"
+      >
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+      </svg>
+    }
+    .into_any(),
+    ThemeMode::Dark => view! {
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="size-4"
+      >
+        <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+      </svg>
+    }
+    .into_any(),
+    ThemeMode::System => view! {
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="size-4"
+      >
+        <rect width="20" height="14" x="2" y="3" rx="2" />
+        <path d="M8 21h8" />
+        <path d="M12 17v4" />
+      </svg>
+    }
+    .into_any(),
+  }
+}
+
 /// What a [`ThemeToggle`] shows for each mode: an optional icon and an optional
 /// label per mode, any subset of which may be left out.
 ///
-/// A control that cycles through three modes has to say which one it is *in*;
-/// with nothing set, the toggle falls back to rendering its children unchanged,
-/// which is what a caller who labels the button themselves wants.
+/// A control that cycles through three modes has to say which one it is *in*,
+/// so an unset icon falls back to [`default_icon`]. With nothing set at all the
+/// toggle renders its children unchanged instead, which is what a caller who
+/// labels the button themselves wants.
 struct ThemeFaces {
   light_icon: Option<ViewFn>,
   dark_icon: Option<ViewFn>,
@@ -237,18 +307,27 @@ impl ThemeFaces {
   }
 }
 
-/// The toggle's label: the current mode's icon and text when either was given,
-/// the children otherwise.
+/// The toggle's label: the current mode's icon and text, the children instead
+/// when the caller gave no face at all and did give children.
+///
+/// Children are the "I label this button myself" escape hatch, so the built-in
+/// icons stay out of their way; naming even one face opts back into the
+/// per-mode rendering, and the modes left unnamed get the default icon.
 fn theme_faces_view(faces: ThemeFaces, mode: Signal<ThemeMode>, children: Option<Children>) -> AnyView {
-  if faces.is_empty() {
-    return match children {
-      Some(children) => children().into_any(),
-      None => ().into_any(),
-    };
+  if faces.is_empty()
+    && let Some(children) = children
+  {
+    return children().into_any();
   }
 
   let faces = StoredValue::new(faces);
-  let icon = move || faces.with_value(|faces| faces.icon(mode.get()).map(|icon| icon.run()));
+  let icon = move || {
+    let mode = mode.get();
+    faces.with_value(|faces| match faces.icon(mode) {
+      Some(icon) => icon.run(),
+      None => default_icon(mode),
+    })
+  };
   let text = move || {
     faces.with_value(|faces| {
       faces
@@ -266,10 +345,17 @@ fn theme_faces_view(faces: ThemeFaces, mode: Signal<ThemeMode>, children: Option
 
 /// A button that cycles the theme: system → light → dark → system.
 ///
-/// Left bare it renders its children, so a caller can label it however they
-/// like. Pass any of the six per-mode props and it shows the face of the mode
-/// it is *currently* in instead — the icon first, then the text, both optional
-/// and both settable per mode:
+/// Left bare it is already a working icon button: it shows the face of the mode
+/// it is *currently* in, using the built-in sun / moon / monitor icons.
+///
+/// ```rust,ignore
+/// view! { <ThemeToggle size=ButtonSize::IconSm variant=ButtonVariant::Ghost /> }
+/// ```
+///
+/// Any of the six per-mode props replaces a face — the icon first, then the
+/// text, both optional and both settable per mode. An icon left unset keeps the
+/// built-in one, so overriding a single mode is one prop, and a mode that should
+/// show no icon at all takes `light_icon=|| ()`:
 ///
 /// ```rust,ignore
 /// view! {
@@ -284,6 +370,9 @@ fn theme_faces_view(faces: ThemeFaces, mode: Signal<ThemeMode>, children: Option
 /// }
 /// ```
 ///
+/// Children replace the whole label — with them and no per-mode prop the button
+/// renders exactly what it was given and no built-in icon.
+///
 /// Under `ssr` the mode is not known to the component (the SSR handler resolves
 /// it from the theme cookie), so the `System` face is rendered and hydration
 /// corrects it.
@@ -293,13 +382,13 @@ pub fn ThemeToggle(
   #[prop(optional)] variant: ButtonVariant,
   #[prop(optional)] size: ButtonSize,
   #[prop(into, optional)] class: String,
-  /// Shown while the theme follows the operating system.
+  /// Shown while the theme follows the operating system. Defaults to a monitor.
   #[prop(into, optional)]
   system_icon: Option<ViewFn>,
-  /// Shown while the theme is pinned to light.
+  /// Shown while the theme is pinned to light. Defaults to a sun.
   #[prop(into, optional)]
   light_icon: Option<ViewFn>,
-  /// Shown while the theme is pinned to dark.
+  /// Shown while the theme is pinned to dark. Defaults to a moon.
   #[prop(into, optional)]
   dark_icon: Option<ViewFn>,
   /// Label for the "follow the operating system" mode.
@@ -311,7 +400,8 @@ pub fn ThemeToggle(
   /// Label for the dark mode.
   #[prop(into, optional)]
   dark_text: Option<TextProp>,
-  /// Rendered as-is when no per-mode icon or text was given.
+  /// Rendered as-is, in place of the built-in icons, when no per-mode icon or
+  /// text was given.
   #[prop(optional)]
   children: Option<Children>,
 ) -> impl IntoView {
