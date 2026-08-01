@@ -271,7 +271,8 @@ fn picker(config: PickerConfig) -> AnyView {
             view! { <CalendarIcon /> }.into_any()
           } else {
             view! { <ClockIcon /> }.into_any()
-          }} <span class="truncate">{label}</span>
+          }}
+          <span class="truncate">{label}</span>
         </button>
 
         // Clearing is the one action worth a shortcut: a field that can hold
