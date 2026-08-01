@@ -29,7 +29,7 @@ use components::radio_group::*;
 use components::select::*;
 use components::slider::Slider;
 use components::switch::Switch;
-use components::textarea::Textarea;
+use components::textarea::{Textarea, TextareaSizing};
 
 // Layout Components
 use components::accordion::*;
@@ -274,6 +274,7 @@ fn BasicComponentsSection() -> impl IntoView {
 fn FormComponentsSection() -> impl IntoView {
   let email = RwSignal::new(String::new());
   let description = RwSignal::new(String::new());
+  let autosize = RwSignal::new(String::new());
   let is_checked = RwSignal::new(false);
   let is_enabled = RwSignal::new(true);
   let selected_option = RwSignal::new(String::new());
@@ -295,7 +296,7 @@ fn FormComponentsSection() -> impl IntoView {
       // Textarea
       <ComponentCard
         title="Textarea"
-        description="Multi-line text input; drag the grabber underneath to resize"
+        description="Multi-line text input; drag the grabber underneath, or let the text set the height"
       >
         <div class="space-y-4">
           <Textarea value=description placeholder="Enter description..." class="min-h-[100px]" />
@@ -304,6 +305,19 @@ fn FormComponentsSection() -> impl IntoView {
             placeholder="Fixed height (resizable=false)..."
             class="min-h-[100px]"
             resizable=false
+          />
+          <Textarea
+            value=autosize
+            placeholder="Grows with the text, never scrolls inside..."
+            rows=1
+            resizable=TextareaSizing::Auto
+          />
+          <Textarea
+            value=autosize
+            placeholder="The same, but stops at five rows..."
+            rows=1
+            resizable=TextareaSizing::Auto
+            max_rows=5
           />
         </div>
       </ComponentCard>

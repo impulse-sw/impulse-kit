@@ -385,7 +385,7 @@ Multi-line text input.
 #### Import
 
 ```rust
-use components::textarea::Textarea;
+use components::textarea::{Textarea, TextareaSizing};
 ```
 
 #### Props
@@ -396,23 +396,40 @@ use components::textarea::Textarea;
 | `placeholder` | `String` | `""` | Placeholder text |
 | `disabled` | `bool` | `false` | Disabled state |
 | `rows` | `Option<i32>` | `4` | Number of visible rows |
-| `resizable` | `Option<bool>` | `true` | Render the drag grabber under the field |
+| `resizable` | `TextareaSizing` | `Grabber` | Where the height comes from; `true`/`false` still work |
+| `max_rows` | `Option<i32>` | `None` | `Auto` only: rows to grow to before scrolling |
 | `class` | `String` | `""` | Additional CSS classes |
 
-#### Resizing
+#### Sizing
 
 The native corner grip is always off — it is drawn by the platform, and on
-Android it is a barely-visible white speck most users never find. In its place
-the field gets a pill-shaped grabber centred underneath it (`mt-2` below the
-field), which looks and behaves the same on every platform: drag it with a
-mouse, a finger or a pen, or focus it and use ↑/↓. Pass `resizable=false` to
-drop it and keep whatever height the classes give the field.
+Android it is a barely-visible white speck most users never find. What replaces
+it is the `resizable` prop, a `TextareaSizing`:
+
+| Mode | Behaviour |
+|------|-----------|
+| `Grabber` (default) | A pill-shaped grabber centred under the field (`mt-2` below it), the same on every platform: drag it with a mouse, a finger or a pen, or focus it and use ↑/↓. |
+| `Fixed` | No handle; the field keeps whatever height `rows` and the classes give it. |
+| `Auto` | The text decides: the field grows as lines are added, shrinks as they go, and never scrolls inside itself. |
+
+`resizable=true` and `resizable=false` still mean `Grabber` and `Fixed`, so
+existing call sites keep working.
 
 #### Height
 
 The field opens `rows` lines tall (four by default). The base styling sets no
 `min-height` of its own, so a taller field is `class="min-h-[50vh]"` (or
 `h-…`) and nothing competes with it.
+
+Under `Auto` those same two numbers become bounds rather than a fixed size:
+`rows` (and any `min-h-…`) is the floor the empty field starts at, and
+`max_rows` — if given — is the ceiling where growth stops and the field's own
+scrollbar comes back. Without `max_rows` it grows for as long as the text does,
+and the page scrolls instead. A `max_rows` below `rows` wins.
+
+The height is measured after every change to the value and whenever the field's
+width changes (the same text wraps into more lines in a narrower field), so a
+value set from elsewhere in the app resizes it just as typing does.
 
 #### Examples
 
@@ -429,12 +446,28 @@ let description = RwSignal::new(String::new());
 <Textarea
     value=description
     placeholder="Write your message..."
-    rows=Some(6)
+    rows=6
     class="min-h-[150px]"
 />
 
 // Fixed height — no grabber
 <Textarea value=description resizable=false />
+
+// Grows with the text, from one line, without ever scrolling inside
+<Textarea
+    value=description
+    placeholder="Write a comment..."
+    rows=1
+    resizable=TextareaSizing::Auto
+/>
+
+// The same, but stops growing at ten lines and scrolls from there
+<Textarea
+    value=description
+    rows=1
+    resizable=TextareaSizing::Auto
+    max_rows=10
+/>
 ```
 
 ---

@@ -8,6 +8,21 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
 
 ### Added
 
+- **`<Textarea>` can let the text set its height.** The `resizable` prop is now
+  a `TextareaSizing` — `Grabber` (the pill handle, still the default), `Fixed`
+  (no handle at all), or the new `Auto`, where the field grows as lines are
+  added, shrinks as they go, and never scrolls inside itself. A comment box that
+  starts as one line and opens up as it is written is `rows=1
+  resizable=TextareaSizing::Auto`; add `max_rows=10` to stop the growth
+  somewhere and hand the rest back to a scrollbar, or leave it out and let the
+  page do the scrolling. `rows` and any `min-h-…` stay meaningful as the floor.
+  The height is re-measured after every change to the value — a `value.set` from
+  elsewhere resizes the field exactly as typing does — and whenever the field's
+  width changes, since the same text wraps into more lines in a narrower box.
+  `resizable=true` / `resizable=false` still compile and still mean `Grabber` /
+  `Fixed`, which is every call the old `Option<bool>` prop ever accepted — so no
+  existing call site has to change.
+
 - **The Tauri engine reports a no-connection state.** Every response
   `impulse-tauri-engine` produces without reaching the server — a locally-served
   success as much as a "not available offline" error — now carries the

@@ -24,11 +24,35 @@ const KEYBOARD_STEP: f64 = 16.0;
 /// A floor for the dragged height; CSS `min-height` still applies on top of it.
 const MIN_HEIGHT: f64 = 32.0;
 
-/// A multi-line text field with a drag handle underneath.
+/// Where a [`Textarea`]'s height comes from.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TextareaSizing {
+  /// The reader sets it, by dragging the grabber under the field.
+  #[default]
+  Grabber,
+  /// Whatever `rows` and the classes say, and nothing moves it afterwards.
+  Fixed,
+  /// The text sets it: the field grows as lines are added, shrinks as they go,
+  /// and never scrolls inside itself — `rows` is the floor it starts from and
+  /// `max_rows`, if given, the ceiling where scrolling comes back.
+  Auto,
+}
+
+impl From<bool> for TextareaSizing {
+  /// Keeps `resizable=true` / `resizable=false` meaning what they always did.
+  fn from(grabber: bool) -> Self {
+    if grabber { Self::Grabber } else { Self::Fixed }
+  }
+}
+
+/// A multi-line text field, sized one of three ways.
 ///
-/// * `resizable` — render the grabber. `true` by default; with `false` the field
-///   keeps whatever height its classes give it. The *native* resizer is off
-///   either way.
+/// * `resizable` — a [`TextareaSizing`]; `Grabber` by default. `false` still
+///   spells `Fixed` and `true` still spells `Grabber`. The *native* corner
+///   resizer is off in every mode.
+/// * `max_rows` — `Auto` only: the height at which the field stops growing and
+///   starts scrolling. Left out, it grows without limit. Set below `rows`, it
+///   wins.
 ///
 /// The field opens `rows` lines tall (four by default) and nothing in the base
 /// styling fixes a height beyond that, so `class="min-h-…"` / `class="h-…"` is
@@ -43,17 +67,54 @@ pub fn Textarea(
   #[prop(optional, into)] placeholder: String,
   #[prop(optional)] disabled: bool,
   #[prop(optional)] rows: Option<i32>,
-  #[prop(optional, into)] resizable: Option<bool>,
+  #[prop(optional, into)] resizable: TextareaSizing,
+  #[prop(optional)] max_rows: Option<i32>,
 ) -> impl IntoView {
-  let resizable = resizable.unwrap_or(true);
   let textarea_ref = NodeRef::<leptos::html::Textarea>::new();
+
+  if resizable == TextareaSizing::Auto {
+    use leptos_use::use_resize_observer;
+
+    // Every change to the text can change the line count — typing, a paste, or
+    // a `value.set` from elsewhere. Measuring in a frame callback is what the
+    // rest of the kit does: by then the new text is in the DOM, and it is still
+    // before the next paint, so no frame is ever drawn a line short.
+    Effect::new(move |_| {
+      value.track();
+      request_animation_frame(move || fit_to_content(textarea_ref, max_rows));
+    });
+
+    // The same text wraps into more lines in a narrower field, and no amount of
+    // watching the value will show that. Only the width is worth reacting to:
+    // the height is what we just set, and re-fitting on our own change would
+    // hand the observer its own tail to chase.
+    let last_width = StoredValue::new(-1);
+    use_resize_observer(textarea_ref, move |_, _| {
+      let Some(el) = textarea_ref.get_untracked() else {
+        return;
+      };
+      let width = el.client_width();
+      if width != last_width.get_value() {
+        last_width.set_value(width);
+        fit_to_content(textarea_ref, max_rows);
+      }
+    });
+  }
+
+  // Until the first measurement lands, `overflow-hidden` keeps a scrollbar from
+  // flashing up in a field that is about to grow past the need for one.
+  let sizing_classes = match resizable {
+    TextareaSizing::Auto => "overflow-hidden",
+    _ => "",
+  };
+  let show_grabber = resizable == TextareaSizing::Grabber && !disabled;
 
   view! {
     <div data-slot="textarea-wrapper" class="flex w-full flex-col">
       <textarea
         node_ref=textarea_ref
         data-slot="textarea"
-        class=cn(&[BASE_CLASSES.to_string(), class])
+        class=cn(&[BASE_CLASSES, sizing_classes, class.as_str()])
         prop:value=value
         placeholder=placeholder
         disabled=disabled
@@ -62,11 +123,55 @@ pub fn Textarea(
           value.set(ev.target().value());
         }
       />
-      <Show when=move || resizable && !disabled>
+      <Show when=move || show_grabber>
         <TextareaResizeHandle textarea_ref=textarea_ref />
       </Show>
     </div>
   }
+}
+
+/// Sets an `Auto` field's height to exactly what its text needs.
+///
+/// The `rows` attribute is the floor and `max_rows` the ceiling; between them the
+/// field is as tall as its content and shows no scrollbar of its own.
+fn fit_to_content(textarea_ref: NodeRef<leptos::html::Textarea>, max_rows: Option<i32>) {
+  let Some(textarea) = textarea_ref.get_untracked() else {
+    return;
+  };
+  let el: &HtmlElement = textarea.as_ref();
+  let style = el.style();
+
+  // `auto` first, or the field could never shrink again: `scroll_height` reports
+  // the taller of the content and the box it is already in. Left to itself a
+  // textarea is exactly `rows` lines tall, which makes this measurement the
+  // floor as well.
+  let _ = style.set_property("height", "auto");
+  let floor = el.offset_height();
+  // `scroll_height` counts the padding but not the border, while `box-sizing:
+  // border-box` puts the border inside `height`. The gap between the offset and
+  // client heights is that border — cheaper and surer than parsing computed
+  // widths, and with wrapping on there is never a horizontal scrollbar in it.
+  let content = el.scroll_height() + (floor - el.client_height()).max(0);
+
+  // A ceiling is given in rows, so let the browser do the row arithmetic — the
+  // same "no height of its own" measurement, with `rows` borrowed for a moment.
+  let ceiling = max_rows.map(|max_rows| {
+    let asked = textarea.rows();
+    textarea.set_rows(max_rows.max(1) as u32);
+    let ceiling = el.offset_height();
+    textarea.set_rows(asked);
+    ceiling
+  });
+
+  let mut height = content.max(floor);
+  if let Some(ceiling) = ceiling {
+    height = height.min(ceiling);
+  }
+  let _ = style.set_property("height", &format!("{height}px"));
+  // Below the ceiling there is nothing to scroll to; at it, scrolling is the
+  // only way to reach the rest of the text.
+  let overflowing = ceiling.is_some_and(|ceiling| content > ceiling);
+  let _ = style.set_property("overflow-y", if overflowing { "auto" } else { "hidden" });
 }
 
 /// The grabber: an old-iOS-style pill under the field, dragged to resize it.

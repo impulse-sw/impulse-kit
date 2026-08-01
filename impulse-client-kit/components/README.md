@@ -329,7 +329,8 @@ Multi-line text input. The platform's own corner grip is replaced by a pill-shap
 **Props:**
 - `class`: `String` - Additional CSS classes
 - `value`: `RwSignal<String>` - Reactive value binding
-- `resizable`: `Option<bool>` - Render the grabber (default `true`)
+- `resizable`: `TextareaSizing` - `Grabber` (default), `Fixed`, or `Auto` — grows with the text and never scrolls inside. `true`/`false` still spell the first two.
+- `max_rows`: `Option<i32>` - `Auto` only: where growth stops and scrolling starts
 - Additional textarea-specific props
 
 **Example:**
@@ -340,6 +341,8 @@ let description = RwSignal::new(String::new());
 
 view! {
     <Textarea value=description />
+    // A comment box that follows its text, one line to ten.
+    <Textarea value=description rows=1 resizable=TextareaSizing::Auto max_rows=10 />
 }
 ```
 

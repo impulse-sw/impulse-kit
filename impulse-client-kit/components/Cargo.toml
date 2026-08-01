@@ -38,7 +38,12 @@ codee = "0.3.3"
 icondata = { workspace = true }
 impulse-client-kit = { workspace = true }
 leptos = { version = "0.8", default-features = false }
-leptos-use = { version = "0.16", default-features = false }
+# `use_resize_observer` keeps an auto-sizing `Textarea` honest when the field's
+# width changes: the same text wraps into more lines in a narrower box, and
+# nothing in the value says so. leptos-use gates every hook behind a feature of
+# its own name, and this one is used unconditionally, so it belongs here rather
+# than in the csr/hydrate/ssr lists.
+leptos-use = { version = "0.16", default-features = false, features = ["use_resize_observer"] }
 uuid = { version = "1.18.1", features = ["v4", "js"] }
 web-sys = { version = "0.3.82", features = [
   "ClipboardEvent",
