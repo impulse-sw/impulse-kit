@@ -600,7 +600,7 @@ use components::select::*;
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `size` | `SelectTriggerSize` | `Default` | Trigger size |
+| `size` | `SelectTriggerSize` | `Sm` | Trigger height: `Sm` (`h-8`), `Middle` (`h-9`), `Lg` (`h-10`) — the same scale as `ButtonSize` |
 | `disabled` | `bool` | `false` | Disabled state |
 | `class` | `String` | `""` | Additional CSS classes |
 

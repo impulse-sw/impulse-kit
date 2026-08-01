@@ -35,6 +35,13 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
 
 ### Changed
 
+- **Selects are button-sized.** `SelectTriggerSize` now mirrors `ButtonSize` one
+  for one — `Sm` (`h-8`, the default), `Middle` (`h-9`), `Lg` (`h-10`) — so a
+  select in a row of buttons no longer stands a step taller than everything
+  around it. `NativeSelect` takes the same `size` prop and follows the same
+  scale. *Breaking:* `SelectTriggerSize::Default` is gone; it was `h-9`, so pass
+  `SelectTriggerSize::Middle` to keep the old height, or drop the prop to get the
+  button-matching one.
 - **The engine reports where a request's time went** — network versus local store
   — at debug level, and as a `slow request: …` warning past 750 ms. A local
   backend is written while the UI waits for the response, so a slow store is

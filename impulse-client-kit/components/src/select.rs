@@ -7,18 +7,28 @@ use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 use web_sys::{Element, HtmlElement};
 
+/// Trigger height, mirroring [`ButtonSize`](crate::button::ButtonSize) one for
+/// one: a trigger placed next to a button of the same size lines up with it,
+/// and the defaults of the two match — so a select dropped into a row of
+/// buttons no longer stands a step taller than everything around it.
 #[derive(Clone, Copy, PartialEq, Default)]
 pub enum SelectTriggerSize {
-  Sm,
+  /// `h-8` — same as `ButtonSize::Sm` and [`Input`](crate::input::Input).
   #[default]
-  Default,
+  Sm,
+  /// `h-9` — same as `ButtonSize::Middle`.
+  Middle,
+  /// `h-10` — same as `ButtonSize::Lg`.
+  Lg,
 }
 
 impl SelectTriggerSize {
-  fn as_str(&self) -> &'static str {
+  /// The `data-size` attribute value the height classes key off.
+  pub fn as_str(&self) -> &'static str {
     match self {
       SelectTriggerSize::Sm => "sm",
-      SelectTriggerSize::Default => "default",
+      SelectTriggerSize::Middle => "middle",
+      SelectTriggerSize::Lg => "lg",
     }
   }
 }
@@ -128,7 +138,7 @@ pub fn SelectTrigger(
       disabled=disabled
       class=cn(
         &[
-          "border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50 flex w-fit items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+          "border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50 flex w-fit items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-1 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[size=sm]:h-8 data-[size=middle]:h-9 data-[size=lg]:h-10 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
           class.as_str(),
         ],
       )

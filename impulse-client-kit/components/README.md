@@ -438,7 +438,7 @@ Dropdown select component with rich features.
 - `on_value_change`: `Option<Callback<String>>` - Value change handler
 
 **Props (SelectTrigger):**
-- `size`: `SelectTriggerSize` - Size variant (Sm, Default)
+- `size`: `SelectTriggerSize` - Height, mirroring `ButtonSize`: `Sm` (`h-8`, default), `Middle` (`h-9`), `Lg` (`h-10`)
 - `disabled`: `bool` - Disable interaction
 - `class`: `String` - Additional CSS classes
 
