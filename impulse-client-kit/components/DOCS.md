@@ -56,6 +56,7 @@ A comprehensive component library for building modern web applications with [Lep
   - [Table](#table)
   - [Avatar](#avatar)
   - [Calendar](#calendar)
+  - [Date and time pickers](#date-and-time-pickers)
 - [Interactive Components](#interactive-components)
   - [Toggle](#toggle)
   - [Toggle Group](#toggle-group)
@@ -2168,6 +2169,9 @@ use components::calendar::*;
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `selected` | `RwSignal<CalendarSelection>` | - | Selected date(s) |
+| `mode` | `CalendarMode` | `Single` | `Single`, `Multiple` or `Range` |
+| `month` | `Option<RwSignal<NaiveDate>>` | current month | The month on display; pass a signal to drive it from outside |
+| `min_date` / `max_date` | `Option<NaiveDate>` | - | Selectable range |
 | `class` | `String` | `""` | Additional CSS classes |
 
 #### Examples
@@ -2176,6 +2180,66 @@ use components::calendar::*;
 let selected_date = RwSignal::new(CalendarSelection::None);
 
 <Calendar selected=selected_date class="rounded-md border" />
+```
+
+---
+
+### Date and time pickers
+
+`DatePicker`, `TimePicker` and `DateTimePicker` — a field plus a `Dialog` built
+out of `Calendar` and custom hour/minute steppers. Nothing here uses
+`<input type="date">` / `<input type="time">`: the native widgets differ on every
+platform, and on Linux webviews they pre-fill themselves, so a field the user
+never touched still reports a date and "not set" cannot be expressed.
+
+The value is `Option<NaiveDateTime>`. It starts as `None` unless `default_value`
+says otherwise, an ✕ next to the field clears it, and the dialog's *Cancel*
+leaves it untouched.
+
+#### Import
+
+```rust
+use components::date_picker::{DatePicker, DateTimeMode, DateTimePicker, TimePicker};
+```
+
+#### Props (DateTimePicker)
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `value` | `Option<RwSignal<Option<NaiveDateTime>>>` | - | Controlled value |
+| `default_value` | `Option<NaiveDateTime>` | `None` | Initial value when uncontrolled |
+| `mode` | `DateTimeMode` | `DateTime` | `Date`, `Time` or `DateTime` |
+| `on_change` | `Option<Callback<Option<NaiveDateTime>>>` | - | Fired on every commit, clearing included |
+| `min_date` / `max_date` | `Option<NaiveDate>` | - | Passed to the calendar |
+| `minute_step` | `Option<u32>` | `1` | Step of the minute stepper (clamped to 1–30) |
+| `clearable` | `Option<bool>` | `true` | Offer ✕ and *Clear* |
+| `disabled` | `bool` | `false` | Disabled state |
+| `placeholder` | `String` | per mode | Shown while the value is `None` |
+| `format` | `String` | per mode | `strftime` pattern for the trigger label |
+| `title`, `clear_label`, `cancel_label`, `confirm_label` | `String` | English defaults | Dialog wording |
+| `class` | `String` | `""` | Additional CSS classes |
+
+`DatePicker` and `TimePicker` take the same props minus `mode` (and minus the
+ones their mode has no use for).
+
+#### Examples
+
+```rust
+let deadline = RwSignal::new(None::<NaiveDateTime>);
+
+// Empty until picked, and clearable back to None.
+<DateTimePicker value=deadline placeholder="No deadline" />
+
+// Date only, within a range, in Russian.
+<DatePicker
+    value=deadline
+    min_date=NaiveDate::from_ymd_opt(2026, 1, 1).unwrap()
+    title="Выберите дату"
+    placeholder="Не задано"
+/>
+
+// Time only, in five-minute steps.
+<TimePicker value=deadline minute_step=5 />
 ```
 
 ---

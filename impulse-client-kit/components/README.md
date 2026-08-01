@@ -1061,12 +1061,31 @@ Calendar component.
 
 ### Date Picker
 
-Date selection component.
+`DatePicker`, `TimePicker` and `DateTimePicker`: a field plus a `Dialog` built out of `Calendar` and custom hour/minute steppers — no `<input type="date">` anywhere, since the native widget differs on every platform and pre-fills itself on Linux webviews.
+
+The value is `Option<NaiveDateTime>`, starts empty unless `default_value` says otherwise, and can be cleared back to `None`.
 
 **Props:**
-- Calendar popup
-- Date input
-- Range selection
+- `value`: `Option<RwSignal<Option<NaiveDateTime>>>` - Controlled value
+- `default_value`: `Option<NaiveDateTime>` - Initial value (`None` by default)
+- `mode`: `DateTimeMode` - `Date`, `Time` or `DateTime` (`DateTimePicker` only)
+- `on_change`: `Option<Callback<Option<NaiveDateTime>>>` - Fired on every commit, clearing included
+- `min_date` / `max_date`: `Option<NaiveDate>` - Passed to the calendar
+- `minute_step`: `Option<u32>` - Step of the minute stepper (default `1`)
+- `clearable`: `Option<bool>` - Offer ✕ and *Clear* (default `true`)
+- `placeholder`, `format`, `title`, `clear_label`, `cancel_label`, `confirm_label`: `String` - Wording and label format
+- `disabled`: `bool`, `class`: `String`
+
+**Example:**
+```rust
+use impulse_client_kit_components::date_picker::*;
+
+let deadline = RwSignal::new(None::<chrono::NaiveDateTime>);
+
+view! {
+    <DateTimePicker value=deadline placeholder="No deadline" />
+}
+```
 
 ### Avatar
 

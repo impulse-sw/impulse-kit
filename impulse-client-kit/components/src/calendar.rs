@@ -22,12 +22,17 @@ pub fn Calendar(
   #[prop(optional)] caption_layout: CaptionLayout,
   #[prop(optional)] min_date: Option<NaiveDate>,
   #[prop(optional)] max_date: Option<NaiveDate>,
+  /// The month on display. Pass a signal to control it from outside — a picker
+  /// opening on the month of the date already chosen, say. Defaults to the
+  /// current month, uncontrolled.
+  #[prop(optional)]
+  month: Option<RwSignal<NaiveDate>>,
   #[prop(optional, into)] class: String,
 ) -> impl IntoView {
   let selected = selected.unwrap_or_else(|| RwSignal::new(CalendarSelection::None));
   let show_week_numbers = show_week_numbers.unwrap_or(false);
 
-  let current_month = RwSignal::new(Local::now().naive_local().date());
+  let current_month = month.unwrap_or_else(|| RwSignal::new(Local::now().naive_local().date()));
   let focused_day = RwSignal::new(None::<NaiveDate>);
 
   let disabled_dates = disabled.unwrap_or_else(|| Signal::derive(Vec::new));

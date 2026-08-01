@@ -782,6 +782,8 @@ fn FeedbackComponentsSection() -> impl IntoView {
 #[component]
 fn DataDisplayComponentsSection() -> impl IntoView {
   let selected_date = RwSignal::new(CalendarSelection::None);
+  // Shared by the three pickers below, and empty until something is picked.
+  let deadline = RwSignal::new(None::<chrono::NaiveDateTime>);
 
   view! {
     <div class="space-y-8">
@@ -832,6 +834,35 @@ fn DataDisplayComponentsSection() -> impl IntoView {
       // Calendar
       <ComponentCard title="Calendar" description="Calendar date picker">
         <Calendar selected=selected_date class="rounded-md border" />
+      </ComponentCard>
+
+      // Date / time pickers
+      <ComponentCard
+        title="Date and time pickers"
+        description="Custom dialogs on top of Calendar — nothing native, and the value starts (and can go back to) empty"
+      >
+        <div class="grid gap-4 sm:grid-cols-3">
+          <div class="space-y-2">
+            <Label>"Date"</Label>
+            <DatePicker value=deadline />
+          </div>
+          <div class="space-y-2">
+            <Label>"Time"</Label>
+            <TimePicker value=deadline minute_step=5 />
+          </div>
+          <div class="space-y-2">
+            <Label>"Date and time"</Label>
+            <DateTimePicker value=deadline placeholder="No deadline" />
+          </div>
+        </div>
+        <p class="mt-4 text-sm text-muted-foreground">
+          "Value: "
+          <code class="font-mono">
+            {move || {
+              deadline.get().map(|dt| dt.to_string()).unwrap_or_else(|| "None".to_string())
+            }}
+          </code>
+        </p>
       </ComponentCard>
     </div>
   }

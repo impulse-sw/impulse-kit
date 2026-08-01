@@ -29,6 +29,17 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   name the requests worth running purely to fill the local store; the engine runs
   them while online, authenticating each through `prepare_outgoing` (they never
   passed through the UI, so nothing else would).
+- **Date and time pickers that are actually nullable.** `DatePicker` gained a
+  working implementation and two siblings, `TimePicker` and `DateTimePicker`,
+  all built out of `Dialog`, `Calendar` and custom hour/minute steppers — no
+  `<input type="date">` / `<input type="time">` anywhere. The native widgets are
+  a different control on every platform, and on Linux webviews they pre-fill
+  themselves: a field the user never touched still handed back a date, so "no
+  deadline" could not be expressed at all. The value is `Option<NaiveDateTime>`,
+  starts `None` unless `default_value` says otherwise, and an ✕ next to the
+  field (or *Clear* in the dialog) puts it back. Wording — title, placeholder,
+  button labels, `strftime` format — is settable, and `Calendar` took an
+  optional `month` signal so the dialog opens on the month already chosen.
 - **`ThemeToggle` can label itself.** Six new optional props — `system_icon`,
   `light_icon`, `dark_icon` and `system_text`, `light_text`, `dark_text` — make
   the button render the face of the mode it is *currently in*, icon first and
