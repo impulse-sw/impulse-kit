@@ -1178,12 +1178,29 @@ Empty state component.
 
 ### Theme
 
-Theme management component.
+Theme management component. `ThemeProvider` syncs the `<html class="dark">` and the SSR cookie; `ThemeToggle` cycles system → light → dark → system.
 
-**Props:**
-- Theme switching
-- CSS variable management
-- Dark/light mode
+**Props (ThemeToggle):**
+- `variant`, `size`, `class` - Forwarded to the underlying `Button`
+- `system_icon`, `light_icon`, `dark_icon`: `Option<ViewFn>` - Icon shown for the mode the toggle is currently in
+- `system_text`, `light_text`, `dark_text`: `Option<TextProp>` - Label shown for that mode
+- `children` - Rendered as-is when no per-mode icon or text is given
+
+**Example:**
+```rust
+use impulse_client_kit_components::{icon::Icon, theme::ThemeToggle};
+
+view! {
+    <ThemeToggle
+        system_icon=|| view! { <Icon icon=icondata::LuMonitor /> }
+        light_icon=|| view! { <Icon icon=icondata::LuSun /> }
+        dark_icon=|| view! { <Icon icon=icondata::LuMoon /> }
+        system_text="System"
+        light_text="Light"
+        dark_text="Dark"
+    />
+}
+```
 
 ### Item
 

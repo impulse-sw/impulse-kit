@@ -926,11 +926,29 @@ fn UtilityComponentsSection() -> impl IntoView {
 
       // Theme
       <ComponentCard title="Theme" description="Theme management and toggle">
-        <div class="flex items-center gap-4">
+        <div class="flex flex-wrap items-center gap-4">
           <span>"Current theme controls:"</span>
           <ThemeToggle>
             <span>"Toggle Theme"</span>
           </ThemeToggle>
+          // Per-mode faces: the toggle shows the mode it is currently in.
+          <ThemeToggle
+            variant=ButtonVariant::Outline
+            system_icon=|| view! { <Icon icon=icondata::LuMonitor /> }
+            light_icon=|| view! { <Icon icon=icondata::LuSun /> }
+            dark_icon=|| view! { <Icon icon=icondata::LuMoon /> }
+            system_text="System"
+            light_text="Light"
+            dark_text="Dark"
+          />
+          // Icons only.
+          <ThemeToggle
+            variant=ButtonVariant::Ghost
+            size=ButtonSize::IconSm
+            system_icon=|| view! { <Icon icon=icondata::LuMonitor /> }
+            light_icon=|| view! { <Icon icon=icondata::LuSun /> }
+            dark_icon=|| view! { <Icon icon=icondata::LuMoon /> }
+          />
         </div>
       </ComponentCard>
 

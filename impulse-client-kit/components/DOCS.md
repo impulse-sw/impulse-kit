@@ -2420,7 +2420,36 @@ use components::theme::{ThemeProvider, ThemeToggle};
 <ThemeToggle size=ButtonSize::Sm variant=ButtonVariant::Outline>
     <span>"Toggle Theme"</span>
 </ThemeToggle>
+
+// …or let the toggle label itself with the mode it is currently in
+<ThemeToggle
+    system_icon=|| view! { <Icon icon=icondata::LuMonitor /> }
+    light_icon=|| view! { <Icon icon=icondata::LuSun /> }
+    dark_icon=|| view! { <Icon icon=icondata::LuMoon /> }
+    system_text="System"
+    light_text="Light"
+    dark_text="Dark"
+/>
 ```
+
+#### Props (ThemeToggle)
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `variant` | `ButtonVariant` | `Default` | Forwarded to the `Button` |
+| `size` | `ButtonSize` | `Sm` | Forwarded to the `Button` |
+| `class` | `String` | `""` | Additional CSS classes |
+| `system_icon` | `Option<ViewFn>` | - | Icon for the "follow the OS" mode |
+| `light_icon` | `Option<ViewFn>` | - | Icon for the light mode |
+| `dark_icon` | `Option<ViewFn>` | - | Icon for the dark mode |
+| `system_text` | `Option<TextProp>` | - | Label for the "follow the OS" mode |
+| `light_text` | `Option<TextProp>` | - | Label for the light mode |
+| `dark_text` | `Option<TextProp>` | - | Label for the dark mode |
+| `children` | - | - | Rendered as-is when no per-mode icon or text is given |
+
+The toggle shows the face of the mode it is *currently in*, icon first and text
+after; any subset may be left out. Under `ssr` the mode is unknown to the
+component, so the `System` face is rendered and hydration corrects it.
 
 ---
 

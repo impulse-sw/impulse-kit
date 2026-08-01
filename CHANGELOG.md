@@ -29,6 +29,12 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   name the requests worth running purely to fill the local store; the engine runs
   them while online, authenticating each through `prepare_outgoing` (they never
   passed through the UI, so nothing else would).
+- **`ThemeToggle` can label itself.** Six new optional props — `system_icon`,
+  `light_icon`, `dark_icon` and `system_text`, `light_text`, `dark_text` — make
+  the button render the face of the mode it is *currently in*, icon first and
+  text after. A three-state control that never says which state it is in leaves
+  the user to click and find out; each face is optional, and with none of them
+  set the toggle renders its children exactly as before.
 - **`impulse_client_kit::client::ipc::command`** — the wasm ⇄ Tauri IPC bridge
   for an app's own commands, so a frontend no longer re-declares the `invoke`
   binding to ask the native side something that isn't an HTTP request.

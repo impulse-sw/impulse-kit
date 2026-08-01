@@ -194,35 +194,182 @@ pub fn ThemeProvider(children: Children) -> impl IntoView {
   view! { {children()} }
 }
 
+/// What a [`ThemeToggle`] shows for each mode: an optional icon and an optional
+/// label per mode, any subset of which may be left out.
+///
+/// A control that cycles through three modes has to say which one it is *in*;
+/// with nothing set, the toggle falls back to rendering its children unchanged,
+/// which is what a caller who labels the button themselves wants.
+struct ThemeFaces {
+  light_icon: Option<ViewFn>,
+  dark_icon: Option<ViewFn>,
+  system_icon: Option<ViewFn>,
+  light_text: Option<TextProp>,
+  dark_text: Option<TextProp>,
+  system_text: Option<TextProp>,
+}
+
+impl ThemeFaces {
+  /// Nothing per-mode was passed, so the children stand on their own.
+  fn is_empty(&self) -> bool {
+    self.light_icon.is_none()
+      && self.dark_icon.is_none()
+      && self.system_icon.is_none()
+      && self.light_text.is_none()
+      && self.dark_text.is_none()
+      && self.system_text.is_none()
+  }
+
+  fn icon(&self, mode: ThemeMode) -> Option<&ViewFn> {
+    match mode {
+      ThemeMode::Light => self.light_icon.as_ref(),
+      ThemeMode::Dark => self.dark_icon.as_ref(),
+      ThemeMode::System => self.system_icon.as_ref(),
+    }
+  }
+
+  fn text(&self, mode: ThemeMode) -> Option<&TextProp> {
+    match mode {
+      ThemeMode::Light => self.light_text.as_ref(),
+      ThemeMode::Dark => self.dark_text.as_ref(),
+      ThemeMode::System => self.system_text.as_ref(),
+    }
+  }
+}
+
+/// The toggle's label: the current mode's icon and text when either was given,
+/// the children otherwise.
+fn theme_faces_view(faces: ThemeFaces, mode: Signal<ThemeMode>, children: Option<Children>) -> AnyView {
+  if faces.is_empty() {
+    return match children {
+      Some(children) => children().into_any(),
+      None => ().into_any(),
+    };
+  }
+
+  let faces = StoredValue::new(faces);
+  let icon = move || faces.with_value(|faces| faces.icon(mode.get()).map(|icon| icon.run()));
+  let text = move || {
+    faces.with_value(|faces| {
+      faces
+        .text(mode.get())
+        .map(|text| view! { <span data-slot="theme-toggle-text">{text.get().to_string()}</span> })
+    })
+  };
+
+  view! {
+    {icon}
+    {text}
+  }
+  .into_any()
+}
+
+/// A button that cycles the theme: system → light → dark → system.
+///
+/// Left bare it renders its children, so a caller can label it however they
+/// like. Pass any of the six per-mode props and it shows the face of the mode
+/// it is *currently* in instead — the icon first, then the text, both optional
+/// and both settable per mode:
+///
+/// ```rust,ignore
+/// view! {
+///   <ThemeToggle
+///     system_icon=|| view! { <Icon icon=icondata::LuMonitor /> }
+///     light_icon=|| view! { <Icon icon=icondata::LuSun /> }
+///     dark_icon=|| view! { <Icon icon=icondata::LuMoon /> }
+///     system_text="System"
+///     light_text="Light"
+///     dark_text="Dark"
+///   />
+/// }
+/// ```
+///
+/// Under `ssr` the mode is not known to the component (the SSR handler resolves
+/// it from the theme cookie), so the `System` face is rendered and hydration
+/// corrects it.
 #[cfg(any(feature = "csr", feature = "hydrate"))]
 #[component]
 pub fn ThemeToggle(
   #[prop(optional)] variant: ButtonVariant,
   #[prop(optional)] size: ButtonSize,
   #[prop(into, optional)] class: String,
-  children: Children,
+  /// Shown while the theme follows the operating system.
+  #[prop(into, optional)]
+  system_icon: Option<ViewFn>,
+  /// Shown while the theme is pinned to light.
+  #[prop(into, optional)]
+  light_icon: Option<ViewFn>,
+  /// Shown while the theme is pinned to dark.
+  #[prop(into, optional)]
+  dark_icon: Option<ViewFn>,
+  /// Label for the "follow the operating system" mode.
+  #[prop(into, optional)]
+  system_text: Option<TextProp>,
+  /// Label for the light mode.
+  #[prop(into, optional)]
+  light_text: Option<TextProp>,
+  /// Label for the dark mode.
+  #[prop(into, optional)]
+  dark_text: Option<TextProp>,
+  /// Rendered as-is when no per-mode icon or text was given.
+  #[prop(optional)]
+  children: Option<Children>,
 ) -> impl IntoView {
   let (mode, set_mode) = use_theme_mode();
   let cycle = move |_| set_mode(mode.get_untracked().next());
 
+  let content = theme_faces_view(
+    ThemeFaces {
+      light_icon,
+      dark_icon,
+      system_icon,
+      light_text,
+      dark_text,
+      system_text,
+    },
+    mode,
+    children,
+  );
+
   view! {
     <Button variant=variant size=size class=class on:click=cycle>
-      {children()}
+      {content}
     </Button>
   }
 }
 
+/// See the `csr`/`hydrate` [`ThemeToggle`] for the prop reference; on the server
+/// the button is inert and the `System` face is rendered.
 #[cfg(feature = "ssr")]
 #[component]
 pub fn ThemeToggle(
   #[prop(optional)] variant: ButtonVariant,
   #[prop(optional)] size: ButtonSize,
   #[prop(into, optional)] class: String,
-  children: Children,
+  #[prop(into, optional)] system_icon: Option<ViewFn>,
+  #[prop(into, optional)] light_icon: Option<ViewFn>,
+  #[prop(into, optional)] dark_icon: Option<ViewFn>,
+  #[prop(into, optional)] system_text: Option<TextProp>,
+  #[prop(into, optional)] light_text: Option<TextProp>,
+  #[prop(into, optional)] dark_text: Option<TextProp>,
+  #[prop(optional)] children: Option<Children>,
 ) -> impl IntoView {
+  let content = theme_faces_view(
+    ThemeFaces {
+      light_icon,
+      dark_icon,
+      system_icon,
+      light_text,
+      dark_text,
+      system_text,
+    },
+    Signal::stored(ThemeMode::default()),
+    children,
+  );
+
   view! {
     <Button variant=variant size=size class=class>
-      {children()}
+      {content}
     </Button>
   }
 }
