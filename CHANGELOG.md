@@ -62,6 +62,13 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
 
 ### Fixed
 
+- **`<Textarea>` no longer relies on the platform's resize grip.** On Android the
+  native grip is a barely-visible white speck in the corner; every other
+  platform draws its own. The native one is now off (`resize-none`) and the
+  field carries a pill-shaped grabber centred underneath it (`mt-2` below the
+  field) that looks the same everywhere — dragged with mouse, touch or pen, or
+  moved with ↑/↓ when focused. `resizable=false` drops it for a fixed-height
+  field.
 - **`<Markdown>` padded itself out of every tight box it was put in.** A
   document's block rhythm was set a step too generously (`my-4` paragraphs,
   `mt-8` headings, `leading-7` lines), and — worse — the first block's top and

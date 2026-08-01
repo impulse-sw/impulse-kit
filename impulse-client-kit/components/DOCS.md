@@ -395,7 +395,17 @@ use components::textarea::Textarea;
 | `placeholder` | `String` | `""` | Placeholder text |
 | `disabled` | `bool` | `false` | Disabled state |
 | `rows` | `Option<i32>` | `4` | Number of visible rows |
+| `resizable` | `Option<bool>` | `true` | Render the drag grabber under the field |
 | `class` | `String` | `""` | Additional CSS classes |
+
+#### Resizing
+
+The native corner grip is always off — it is drawn by the platform, and on
+Android it is a barely-visible white speck most users never find. In its place
+the field gets a pill-shaped grabber centred underneath it (`mt-2` below the
+field), which looks and behaves the same on every platform: drag it with a
+mouse, a finger or a pen, or focus it and use ↑/↓. Pass `resizable=false` to
+drop it and keep whatever height the classes give the field.
 
 #### Examples
 
@@ -415,6 +425,9 @@ let description = RwSignal::new(String::new());
     rows=Some(6)
     class="min-h-[150px]"
 />
+
+// Fixed height — no grabber
+<Textarea value=description resizable=false />
 ```
 
 ---

@@ -324,11 +324,12 @@ view! {
 
 ### Textarea
 
-Multi-line text input.
+Multi-line text input. The platform's own corner grip is replaced by a pill-shaped grabber centred under the field — same look and same drag/keyboard behaviour everywhere.
 
 **Props:**
 - `class`: `String` - Additional CSS classes
 - `value`: `RwSignal<String>` - Reactive value binding
+- `resizable`: `Option<bool>` - Render the grabber (default `true`)
 - Additional textarea-specific props
 
 **Example:**

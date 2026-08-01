@@ -293,8 +293,19 @@ fn FormComponentsSection() -> impl IntoView {
       </ComponentCard>
 
       // Textarea
-      <ComponentCard title="Textarea" description="Multi-line text input">
-        <Textarea value=description placeholder="Enter description..." class="min-h-[100px]" />
+      <ComponentCard
+        title="Textarea"
+        description="Multi-line text input; drag the grabber underneath to resize"
+      >
+        <div class="space-y-4">
+          <Textarea value=description placeholder="Enter description..." class="min-h-[100px]" />
+          <Textarea
+            value=description
+            placeholder="Fixed height (resizable=false)..."
+            class="min-h-[100px]"
+            resizable=false
+          />
+        </div>
       </ComponentCard>
 
       // Checkbox
