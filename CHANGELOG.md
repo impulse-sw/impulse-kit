@@ -85,6 +85,15 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   field) that looks the same everywhere — dragged with mouse, touch or pen, or
   moved with ↑/↓ when focused. `resizable=false` drops it for a fixed-height
   field.
+- **`<Textarea class="min-h-…">` was ignored.** The base styling carried
+  `min-h-[80px]`, and since `cn` only concatenates, both classes reached the
+  same layer — where Tailwind orders candidates of one utility by name, not by
+  the order they appear in the attribute. `min-h-[80px]` therefore came out
+  after `min-h-[28rem]` and won, and a field asked to be an editor pane stayed
+  four rows tall. The base no longer sets a `min-height` at all: the opening
+  height is `rows` (still four by default), so a caller's `min-h-…` / `h-…` is
+  the only thing setting it. Fields that never passed one look exactly as
+  before.
 - **`<Markdown>` padded itself out of every tight box it was put in.** A
   document's block rhythm was set a step too generously (`my-4` paragraphs,
   `mt-8` headings, `leading-7` lines), and — worse — the first block's top and

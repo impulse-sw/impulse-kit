@@ -408,6 +408,12 @@ field), which looks and behaves the same on every platform: drag it with a
 mouse, a finger or a pen, or focus it and use ↑/↓. Pass `resizable=false` to
 drop it and keep whatever height the classes give the field.
 
+#### Height
+
+The field opens `rows` lines tall (four by default). The base styling sets no
+`min-height` of its own, so a taller field is `class="min-h-[50vh]"` (or
+`h-…`) and nothing competes with it.
+
 #### Examples
 
 ```rust

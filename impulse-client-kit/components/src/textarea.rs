@@ -10,7 +10,14 @@ use web_sys::HtmlElement;
 // corner that most users never find, and every platform draws a different one.
 // The grabber below replaces it with a single control that looks the same
 // everywhere.
-const BASE_CLASSES: &str = "placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input flex min-h-[80px] w-full resize-none rounded-md border bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive";
+//
+// No `min-h-*` here on purpose. `cn` concatenates, so a caller's class and ours
+// land in the same layer and Tailwind — not the class list — picks the winner:
+// it emits candidates of one utility in name order, so `min-h-[80px]` came out
+// after `min-h-[28rem]` and quietly won. The starting height is `rows`' job
+// (four lines by default), which leaves `class="min-h-…"` free to do exactly
+// what the docs promise.
+const BASE_CLASSES: &str = "placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input flex w-full resize-none rounded-md border bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive";
 
 /// How far a single arrow-key press moves the grabber, in pixels.
 const KEYBOARD_STEP: f64 = 16.0;
@@ -22,6 +29,10 @@ const MIN_HEIGHT: f64 = 32.0;
 /// * `resizable` — render the grabber. `true` by default; with `false` the field
 ///   keeps whatever height its classes give it. The *native* resizer is off
 ///   either way.
+///
+/// The field opens `rows` lines tall (four by default) and nothing in the base
+/// styling fixes a height beyond that, so `class="min-h-…"` / `class="h-…"` is
+/// how a taller field — an editor pane, say — asks for its size.
 ///
 /// The grabber is a pill centred under the field (`mt-2` below it), dragged with
 /// a pointer — mouse, touch or pen alike — or moved with ↑/↓ when focused.
