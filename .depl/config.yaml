@@ -5,9 +5,9 @@ ignore_files:
   - .git
   - target
 cache_files:
-  - target
   - impulse-client-kit/examples/showcase/.tailwind-sources.css
   - impulse-client-kit/examples/ssr_showcase/.tailwind-sources.css
+  - target
 variables:
   binary-dsl:
     type: plain
@@ -39,27 +39,27 @@ variables:
   featureset-client-kit-net:
     type: plain
     value: " --features=websocket,webtransport"
-  featureset-ssr-showcase-hydrate:
-    type: plain
-    value: " --no-default-features --features=hydrate"
-  featureset-ssr-showcase-server:
-    type: plain
-    value: " --no-default-features --features=ssr"
-  featureset-utils-wasm32:
-    type: plain
-    value: " --no-default-features --features=reqwest"
   featureset-endpoint-reqwest:
     type: plain
     value: " --features=reqwest"
   featureset-native-themes-tauri:
     type: plain
     value: " --features=tauri"
-  featureset-tauri-engine-ws:
-    type: plain
-    value: " --features=ws"
   featureset-server-kit-endpoint:
     type: plain
     value: " --features=endpoint"
+  featureset-ssr-showcase-hydrate:
+    type: plain
+    value: " --no-default-features --features=hydrate"
+  featureset-ssr-showcase-server:
+    type: plain
+    value: " --no-default-features --features=ssr"
+  featureset-tauri-engine-ws:
+    type: plain
+    value: " --features=ws"
+  featureset-utils-wasm32:
+    type: plain
+    value: " --no-default-features --features=reqwest"
   file-error-pages-favicon:
     type: plain
     value: impulse-error-pages/public/favicon.ico
@@ -99,9 +99,6 @@ variables:
   package-endpoint:
     type: plain
     value: impulse-endpoint
-  package-tauri-engine:
-    type: plain
-    value: impulse-tauri-engine
   package-error-pages:
     type: plain
     value: impulse-error-pages
@@ -117,6 +114,9 @@ variables:
   package-tailwind-sources:
     type: plain
     value: impulse-tailwind-sources
+  package-tauri-engine:
+    type: plain
+    value: impulse-tauri-engine
   package-utils:
     type: plain
     value: impulse-utils
@@ -187,6 +187,16 @@ actions:
             to: iks
           - from: impulse-static-server/static-server.yaml
             to: static-server.yaml
+  - info: cargo-deny@0.1.0
+    requirements:
+      - type: in_path
+        executable: cargo-deny
+        desc: Install with `cargo install cargo-deny` (or `taiki-e/install-action` in CI).
+    action:
+      type: staged
+      stage: build
+      cmd: cargo deny check advisories bans licenses sources
+      show_success_output: true
   - info: cargo-fmt@0.1.0
     exec_in_project_dir: true
     skip_sync: false
@@ -201,30 +211,6 @@ actions:
       type: staged
       stage: build
       cmd: cargo fmt -- --check --config tab_spaces=2,max_width=120 $(find . -name "*.rs" -not -path "*/target/*")
-  - info: cargo-test@0.1.0
-    requirements:
-      - type: in_path
-        executable: cargo
-    action:
-      type: test
-      cmd: "{flags}cargo test --package {package}{features}"
-      placeholders:
-        - "{flags}"
-        - "{package}"
-        - "{features}"
-      show_success_output: true
-      show_cmd: false
-      success_when_found: "test result: ok."
-  - info: cargo-deny@0.1.0
-    requirements:
-      - type: in_path
-        executable: cargo-deny
-        desc: "Install with `cargo install cargo-deny` (or `taiki-e/install-action` in CI)."
-    action:
-      type: staged
-      stage: build
-      cmd: cargo deny check advisories bans licenses sources
-      show_success_output: true
   - info: cargo-generate-doc@0.1.0
     action:
       type: staged
@@ -243,9 +229,6 @@ actions:
         - "{target}"
         - "{features}"
   - info: cargo-publish@0.2.0
-    tags:
-      - rust
-      - cargo
     requirements:
       - type: in_path
         executable: cargo
@@ -258,9 +241,6 @@ actions:
         - "{package}"
         - "{features}"
   - info: cargo-release@0.2.0
-    tags:
-      - rust
-      - cargo
     requirements:
       - type: in_path
         executable: cargo
@@ -274,6 +254,20 @@ actions:
         - "{package}"
         - "{target}"
         - "{features}"
+  - info: cargo-test@0.1.0
+    requirements:
+      - type: in_path
+        executable: cargo
+    action:
+      type: test
+      cmd: "{flags}cargo test --package {package}{features}"
+      placeholders:
+        - "{flags}"
+        - "{package}"
+        - "{features}"
+      show_success_output: true
+      show_cmd: false
+      success_when_found: "test result: ok."
   - info: cargo-test-doc@0.1.0
     requirements:
       - type: in_path
@@ -283,10 +277,6 @@ actions:
       stage: build
       cmd: cargo test --doc
   - info: cargo-wasm-rel@0.1.0
-    tags:
-      - rust
-      - cargo
-      - wasm
     requirements:
       - type: in_path
         executable: cargo
@@ -307,8 +297,6 @@ actions:
         - "{from}"
         - "{to}"
   - info: depl-add-component-to-storage@0.1.0
-    tags:
-      - deployer
     requirements:
       - type: in_path
         executable: depl
@@ -333,9 +321,6 @@ actions:
         - "{binary}"
         - "{name}"
   - info: leptos-fmt@0.1.0
-    tags:
-      - leptos
-      - fmt
     requirements:
       - type: in_path
         executable: leptosfmt
@@ -379,9 +364,6 @@ actions:
       stage: build
       cmd: mv iks static-server.yaml impulse-client-kit/examples/showcase
   - info: tailwindcss-compile@0.2.0
-    tags:
-      - tailwind
-      - css
     requirements:
       - type: in_path
         executable: tailwindcss
@@ -394,10 +376,6 @@ actions:
         - "{tw-input}"
         - "{tw-output}"
   - info: trunk-build-rel@0.1.0
-    tags:
-      - trunk
-      - build
-      - wasm
     requirements:
       - type: in_path
         executable: trunk
@@ -425,9 +403,6 @@ actions:
       type: use_from_storage
       content_info: get-know-rust-package-version@latest
   - info: wasm-bindgen-cli@0.1.0
-    tags:
-      - wasm
-      - wasm-bindgen
     requirements:
       - type: in_path
         executable: wasm-bindgen
@@ -441,9 +416,6 @@ actions:
         - "{out-name}"
         - "{wasm-file}"
   - info: wasm-opt@0.1.0
-    tags:
-      - wasm
-      - wasm-opt
     requirements:
       - type: in_path
         executable: wasm-opt
@@ -477,21 +449,15 @@ pipelines:
   - title: ops
     desc: Improve code quality (formatting)
     info: impulse-kit-ops@0.1.0
-    tags:
-      - cargo
-      - fmt
     default: true
     actions:
-      - title: Format
+      - title: Format Rust
         used: cargo-fmt@0.1.0
+      - title: Format Leptos macros
+        used: leptos-fmt@0.1.0
   - title: quality
     desc: Check code quality for Impulse Kit (clippy + doc tests gate)
     info: impulse-kit-quality@0.1.0
-    tags:
-      - cargo
-      - clippy
-      - lint
-      - docs
     default: true
     actions:
       - title: Lint `impulse-utils` on x86-64
@@ -709,9 +675,6 @@ pipelines:
   - title: docs
     desc: Build workspace documentation
     info: impulse-kit-docs@0.1.0
-    tags:
-      - cargo
-      - docs
     actions:
       - title: Generate docs
         used: cargo-generate-doc@0.1.0
@@ -725,9 +688,6 @@ pipelines:
   - title: publish
     desc: Publish open-source libraries
     info: impulse-kit-publish@0.1.0
-    tags:
-      - cargo
-      - publish
     default: false
     actions:
       - title: Publish `impulse-utils`
@@ -895,12 +855,6 @@ pipelines:
   - title: build-ssr-showcase
     desc: Build the server-rendered showcase binary and ship it with its YAML config.
     info: client-kit-ssr-example-build@0.1.0
-    tags:
-      - cargo
-      - clippy
-      - lint
-      - leptos
-      - ssr
     default: false
     actions:
       - title: Lint server
@@ -970,9 +924,6 @@ pipelines:
   - title: run-ssr-showcase
     desc: Run the SSR + hydration showcase from artifacts built by `build-ssr-showcase`.
     info: client-kit-ssr-example-run@0.1.0
-    tags:
-      - leptos
-      - ssr
     default: false
     copy_only:
       - from: artifacts/ssr-showcase/ssr-showcase
@@ -996,10 +947,6 @@ pipelines:
   - title: build-skdsl
     desc: Build SKDSL binary and save it for `install-skdsl`.
     info: impulse-kit-build-skdsl@0.1.0
-    tags:
-      - cargo
-      - clippy
-      - lint
     default: false
     actions:
       - title: Lint
@@ -1033,8 +980,6 @@ pipelines:
   - title: install-skdsl
     desc: Install SKDSL from the binary built by `build-skdsl`.
     info: impulse-kit-skdsl@0.1.0
-    tags:
-      - cargo
     copy_only:
       - from: artifacts/skdsl
         to: target/{triple}/release/skdsl
