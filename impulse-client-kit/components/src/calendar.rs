@@ -240,7 +240,16 @@ fn CalendarNav(caption_layout: CaptionLayout) -> impl IntoView {
           if matches!(caption_layout, CaptionLayout::Dropdown) {
             view! { <CalendarDropdowns /> }.into_any()
           } else {
-            view! { <span class="select-none font-medium text-sm">{month_label}</span> }.into_any()
+            // A floor wide enough for the longest month label, so the caption
+            // stops driving the calendar's width. The root is `w-fit`, the grid
+            // below is 7 × `--cell-size`, and the nav row's intrinsic width is
+            // the arrows plus this caption — so without a floor "May 2026" and
+            // "September 2026" size the whole calendar differently, and every
+            // step through the months moves the arrow you are clicking.
+            view! {
+              <span class="select-none font-medium text-sm min-w-[7rem] text-center">{month_label}</span>
+            }
+              .into_any()
           }
         }}
       </div>
