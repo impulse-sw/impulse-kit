@@ -508,7 +508,12 @@ fn TimeField(label: &'static str, value: RwSignal<u32>, bound: u32, step: u32) -
         aria-valuemax=(bound - 1).to_string()
         aria-valuenow=move || value.get().to_string()
         tabindex="0"
-        class="w-14 rounded-md border border-input py-1 text-center text-2xl font-semibold tabular-nums outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        // `focus:`, not `focus-visible:`. A tabindex'd div focused by mouse does
+        // not match `:focus-visible` — browsers reserve that for keyboard focus —
+        // so clicking the field left it looking untouched while it was in fact
+        // the thing keystrokes were going to. For a widget whose whole purpose is
+        // to receive typing, focus has to be visible however it was reached.
+        class="w-14 rounded-md border border-input py-1 text-center text-2xl font-semibold tabular-nums outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/50"
         on:keydown=keyboard
         on:blur=move |_| reset_typing()
       >
