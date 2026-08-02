@@ -117,6 +117,25 @@ fn CalendarMonth(caption_layout: CaptionLayout) -> impl IntoView {
       weeks.push(current_week);
     }
 
+    // Always six rows. Depending on its length and which weekday it starts on, a
+    // month covers four, five or six weeks, and letting the grid follow that
+    // changes the calendar's height on every step through the months — the nav
+    // arrows shift under the cursor between clicks, and anything laid out below
+    // the calendar moves with them.
+    //
+    // Six is the most any month can need (31 days starting on a Sunday), so this
+    // pads rather than truncates. The filler continues into the next month, the
+    // same real dates the final row already shows beyond the month's end, so
+    // nothing about how a row reads changes — there is just always a sixth one.
+    while weeks.len() < 6 {
+      let mut week = Vec::with_capacity(7);
+      for _ in 0..7 {
+        week.push(Some(current));
+        current += Duration::days(1);
+      }
+      weeks.push(week);
+    }
+
     weeks
   });
 
