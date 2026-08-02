@@ -428,16 +428,67 @@ fn TimeField(label: &'static str, value: RwSignal<u32>, bound: u32, step: u32) -
     })
   };
 
-  let keyboard = move |ev: web_sys::KeyboardEvent| match ev.key().as_str() {
-    "ArrowUp" => {
-      ev.prevent_default();
-      shift(step as i64);
+  // Digits typed in a row build one number, the way a native time field behaves:
+  // "1" then "4" is 14, not 4. `typed` holds what has been accumulated so far,
+  // `digits` how many keystrokes went into it.
+  let typed = StoredValue::new(0u32);
+  let digits = StoredValue::new(0u32);
+  let reset_typing = move || {
+    typed.set_value(0);
+    digits.set_value(0);
+  };
+
+  let type_digit = move |digit: u32| {
+    let mut next = typed.get_value() * 10 + digit;
+    let mut len = digits.get_value() + 1;
+    // A digit that cannot extend the current number starts a new one instead —
+    // typing 5 into an hour field means 05, not a swallowed keystroke.
+    if next >= bound || len > 2 {
+      next = digit;
+      len = 1;
     }
-    "ArrowDown" => {
-      ev.prevent_default();
-      shift(-(step as i64));
+    value.set(next);
+    // Nothing further can fit, so let the next keystroke begin afresh: after 23
+    // in an hour field, or as soon as a second digit would overflow the bound.
+    if len >= 2 || next * 10 >= bound {
+      reset_typing();
+    } else {
+      typed.set_value(next);
+      digits.set_value(len);
     }
-    _ => {}
+  };
+
+  // Stepping and typing are separate ways of saying the same thing, so an arrow
+  // press abandons a half-typed number rather than extending it.
+  let keyboard = move |ev: web_sys::KeyboardEvent| {
+    let key = ev.key();
+    match key.as_str() {
+      "ArrowUp" => {
+        ev.prevent_default();
+        reset_typing();
+        shift(step as i64);
+      }
+      "ArrowDown" => {
+        ev.prevent_default();
+        reset_typing();
+        shift(-(step as i64));
+      }
+      "Backspace" | "Delete" => {
+        ev.prevent_default();
+        reset_typing();
+        value.set(0);
+      }
+      // Any single-character key that is a digit. Checking the length keeps
+      // this from firing on "Dead", "F1" and friends.
+      _ => {
+        if key.chars().count() == 1
+          && let Some(digit) = key.chars().next().and_then(|c| c.to_digit(10))
+        {
+          ev.prevent_default();
+          type_digit(digit);
+        }
+      }
+    }
   };
 
   view! {
@@ -459,6 +510,7 @@ fn TimeField(label: &'static str, value: RwSignal<u32>, bound: u32, step: u32) -
         tabindex="0"
         class="w-14 rounded-md border border-input py-1 text-center text-2xl font-semibold tabular-nums outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
         on:keydown=keyboard
+        on:blur=move |_| reset_typing()
       >
         {move || format!("{:02}", value.get())}
       </div>
