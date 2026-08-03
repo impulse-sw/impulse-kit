@@ -53,6 +53,11 @@ mod ws;
 #[cfg(feature = "ws")]
 pub use ws::{Emit, LocalReply, WsBackend, WsEngine, WsEntry, WsQueue, WsRemote, WsSink, WsStream};
 
+/// The concrete socket a Tauri shell opens, with the keepalive, idle detection
+/// and resume handling a mobile OS makes necessary.
+#[cfg(feature = "shell")]
+pub mod shell;
+
 /// The remote transport the engine forwards to when online. Injected so the
 /// engine can be exercised against a fake server in tests.
 ///

@@ -18,12 +18,17 @@ default = ["executor"]
 # panics unless it was initialised with the app `Context`, which under a release
 # profile's `panic = "abort"` takes the whole process down on the first request.
 executor = ["dep:reqwest", "dep:rustls", "dep:webpki-roots", "impulse-endpoint/reqwest"]
-# Streaming offline engine (`WsEngine` + `WsBackend`) for a WebSocket/WebTransport
-# app surface — the sibling of the request/response `Engine`. Transport-agnostic
-# like the request/response side: the app shell supplies the concrete socket
-# `WsRemote`, so this only pulls tokio's `sync`/`time` (no socket library).
-# Off by default so request/response-only apps don't compile it.
+# Streaming offline engine (`WsEngine` + `WsBackend`) for a WebSocket app
+# surface — the sibling of the request/response `Engine`. The engine itself only
+# needs the `WsSink`/`WsStream` traits, so this pulls tokio's `sync`/`time` and
+# no socket library; `shell` adds the concrete one. Off by default so
+# request/response-only apps don't compile it.
 ws = ["dep:tokio"]
+# The socket a Tauri shell actually opens: tokio-tungstenite behind
+# `WsSink`/`WsStream`, with the keepalive, idle detection and resume handling a
+# phone needs. Every app here speaks tungstenite, so the transport lives with the
+# engine rather than being rewritten identically in each shell.
+shell = ["ws", "executor", "dep:tokio-tungstenite", "dep:futures-util", "tokio/rt", "tokio/net"]
 
 [dependencies]
 impulse-endpoint = { workspace = true }
@@ -34,6 +39,8 @@ webpki-roots = { version = "0.26", optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true, optional = true, features = ["sync", "time"] }
+tokio-tungstenite = { version = "0.24", optional = true, features = ["rustls-tls-webpki-roots"] }
+futures-util = { workspace = true, optional = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
