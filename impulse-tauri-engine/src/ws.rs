@@ -316,16 +316,19 @@ impl WsQueue {
 /// id) before replaying frames that may depend on it. Best-effort: on timeout the
 /// dependent frame replays with whatever ids are known, and the server's echo
 /// still reconciles the local store afterwards.
-const RECONCILE_WAIT: Duration = Duration::from_secs(5);
+const RECONCILE_WAIT: Duration = Duration::from_secs(3);
 
 /// The bounds [`WsEngine::run_reconnecting`] keeps the connection under: how long
 /// a single attempt may take, how long a write may take, and how long to wait
 /// between attempts.
 ///
-/// Every field exists because the operation it covers can otherwise wait
-/// forever on a phone (see the module docs), so the defaults are what an app
-/// should normally use — they are chosen to be generous for a slow mobile
-/// network while still measured in seconds, not minutes.
+/// Every field exists because the operation it covers can otherwise wait forever
+/// on a phone (see the module docs), and every default is a small number of
+/// seconds: nothing here may keep the app disconnected for longer than about
+/// five, whatever goes wrong. A reconnect is cheap and an app that has silently
+/// stopped updating is not, so where the two trade off, this trades towards
+/// noticing sooner — a connect abandoned at five seconds is retried at once with
+/// a fresh ticket, which is a far better outcome than waiting to find out.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ReconnectPolicy {
   /// How long one connect attempt — everything [`WsRemote::connect`] does, which
@@ -349,10 +352,10 @@ pub struct ReconnectPolicy {
 impl Default for ReconnectPolicy {
   fn default() -> Self {
     Self {
-      connect_timeout: Duration::from_secs(15),
-      write_timeout: Duration::from_secs(10),
-      initial_delay: Duration::from_secs(1),
-      max_delay: Duration::from_secs(20),
+      connect_timeout: Duration::from_secs(5),
+      write_timeout: Duration::from_secs(3),
+      initial_delay: Duration::from_millis(500),
+      max_delay: Duration::from_secs(3),
       backoff_factor: 2,
     }
   }
@@ -440,7 +443,7 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
 
   /// Overrides the [`ReconnectPolicy`]. The default is what an app should
   /// normally want; this is for a shell with an unusual transport (a connect
-  /// that is legitimately slower than 15s, say).
+  /// that is legitimately slower than five seconds, say).
   pub fn with_reconnect_policy(mut self, policy: ReconnectPolicy) -> Self {
     self.policy = policy;
     self

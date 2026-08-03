@@ -93,6 +93,35 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
 
 ### Fixed
 
+- **A socket restored from a frozen page is now made to prove it is alive.** The
+  browser handle's page-lifecycle recovery only reconnected a socket that already
+  looked dead, and after a freeze a dead socket does not look dead: the
+  connection died while the page was not running, so no `close` event was
+  delivered and `readyState` stays `OPEN`. Sending into it does not fail either.
+  For an app whose protocol only speaks when there is news, nothing ever
+  contradicts the illusion — the tab shows itself connected and receives nothing,
+  for as long as it is left open.
+
+  On a wake the handle now sends `WebSocketOptions::liveness_probe` — a frame the
+  app knows the server answers — and gives it
+  `ReconnectOptions::liveness_timeout` to produce anything at all; silence
+  replaces the socket. An app opts in by naming the frame (its "give me a
+  snapshot" message is usually the right one). Configure no probe and a wake
+  reconnects unconditionally instead: costlier, but never silently mute.
+
+- **Nothing in a reconnect now takes longer than about five seconds.** The old
+  numbers were sized for a desktop that reconnects once a day, not a phone whose
+  connection dies every time its owner checks a message; a 20-second backoff or a
+  30-second idle timeout is time spent showing someone a screen that has quietly
+  stopped being true. Across both kits: the browser policy's connect watchdog
+  15s → 5s, initial delay 1s → 500ms, max delay 30s → 3s; the Tauri engine's
+  connect timeout 15s → 5s, write timeout 10s → 3s, initial delay 1s → 500ms,
+  max delay 20s → 3s, id-reconciliation wait 5s → 3s; the socket's ping 10s → 1s
+  and idle timeout 30s → 3s (still three pings, so a single lost one is still not
+  enough to trip it); the shared HTTP client's connect timeout 6s → 3s, read
+  timeout 30s → 4s and pool idle timeout 20s → 5s. A reconnect is a ticket and a
+  handshake; discovering too late that you needed one is the expensive outcome.
+
 - **A Tauri app's socket comes back after the phone does.** On Android an app
   that had been in the background could return to a permanently disconnected
   socket that never retried — despite keepalive pings and an idle timeout, which

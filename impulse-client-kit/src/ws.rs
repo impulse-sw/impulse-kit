@@ -58,9 +58,28 @@
 //! * `pageshow` with `persisted == true` (a bfcache restore) forces a fresh
 //!   reconnect unconditionally, since the restored socket is stale by
 //!   definition even if it still reports `OPEN`.
-//! * `online` and `visibilitychange` (becoming visible) reconnect only when the
-//!   live socket is no longer `OPEN`/`CONNECTING`, recovering a missed `close`
-//!   and collapsing any long pending backoff into an immediate attempt.
+//! * `online` and `visibilitychange` (becoming visible) leave an attempt that is
+//!   still handshaking alone — the connect watchdog bounds that — reconnect at
+//!   once if the socket is already dead, and *probe* one that claims to be
+//!   `OPEN`.
+//!
+//! That last case is the one worth spelling out. A socket restored from a frozen
+//! page reports `OPEN` whether or not anything is still listening at the other
+//! end: the connection died while the page was not running, so no `close` event
+//! was ever delivered and `readyState` is stale rather than wrong. Sending into
+//! it does not fail either — the browser buffers happily into a socket going
+//! nowhere. Nothing is broken enough to notice, and an app whose protocol only
+//! speaks when there is news has no reason to notice either, so the tab sits
+//! there looking connected and receiving nothing, indefinitely.
+//!
+//! The fix is to make the socket answer for itself: on wake the handle sends
+//! [`WebSocketOptions::liveness_probe`] — a frame the app knows the server
+//! replies to — and gives it
+//! [`ReconnectOptions::liveness_timeout`](crate::reconnect::ReconnectOptions::liveness_timeout).
+//! Any inbound frame within the deadline settles it; silence means the socket is
+//! a corpse and it is replaced. Without a probe configured there is nothing to
+//! ask, so a wake reconnects unconditionally instead — costlier, but never
+//! silently mute.
 //!
 //! These listeners are inert once [`close`](WebSocketHandle::close) has marked
 //! the handle as intentionally closed.
@@ -122,6 +141,15 @@ pub struct WebSocketOptions {
   pub protocols: Vec<String>,
   /// Automatic reconnection policy. Disabled by default.
   pub reconnect: ReconnectOptions,
+  /// A frame the server is known to answer, sent to prove a socket restored from
+  /// a frozen page is still alive. `None` (the default) means a wake replaces
+  /// such a socket outright instead of asking it anything.
+  ///
+  /// It should be a read the app makes anyway and the server always replies to —
+  /// the same "give me a snapshot" frame the app sends on open is usually the
+  /// right one, since an answer that arrives after a genuinely dead connection
+  /// was replaced costs nothing but a refresh.
+  pub liveness_probe: Option<String>,
 }
 
 impl WebSocketOptions {
@@ -134,6 +162,13 @@ impl WebSocketOptions {
   /// Set the automatic reconnection policy.
   pub fn with_reconnect(mut self, reconnect: ReconnectOptions) -> Self {
     self.reconnect = reconnect;
+    self
+  }
+
+  /// Set the frame used to prove a restored socket is still alive. See
+  /// [`liveness_probe`](Self::liveness_probe).
+  pub fn with_liveness_probe(mut self, frame: impl Into<String>) -> Self {
+    self.liveness_probe = Some(frame.into());
     self
   }
 }
@@ -162,6 +197,8 @@ struct WebSocketInner {
   url_provider: WsUrlProvider,
   protocols: Vec<String>,
   reconnect: ReconnectOptions,
+  /// Frame sent to make a possibly-dead socket answer for itself.
+  liveness_probe: Option<String>,
   set_state: WriteSignal<WebSocketReadyState>,
   set_message: WriteSignal<Option<WebSocketMessage>>,
   /// Current socket and its listeners.
@@ -185,6 +222,9 @@ struct WebSocketInner {
   /// Handle for the per-attempt connect watchdog, so it can be cancelled once
   /// the socket opens (or the attempt is abandoned).
   watchdog: Cell<Option<TimeoutHandle>>,
+  /// Handle for the deadline on an outstanding liveness probe, cleared by the
+  /// first inbound frame.
+  liveness: Cell<Option<TimeoutHandle>>,
 }
 
 impl Drop for WebSocketInner {
@@ -193,6 +233,9 @@ impl Drop for WebSocketInner {
       handle.clear();
     }
     if let Some(handle) = self.watchdog.take() {
+      handle.clear();
+    }
+    if let Some(handle) = self.liveness.take() {
       handle.clear();
     }
     // The `SocketSlot` and the `PageLifecycleListeners` are dropped with `self`,
@@ -322,7 +365,14 @@ impl WebSocketInner {
     });
     socket.set_onopen(Some(on_open.as_ref().unchecked_ref()));
 
+    let weak = Rc::downgrade(inner);
     let on_message = Closure::<dyn FnMut(MessageEvent)>::new(move |e: MessageEvent| {
+      // Whatever it says, a frame arriving is the socket answering for itself.
+      if let Some(inner) = weak.upgrade()
+        && let Some(handle) = inner.liveness.take()
+      {
+        handle.clear();
+      }
       let data = e.data();
       if let Some(text) = data.as_string() {
         set_message.set(Some(WebSocketMessage::Text(text)));
@@ -350,6 +400,9 @@ impl WebSocketInner {
     });
     socket.set_onclose(Some(on_close.as_ref().unchecked_ref()));
 
+    if let Some(handle) = inner.liveness.take() {
+      handle.clear();
+    }
     inner.slot.replace(Some(SocketSlot {
       socket,
       _on_open: on_open,
@@ -365,6 +418,9 @@ impl WebSocketInner {
   fn handle_close(self: &Rc<Self>) {
     // This attempt is over; a scheduled retry arms its own watchdog.
     if let Some(handle) = self.watchdog.take() {
+      handle.clear();
+    }
+    if let Some(handle) = self.liveness.take() {
       handle.clear();
     }
     if self.manual_close.get() {
@@ -401,14 +457,14 @@ impl WebSocketInner {
     self.pending.set(handle);
   }
 
-  /// Whether the current socket is `OPEN` or `CONNECTING` — i.e. healthy or
-  /// mid-handshake. A missing slot, `CLOSING`, or `CLOSED` counts as dead.
-  fn socket_alive(&self) -> bool {
+  /// Whether the current socket is still handshaking. Such an attempt is already
+  /// covered by the connect watchdog, so a wake leaves it be.
+  fn socket_is_connecting(&self) -> bool {
     self
       .slot
       .borrow()
       .as_ref()
-      .is_some_and(|slot| matches!(slot.socket.ready_state(), WebSocket::OPEN | WebSocket::CONNECTING))
+      .is_some_and(|slot| slot.socket.ready_state() == WebSocket::CONNECTING)
   }
 
   /// Recover a possibly-stale connection after a page-lifecycle wake-up.
@@ -419,26 +475,83 @@ impl WebSocketInner {
   /// connect attempt is superseded, since its URL-provider fetch may have been
   /// wedged by the freeze.
   ///
-  /// Without `force` (`online`/`visibilitychange`), a healthy or actively
-  /// handshaking socket is left alone and an in-flight attempt is allowed to run
-  /// (the watchdog bounds it); the reconnect only fires when the socket is dead,
-  /// recovering a `close` event dropped while frozen and collapsing any pending
-  /// backoff into an immediate attempt.
+  /// Without `force` (`online`/`visibilitychange`), an attempt that is still
+  /// handshaking is left to run (the watchdog bounds it), a socket that is
+  /// already dead is replaced at once — recovering a `close` dropped while
+  /// frozen and collapsing any pending backoff — and a socket that claims to be
+  /// `OPEN` is asked to prove it, because after a freeze that claim is exactly
+  /// what cannot be trusted. See the module docs.
   fn revalidate(self: &Rc<Self>, force: bool) {
     if self.manual_close.get() {
       return;
     }
-    if !force {
-      // Leave a healthy or mid-handshake socket, and let an in-flight attempt
-      // finish on its own — the connect watchdog is what unsticks a wedged one.
-      if self.socket_alive() || self.connecting.get() {
-        return;
-      }
+    if force {
+      self.force_reconnect();
+      return;
     }
-    // Drop any scheduled retry, supersede any in-flight attempt, and discard the
-    // stale socket (its `Drop` detaches listeners before closing, so there is no
-    // spurious `handle_close`), then reconnect immediately with backoff reset.
+    // An attempt in flight has its own deadline; leave it alone.
+    if self.connecting.get() || self.socket_is_connecting() {
+      return;
+    }
+    if self.socket_is_open() {
+      self.probe_liveness();
+      return;
+    }
+    self.force_reconnect();
+  }
+
+  /// Ask a socket that reports `OPEN` to prove it, and replace it if it can't.
+  ///
+  /// The send is not the evidence — a browser buffers into a dead socket without
+  /// complaint — so the *answer* is, and its absence within
+  /// [`ReconnectOptions::liveness_timeout`](crate::reconnect::ReconnectOptions::liveness_timeout)
+  /// is what condemns the connection. With nothing to ask (no probe frame or no
+  /// deadline configured) the socket is replaced instead: a needless reconnect
+  /// costs a handshake, while trusting a mute socket costs the app.
+  fn probe_liveness(self: &Rc<Self>) {
+    let (Some(frame), Some(timeout)) = (self.liveness_probe.as_ref(), self.reconnect.liveness_timeout) else {
+      self.force_reconnect();
+      return;
+    };
+    let sent = self
+      .slot
+      .borrow()
+      .as_ref()
+      .is_some_and(|slot| slot.socket.send_with_str(frame).is_ok());
+    if !sent {
+      self.force_reconnect();
+      return;
+    }
+    if let Some(handle) = self.liveness.take() {
+      handle.clear();
+    }
+    let weak = Rc::downgrade(self);
+    let handle = set_timeout_with_handle(
+      move || {
+        let Some(inner) = weak.upgrade() else { return };
+        inner.liveness.set(None);
+        if inner.manual_close.get() {
+          return;
+        }
+        log::warn!("WebSocket did not answer within {timeout:?} of waking; treating it as dead");
+        inner.force_reconnect();
+      },
+      timeout,
+    )
+    .ok();
+    self.liveness.set(handle);
+  }
+
+  /// Discard the current socket and reconnect now, with backoff reset.
+  ///
+  /// Drops any scheduled retry, supersedes any in-flight attempt, and clears the
+  /// socket — its `Drop` detaches the listeners before closing, so this produces
+  /// no spurious `handle_close`.
+  fn force_reconnect(self: &Rc<Self>) {
     if let Some(handle) = self.pending.take() {
+      handle.clear();
+    }
+    if let Some(handle) = self.liveness.take() {
       handle.clear();
     }
     self.abandon_connect();
@@ -567,6 +680,9 @@ impl WebSocketHandle {
     if let Some(handle) = self.inner.watchdog.take() {
       handle.clear();
     }
+    if let Some(handle) = self.inner.liveness.take() {
+      handle.clear();
+    }
   }
 }
 
@@ -611,6 +727,7 @@ pub fn use_websocket_with_provider(provider: WsUrlProvider, options: WebSocketOp
     url_provider: provider,
     protocols: options.protocols,
     reconnect: options.reconnect,
+    liveness_probe: options.liveness_probe,
     set_state,
     set_message,
     slot: RefCell::new(None),
@@ -621,6 +738,7 @@ pub fn use_websocket_with_provider(provider: WsUrlProvider, options: WebSocketOp
     generation: Cell::new(0),
     pending: Cell::new(None),
     watchdog: Cell::new(None),
+    liveness: Cell::new(None),
   });
 
   // Recover from bfcache/frozen restores where a `close` event never arrives.

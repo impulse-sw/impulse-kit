@@ -101,7 +101,7 @@ pub mod executor {
   /// generous for a slow mobile network, short enough that a drop isn't felt as
   /// a hang. Without it an unreachable server holds a request for as long as the
   /// OS allows, and the engine can't fall back to the local copy until it ends.
-  const CONNECT_TIMEOUT: Duration = Duration::from_secs(6);
+  const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 
   /// How long a request may go without a single byte arriving before it is
   /// abandoned.
@@ -118,7 +118,7 @@ pub mod executor {
   /// It is a read deadline rather than a total one so a slow large transfer — an
   /// offline photo queue draining over a weak link — is not cut off for taking
   /// its time while making progress.
-  const READ_TIMEOUT: Duration = Duration::from_secs(30);
+  const READ_TIMEOUT: Duration = Duration::from_secs(4);
 
   /// How long an idle pooled connection may be kept for reuse.
   ///
@@ -127,7 +127,7 @@ pub mod executor {
   /// background — exactly when everything pooled is stale, the network may have
   /// changed from Wi-Fi to cellular underneath, and a fresh handshake costs far
   /// less than discovering the old socket is dead by waiting on it.
-  const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(20);
+  const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(5);
 
   /// Picks `ring` as the process-wide rustls provider. Call once, before any TLS.
   ///

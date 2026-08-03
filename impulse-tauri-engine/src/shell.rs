@@ -21,9 +21,9 @@
 //!
 //! [`wake`](crate::lifecycle::wake) is the fast path over the same problem.
 //! Returning to the foreground is when the connection is most likely to be a
-//! corpse, and waiting out the idle timeout there means the reader stares at a
-//! stale screen for the better part of a minute. It is not a replacement for the
-//! timeout — see [`lifecycle`](crate::lifecycle) for why both are needed.
+//! corpse, and there is no reason to spend even the idle timeout rediscovering
+//! that. It is not a replacement for the timeout — see
+//! [`lifecycle`](crate::lifecycle) for why both are needed.
 //!
 //! ## Writes are bounded too
 //!
@@ -61,25 +61,31 @@ type Ws = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
 /// How often the socket pings while otherwise idle.
 ///
-/// Every ping is a radio wake-up on a phone, and every false positive on the
-/// timeout below costs a full reconnect — ticket, TLS handshake, and whatever
-/// snapshot the server rebuilds. So this is as slow as it can be while still
-/// leaving [`IDLE_TIMEOUT`] room for three attempts.
-pub const PING_INTERVAL: Duration = Duration::from_secs(10);
+/// Fast, because the timeout below is: probing every second is what makes three
+/// seconds of silence *mean* something, rather than being an ordinary gap in an
+/// app protocol that only speaks when there is news. The cost is a radio wake-up
+/// a second while the app is in the foreground, and none at all once the OS
+/// freezes it.
+pub const PING_INTERVAL: Duration = Duration::from_secs(1);
 
 /// How long the socket may hear nothing at all before it is declared dead.
 ///
-/// Three times [`PING_INTERVAL`], so it takes a genuinely silent link to trip
-/// it: a mobile network that stalls for a few seconds — which happens on a train,
-/// in a lift, on a cell handover — must not be mistaken for a dead one, because
-/// the reconnect that follows is far more expensive than the wait. Returning to
-/// the foreground, the case where the connection really is usually dead, is
-/// handled at once by [`wake`] instead of by this timeout.
-pub const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
+/// Three whole [`PING_INTERVAL`]s, so a single lost ping is never enough to trip
+/// it, and short enough that a link which died while its owner was looking at
+/// the screen is noticed in about the time it takes to wonder why nothing has
+/// moved. A resume — the other case where the connection is usually dead — does
+/// not wait for this at all: [`wake`] ends it immediately.
+pub const IDLE_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// How long a single frame may take to reach the socket before the connection is
 /// declared lost. See the module docs.
-pub const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
+///
+/// Deliberately tighter than the engine's own
+/// [`ReconnectPolicy::write_timeout`](crate::ReconnectPolicy::write_timeout),
+/// which wraps this one: the inner bound should be what fires, so a stalled
+/// write is reported as an error rather than cancelled mid-frame by the layer
+/// above.
+pub const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// The write half, shared with the keepalive task.
 pub struct SocketSink(Arc<Mutex<SplitSink<Ws, Message>>>);

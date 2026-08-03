@@ -8,6 +8,15 @@
 //! attempts can be bounded with [`ReconnectOptions::max_attempts`] or left
 //! unbounded.
 //!
+//! ## Every wait is a few seconds at most
+//!
+//! The defaults are deliberately impatient: no single wait here exceeds five
+//! seconds, and the usual one is well under two. A reconnect is cheap — a
+//! ticket, a handshake, a snapshot — while a user looking at a screen that has
+//! quietly stopped updating is not, and on a phone the two are separated only by
+//! how long the connection is given to prove itself. When a wait has to be
+//! traded off, it is traded towards noticing sooner.
+//!
 //! Reconnection is **disabled by default** so existing call sites keep their
 //! previous one-shot behaviour.
 //!
@@ -15,10 +24,10 @@
 //! use std::time::Duration;
 //! use impulse_client_kit::reconnect::ReconnectOptions;
 //!
-//! // Retry forever, starting at 500ms and doubling up to 10s.
+//! // Retry forever, starting at 250ms and doubling up to 2s.
 //! let policy = ReconnectOptions::enabled()
-//!   .with_initial_delay(Duration::from_millis(500))
-//!   .with_max_delay(Duration::from_secs(10))
+//!   .with_initial_delay(Duration::from_millis(250))
+//!   .with_max_delay(Duration::from_secs(2))
 //!   .with_backoff_factor(2.0);
 //!
 //! // Or: at most five attempts with a constant 1s delay.
@@ -53,8 +62,21 @@ pub struct ReconnectOptions {
   /// stalls indefinitely after the network drops out from under a suspended
   /// mobile tab — so a stuck attempt can no longer wedge the connection forever.
   /// `None` disables the watchdog (the previous behaviour); [`enabled`](Self::enabled)
-  /// turns it on at 15s, while the one-shot [`default`](Self::default) leaves it off.
+  /// turns it on at 5s, while the one-shot [`default`](Self::default) leaves it off.
   pub connect_timeout: Option<Duration>,
+  /// How long a socket that still *reports* itself open has to answer a liveness
+  /// probe after the page comes back from a freeze, before it is treated as dead
+  /// and replaced.
+  ///
+  /// This is the one failure the other bounds cannot see. A tab that was frozen
+  /// wakes holding a socket the browser still calls `OPEN` — the TCP connection
+  /// underneath it died while the page was not running, and no `close` event
+  /// survived to say so. Nothing is stalled, so no watchdog fires; the socket is
+  /// simply mute, and stays that way. The probe forces the question and this is
+  /// the deadline on the answer. `None` skips the probe entirely — see
+  /// [`WebSocketOptions::liveness_probe`](crate::ws::WebSocketOptions::liveness_probe)
+  /// for what happens then.
+  pub liveness_timeout: Option<Duration>,
 }
 
 impl Default for ReconnectOptions {
@@ -62,24 +84,27 @@ impl Default for ReconnectOptions {
   fn default() -> Self {
     Self {
       enabled: false,
-      initial_delay: Duration::from_secs(1),
-      max_delay: Duration::from_secs(30),
+      initial_delay: Duration::from_millis(500),
+      max_delay: Duration::from_secs(3),
       backoff_factor: 2.0,
       max_attempts: None,
       // Off for the one-shot default, so a plain socket keeps its previous
       // "stay in Connecting until the browser says otherwise" behaviour.
       connect_timeout: None,
+      liveness_timeout: None,
     }
   }
 }
 
 impl ReconnectOptions {
-  /// Reconnection enabled with sensible defaults: a 1s initial delay doubling up
-  /// to 30s, retrying indefinitely, with a 15s per-attempt connect watchdog.
+  /// Reconnection enabled with sensible defaults: a 500ms initial delay doubling
+  /// up to 3s, retrying indefinitely, with a 5s per-attempt connect watchdog and
+  /// a 3s deadline on the liveness probe.
   pub fn enabled() -> Self {
     Self {
       enabled: true,
-      connect_timeout: Some(Duration::from_secs(15)),
+      connect_timeout: Some(Duration::from_secs(5)),
+      liveness_timeout: Some(Duration::from_secs(3)),
       ..Self::default()
     }
   }
@@ -112,6 +137,13 @@ impl ReconnectOptions {
   /// [`connect_timeout`](Self::connect_timeout).
   pub fn with_connect_timeout(mut self, timeout: Option<Duration>) -> Self {
     self.connect_timeout = timeout;
+    self
+  }
+
+  /// Set the deadline on the liveness probe (`None` to skip probing). See
+  /// [`liveness_timeout`](Self::liveness_timeout).
+  pub fn with_liveness_timeout(mut self, timeout: Option<Duration>) -> Self {
+    self.liveness_timeout = timeout;
     self
   }
 
