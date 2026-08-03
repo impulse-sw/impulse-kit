@@ -64,18 +64,6 @@ pub fn redirect(url: impl AsRef<str>) -> CResult<()> {
     .map_err(|e| ClientError::from_str(format!("Can't redirect: {e:?}")))
 }
 
-/// Get endpoint to your backend server.
-///
-/// Example:
-///
-/// ```rust,ignore
-/// use impulse_client_kit::router::endpoint;
-///
-/// fn main() {
-///   // Let assume that your backend is located at `127.0.0.1:8080` with HTTP schema
-///   assert_eq!(endpoint("/some/api/route").as_str(), "http://127.0.0.1:8080/some/api/route");
-/// }
-/// ```
 /// The URL of an asset that `Trunk`'s `public_url` prefixes on the web but not
 /// under Tauri.
 ///
@@ -101,6 +89,18 @@ pub fn asset_url(public_url: &str, path: &str) -> String {
   }
 }
 
+/// Get endpoint to your backend server.
+///
+/// Example:
+///
+/// ```rust,ignore
+/// use impulse_client_kit::router::endpoint;
+///
+/// fn main() {
+///   // Let assume that your backend is located at `127.0.0.1:8080` with HTTP schema
+///   assert_eq!(endpoint("/some/api/route").as_str(), "http://127.0.0.1:8080/some/api/route");
+/// }
+/// ```
 #[cfg(any(feature = "csr", feature = "hydrate"))]
 pub fn endpoint(api_uri: impl AsRef<str>) -> String {
   format!(
