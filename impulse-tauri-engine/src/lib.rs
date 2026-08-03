@@ -48,10 +48,15 @@ use impulse_utils::prelude::{CResult, ServerError};
 mod queue;
 pub use queue::{Entry, Queue};
 
+/// The app-lifecycle signal a shell reports a resume through, shared by the
+/// socket and the reconnect loop.
+#[cfg(feature = "ws")]
+pub mod lifecycle;
+
 #[cfg(feature = "ws")]
 mod ws;
 #[cfg(feature = "ws")]
-pub use ws::{Emit, LocalReply, WsBackend, WsEngine, WsEntry, WsQueue, WsRemote, WsSink, WsStream};
+pub use ws::{Emit, LocalReply, ReconnectPolicy, WsBackend, WsEngine, WsEntry, WsQueue, WsRemote, WsSink, WsStream};
 
 /// The concrete socket a Tauri shell opens, with the keepalive, idle detection
 /// and resume handling a mobile OS makes necessary.
@@ -98,6 +103,32 @@ pub mod executor {
   /// OS allows, and the engine can't fall back to the local copy until it ends.
   const CONNECT_TIMEOUT: Duration = Duration::from_secs(6);
 
+  /// How long a request may go without a single byte arriving before it is
+  /// abandoned.
+  ///
+  /// [`CONNECT_TIMEOUT`] does not cover this, and the gap is where a mobile app
+  /// hangs. It bounds *opening* a connection, so it says nothing about a request
+  /// sent over a pooled one that was opened earlier and has since died — and
+  /// after a spell in the background, that describes every connection in the
+  /// pool. The peer is gone, no RST comes back, and a request with no read
+  /// deadline waits for a reply that will never arrive: forever, silently, with
+  /// whatever was waiting on it (a reconnect loop, an upload drain) stopped
+  /// behind it.
+  ///
+  /// It is a read deadline rather than a total one so a slow large transfer — an
+  /// offline photo queue draining over a weak link — is not cut off for taking
+  /// its time while making progress.
+  const READ_TIMEOUT: Duration = Duration::from_secs(30);
+
+  /// How long an idle pooled connection may be kept for reuse.
+  ///
+  /// Short on purpose. Reusing a connection is only a win while it is alive, and
+  /// on a phone the interesting requests are the first ones after a spell in the
+  /// background — exactly when everything pooled is stale, the network may have
+  /// changed from Wi-Fi to cellular underneath, and a fresh handshake costs far
+  /// less than discovering the old socket is dead by waiting on it.
+  const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(20);
+
   /// Picks `ring` as the process-wide rustls provider. Call once, before any TLS.
   ///
   /// [`client`] never needs this — it is handed an explicit provider — but a
@@ -111,7 +142,13 @@ pub mod executor {
   }
 
   /// The shared client: bundled Mozilla WebPKI roots, never the platform
-  /// verifier. Built once, on first use.
+  /// verifier, and a deadline on every wait it can make. Built once, on first
+  /// use.
+  ///
+  /// Everything native an app sends should go through this — the webview's
+  /// forwarded requests, a socket ticket, an upload queue draining — because the
+  /// timeouts above are the only thing standing between a stale pooled
+  /// connection and a request that never returns.
   ///
   /// The platform verifier is not merely a different choice here — on Android it
   /// reaches the system trust store over JNI and panics unless something has
@@ -136,7 +173,11 @@ pub mod executor {
       reqwest::Client::builder()
         .use_preconfigured_tls(tls)
         .connect_timeout(CONNECT_TIMEOUT)
-        .pool_idle_timeout(Duration::from_secs(300))
+        .read_timeout(READ_TIMEOUT)
+        .pool_idle_timeout(POOL_IDLE_TIMEOUT)
+        // Lets the OS notice a dead peer on a connection that is otherwise
+        // sitting there, instead of leaving it to the request that reuses it.
+        .tcp_keepalive(POOL_IDLE_TIMEOUT)
         .build()
         .expect("build reqwest client")
     })
@@ -472,7 +513,9 @@ impl<R: Remote, L: LocalBackend> Engine<R, L> {
           }
           self.queue.ack(entry.id);
         }
-        Ok(resp) => return Err(format!("server rejected a queued write: HTTP {}", resp.status())),
+        Ok(resp) => {
+          return Err(format!("server rejected a queued write: HTTP {}", resp.status()));
+        }
         Err(e) => return Err(format!("sync failed, will retry: {e}")),
       }
     }

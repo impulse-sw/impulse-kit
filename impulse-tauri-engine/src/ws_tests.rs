@@ -7,12 +7,13 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use impulse_utils::prelude::ServerError;
 use serde_json::{Value, json};
 use tokio::sync::mpsc;
 
-use crate::ws::{Emit, LocalReply, WsBackend, WsEngine, WsRemote, WsSink, WsStream};
+use crate::ws::{Emit, LocalReply, ReconnectPolicy, WsBackend, WsEngine, WsRemote, WsSink, WsStream};
 
 // ─── fake transport ────────────────────────────────────────────────────────
 
@@ -110,6 +111,71 @@ impl WsRemote for FakeRemote {
       },
       FakeStream { rx },
     ))
+  }
+}
+
+// ─── fakes that never finish ─────────────────────────────────────────────────
+//
+// The failure these cover is not an error but an absence: on a phone coming back
+// from the background, a connect or a write to a peer that vanished without
+// closing simply never completes. Nothing errors, so nothing retries.
+
+/// A transport whose `connect` never resolves.
+struct HangingRemote;
+
+impl WsRemote for HangingRemote {
+  type Sink = FakeSink;
+  type Stream = FakeStream;
+  async fn connect(&self, _url: &str) -> Result<(Self::Sink, Self::Stream), String> {
+    std::future::pending().await
+  }
+}
+
+/// A transport that connects fine but whose writes never resolve.
+struct HangingWriteRemote {
+  server: FakeServer,
+  /// Flip to hand out a sink that actually writes, standing in for the network
+  /// coming back.
+  healthy: Arc<AtomicBool>,
+}
+
+struct HangingSink;
+
+impl WsSink for HangingSink {
+  async fn send(&mut self, _frame: String) -> Result<(), String> {
+    std::future::pending().await
+  }
+}
+
+/// Either half can be handed to the engine, so the sink type is the choice.
+enum EitherSink {
+  Hanging(HangingSink),
+  Fake(FakeSink),
+}
+
+impl WsSink for EitherSink {
+  async fn send(&mut self, frame: String) -> Result<(), String> {
+    match self {
+      Self::Hanging(s) => s.send(frame).await,
+      Self::Fake(s) => s.send(frame).await,
+    }
+  }
+}
+
+impl WsRemote for HangingWriteRemote {
+  type Sink = EitherSink;
+  type Stream = FakeStream;
+  async fn connect(&self, _url: &str) -> Result<(Self::Sink, Self::Stream), String> {
+    let (tx, rx) = mpsc::unbounded_channel();
+    *self.server.out.lock().unwrap() = Some(tx);
+    let sink = if self.healthy.load(Ordering::Relaxed) {
+      EitherSink::Fake(FakeSink {
+        server: self.server.clone(),
+      })
+    } else {
+      EitherSink::Hanging(HangingSink)
+    };
+    Ok((sink, FakeStream { rx }))
   }
 }
 
@@ -393,6 +459,146 @@ async fn online_send_forwards_and_broadcast_is_applied() {
     "the server snapshot should reach the webview"
   );
   assert_eq!(engine.pending_sync(), 0, "online sends are not queued");
+
+  bg.abort();
+}
+
+// ─── nothing in the reconnect path may wait forever ──────────────────────────
+
+/// Short enough to test, same shape as the real thing.
+fn brisk_policy() -> ReconnectPolicy {
+  ReconnectPolicy::default()
+    .with_connect_timeout(Duration::from_millis(150))
+    .with_write_timeout(Duration::from_millis(150))
+    .with_initial_delay(Duration::from_millis(10))
+    .with_max_delay(Duration::from_millis(40))
+}
+
+#[tokio::test]
+async fn a_connect_that_never_answers_is_abandoned() {
+  let engine = WsEngine::new(
+    MemBackend::default(),
+    HangingRemote,
+    "ws://x",
+    queue_path(),
+    Emitted::default().sink(),
+  )
+  .unwrap()
+  .with_reconnect_policy(brisk_policy());
+
+  // The point is that it returns at all: a connect stuck on a dead pooled
+  // connection is what silently stops the loop that owns reconnection.
+  let result = tokio::time::timeout(Duration::from_secs(2), engine.connect_and_run()).await;
+  assert!(
+    matches!(result, Ok(Err(_))),
+    "a hanging connect must time out and report failure, not hold the caller"
+  );
+  assert!(!engine.is_online());
+}
+
+#[tokio::test]
+async fn a_write_that_never_completes_does_not_block_the_next_connect() {
+  let server = FakeServer::new();
+  let healthy = Arc::new(AtomicBool::new(false));
+  let engine = Arc::new(
+    WsEngine::new(
+      MemBackend::default(),
+      HangingWriteRemote {
+        server: server.clone(),
+        healthy: healthy.clone(),
+      },
+      "ws://x",
+      queue_path(),
+      Emitted::default().sink(),
+    )
+    .unwrap()
+    .with_reconnect_policy(brisk_policy()),
+  );
+
+  // Connect on a socket whose writes hang, then send into it.
+  let bg = tokio::spawn({
+    let engine = engine.clone();
+    async move {
+      let _ = engine.connect_and_run().await;
+    }
+  });
+  assert!(eventually(|| engine.is_online()).await);
+  engine
+    .send(json!({ "type": "create", "tmp": 0, "content": "stuck" }).to_string())
+    .await;
+
+  // The write gave up, so the frame fell back to the local store and the engine
+  // went offline rather than sitting on a socket that will never take it.
+  assert!(!engine.is_online(), "a stalled write means the connection is gone");
+  assert_eq!(engine.pending_sync(), 1, "the frame should be queued for replay");
+
+  // Let that connection end, as a dropped socket would.
+  server.out.lock().unwrap().take();
+  assert!(
+    tokio::time::timeout(Duration::from_secs(2), bg).await.is_ok(),
+    "the connection should end once its stream closes"
+  );
+
+  // And the wedged write left nothing holding the sink: the next attempt gets in.
+  healthy.store(true, Ordering::Relaxed);
+  let bg = tokio::spawn({
+    let engine = engine.clone();
+    async move {
+      let _ = engine.connect_and_run().await;
+    }
+  });
+  assert!(
+    eventually(|| engine.is_online()).await,
+    "the next connect must not wait on the previous socket's stuck write"
+  );
+
+  bg.abort();
+}
+
+#[tokio::test]
+async fn the_loop_reconnects_after_the_socket_drops() {
+  let server = FakeServer::new();
+  let emitted = Emitted::default();
+  let engine = Arc::new(
+    WsEngine::new(
+      MemBackend::default(),
+      FakeRemote { server: server.clone() },
+      "ws://x",
+      queue_path(),
+      emitted.sink(),
+    )
+    .unwrap()
+    .with_reconnect_policy(brisk_policy()),
+  );
+
+  let cycles = Arc::new(AtomicI64::new(0));
+  let bg = tokio::spawn({
+    let engine = engine.clone();
+    let cycles = cycles.clone();
+    async move {
+      engine
+        .run_reconnecting_with(|| {
+          let cycles = cycles.clone();
+          async move {
+            cycles.fetch_add(1, Ordering::Relaxed);
+          }
+        })
+        .await;
+    }
+  });
+
+  assert!(eventually(|| engine.is_online()).await, "the loop should connect");
+
+  // Drop the server's end: the receive loop ends, and the loop must dial again.
+  server.out.lock().unwrap().take();
+  assert!(
+    eventually(|| cycles.load(Ordering::Relaxed) >= 1).await,
+    "the connection should end and the after-cycle hook should run"
+  );
+  assert!(
+    eventually(|| engine.is_online()).await,
+    "the loop should reconnect on its own"
+  );
 
   bg.abort();
 }

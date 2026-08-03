@@ -93,6 +93,55 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
 
 ### Fixed
 
+- **A Tauri app's socket comes back after the phone does.** On Android an app
+  that had been in the background could return to a permanently disconnected
+  socket that never retried — despite keepalive pings and an idle timeout, which
+  is what made it so hard to place. The stall was *before* the socket: the
+  process comes back holding pooled HTTP connections whose peer is gone, and a
+  request over one of those never answers and never fails. The reconnect loop,
+  parked on the ws-token fetch it makes per attempt, simply stopped — nothing to
+  see in a log, and no keepalive to save a connection that was never opened.
+
+  Every wait on that path is now bounded, in the library rather than in each
+  shell:
+
+  - the shared `executor::client` gained a `read_timeout` (30s) and dropped its
+    pool idle timeout from 300s to 20s, with TCP keepalive on — a stale pooled
+    connection is now closed rather than handed to the next request. This
+    applies to *everything* native an app sends through it, including offline
+    upload queues draining;
+  - `WsEngine::connect_and_run` bounds the whole connect attempt
+    (`ReconnectPolicy::connect_timeout`, 15s) — ticket fetch and handshake
+    alike — and bounds every socket write (`write_timeout`, 10s). A wedged write
+    used to hold the sink and take the *next* connect attempt down with it;
+  - `shell`'s socket bounds its own writes too, so a stalled keepalive ping
+    can't freeze the write half it shares with the app's frames;
+  - the socket is now dropped when a connection ends, instead of being left for
+    its keepalive task to ping and for the next attempt to wait on.
+
+- **`WsEngine::run_reconnecting` is the reconnect loop, so apps stop writing
+  one.** It connects, serves until the connection drops, backs off and dials
+  again, forever; `run_reconnecting_with` adds a hook for a shell with its own
+  queue to drain each cycle. It needs no connectivity pre-check — a bounded
+  connect attempt *is* the probe — and a resume collapses the backoff, so coming
+  back to the foreground reconnects at once rather than serving out a wait
+  measured against a network the app may no longer be on. The loop each app kept
+  its own copy of is where this bug lived; there is now one copy, with tests for
+  a connect that never answers and a write that never completes.
+
+- **The resume signal moved to `impulse_tauri_engine::lifecycle`.** It was
+  private to the socket, so only the read side could hear it — a resume that
+  landed while a connect attempt or a backoff was in flight did nothing. Those
+  now listen too. `shell::wake` still exists and is still what a shell calls
+  from `WindowEvent::Focused(true)`.
+
+- **The socket's keepalive is easier on a phone.** `PING_INTERVAL` 3s → 10s and
+  `IDLE_TIMEOUT` 5s → 30s (three pings, not one-and-a-bit). A five-second stall
+  is ordinary on a mobile network, and treating it as a dead connection cost a
+  full reconnect — ticket, TLS, handshake, and whatever snapshot the server
+  rebuilds — several times an hour. The case the short timeout was really there
+  for, a resume, is handled at once by `wake` instead.
+
 - **`<Textarea>` no longer relies on the platform's resize grip.** On Android the
   native grip is a barely-visible white speck in the corner; every other
   platform draws its own. The native one is now off (`resize-none`) and the

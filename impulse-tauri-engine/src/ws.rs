@@ -26,6 +26,24 @@
 //! * **on reconnect** — [`WsEngine::sync`] replays the queued frames oldest-first
 //!   over the socket, then the server's authoritative broadcasts refresh the UI.
 //!
+//! ## Staying connected
+//!
+//! [`WsEngine::run_reconnecting`] is the loop that keeps a socket up for the
+//! life of the app, and it lives here rather than in each shell because getting
+//! it right is not app-specific. Every wait it can make — the connect attempt,
+//! every write, the backoff between attempts — is bounded by
+//! [`ReconnectPolicy`] and cut short by [`lifecycle::wake`].
+//!
+//! That is the whole point of the type. A phone coming back from the background
+//! holds connections that are dead without having been closed: pooled HTTP
+//! sockets a token fetch will reuse, a TCP stream whose peer stopped listening
+//! hours ago. An `await` on any of them never completes and never fails, so a
+//! reconnect loop that reaches one simply stops — no pings, no timeouts, no
+//! retry, nothing to see in a log. The socket's own keepalive cannot save it,
+//! because the loop wedged *before* there was a socket to keep alive. Timeouts
+//! on every step are what make that impossible, so the invariant is worth
+//! stating plainly: **no await in the reconnect path may be unbounded.**
+//!
 //! ## Ids without a response
 //!
 //! A socket frame has no reply to read a server-assigned id from, so a WS create
@@ -39,6 +57,7 @@
 //! frames a peer's action produced. Native (non-wasm) only.
 
 use std::collections::HashMap;
+use std::future::Future;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -47,6 +66,8 @@ use std::time::Duration;
 use impulse_utils::prelude::ServerError;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex as AsyncMutex, Notify};
+
+use crate::lifecycle;
 
 /// The write half of a live server socket: sends one text frame.
 ///
@@ -297,11 +318,88 @@ impl WsQueue {
 /// still reconciles the local store afterwards.
 const RECONCILE_WAIT: Duration = Duration::from_secs(5);
 
+/// The bounds [`WsEngine::run_reconnecting`] keeps the connection under: how long
+/// a single attempt may take, how long a write may take, and how long to wait
+/// between attempts.
+///
+/// Every field exists because the operation it covers can otherwise wait
+/// forever on a phone (see the module docs), so the defaults are what an app
+/// should normally use — they are chosen to be generous for a slow mobile
+/// network while still measured in seconds, not minutes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ReconnectPolicy {
+  /// How long one connect attempt — everything [`WsRemote::connect`] does, which
+  /// typically includes minting a ticket over HTTP as well as the socket
+  /// handshake — may take before it is abandoned and retried.
+  pub connect_timeout: Duration,
+  /// How long a single frame may take to reach the socket. A write that outlives
+  /// this is treated as a lost connection: the socket is dropped (a half-written
+  /// frame cannot be reused) and the engine goes offline, so the frame is served
+  /// and queued locally instead.
+  pub write_timeout: Duration,
+  /// Wait before the first retry after a connection ends.
+  pub initial_delay: Duration,
+  /// Upper bound on the backed-off wait between attempts.
+  pub max_delay: Duration,
+  /// Multiplier applied to the wait after each failed attempt. `1` keeps it
+  /// constant.
+  pub backoff_factor: u32,
+}
+
+impl Default for ReconnectPolicy {
+  fn default() -> Self {
+    Self {
+      connect_timeout: Duration::from_secs(15),
+      write_timeout: Duration::from_secs(10),
+      initial_delay: Duration::from_secs(1),
+      max_delay: Duration::from_secs(20),
+      backoff_factor: 2,
+    }
+  }
+}
+
+impl ReconnectPolicy {
+  /// Set how long one connect attempt may take.
+  pub fn with_connect_timeout(mut self, timeout: Duration) -> Self {
+    self.connect_timeout = timeout;
+    self
+  }
+
+  /// Set how long a single frame may take to reach the socket.
+  pub fn with_write_timeout(mut self, timeout: Duration) -> Self {
+    self.write_timeout = timeout;
+    self
+  }
+
+  /// Set the wait before the first retry.
+  pub fn with_initial_delay(mut self, delay: Duration) -> Self {
+    self.initial_delay = delay;
+    self
+  }
+
+  /// Set the upper bound on the wait between attempts.
+  pub fn with_max_delay(mut self, delay: Duration) -> Self {
+    self.max_delay = delay;
+    self
+  }
+
+  /// Set the backoff multiplier applied after each failed attempt.
+  pub fn with_backoff_factor(mut self, factor: u32) -> Self {
+    self.backoff_factor = factor;
+    self
+  }
+
+  fn next_delay(&self, delay: Duration) -> Duration {
+    delay.saturating_mul(self.backoff_factor.max(1)).min(self.max_delay)
+  }
+}
+
 /// The offline-capable WebSocket engine backing a Tauri app.
 ///
 /// Construct it once, hand [`send`](Self::send) to the `ik_ws_send` command, and
-/// run [`connect_and_run`](Self::connect_and_run) from a background task that the
-/// shell restarts whenever the socket drops.
+/// spawn [`run_reconnecting`](Self::run_reconnecting) as a background task — that
+/// is the whole shell-side lifecycle, and it is deliberately not something an app
+/// writes for itself.
 pub struct WsEngine<R: WsRemote, B: WsBackend> {
   remote: R,
   backend: B,
@@ -312,6 +410,7 @@ pub struct WsEngine<R: WsRemote, B: WsBackend> {
   queue: WsQueue,
   id_map: Mutex<HashMap<i64, i64>>,
   waiters: Mutex<HashMap<i64, Arc<Notify>>>,
+  policy: ReconnectPolicy,
 }
 
 impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
@@ -335,7 +434,16 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
       queue: WsQueue::open(queue_path.into())?,
       id_map: Mutex::new(HashMap::new()),
       waiters: Mutex::new(HashMap::new()),
+      policy: ReconnectPolicy::default(),
     })
+  }
+
+  /// Overrides the [`ReconnectPolicy`]. The default is what an app should
+  /// normally want; this is for a shell with an unusual transport (a connect
+  /// that is legitimately slower than 15s, say).
+  pub fn with_reconnect_policy(mut self, policy: ReconnectPolicy) -> Self {
+    self.policy = policy;
+    self
   }
 
   /// The app's local backend (e.g. to set the signed-in identity on it).
@@ -358,20 +466,59 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
   /// any optimistic frames, and queues the frame for replay.
   pub async fn send(&self, frame: String) {
     if self.is_online() {
-      let mut guard = self.sink.lock().await;
-      if let Some(sink) = guard.as_mut() {
-        match sink.send(frame.clone()).await {
-          Ok(()) => return,
-          Err(e) => {
-            tracing::warn!("ws send failed, serving offline: {e}");
-            *guard = None;
-            drop(guard);
-            self.go_offline();
-          }
-        }
+      match self.write_frame(frame.clone()).await {
+        Ok(()) => return,
+        Err(e) => tracing::warn!("ws send failed, serving offline: {e}"),
       }
     }
     self.serve_offline(&frame).await;
+  }
+
+  /// Writes one frame to the live socket, bounded by
+  /// [`ReconnectPolicy::write_timeout`]. Any failure — including running out of
+  /// time — drops the socket and flips the engine offline, so the caller can fall
+  /// back to the local store and the reconnect loop can take over.
+  ///
+  /// The timeout is not decoration. A write to a peer that vanished without
+  /// closing sits in the kernel's send buffer and, once that fills, never
+  /// completes; because it holds the sink while it waits, an unbounded one takes
+  /// the *next* connect attempt down with it, which is a stall no keepalive can
+  /// break.
+  async fn write_frame(&self, frame: String) -> Result<(), String> {
+    let write = async {
+      let mut guard = self.sink.lock().await;
+      let Some(sink) = guard.as_mut() else {
+        return Err("socket not connected".to_string());
+      };
+      let result = sink.send(frame).await;
+      if result.is_err() {
+        *guard = None;
+      }
+      result
+    };
+    match tokio::time::timeout(self.policy.write_timeout, write).await {
+      Ok(Ok(())) => Ok(()),
+      Ok(Err(e)) => {
+        self.go_offline();
+        Err(e)
+      }
+      Err(_) => {
+        // Cancelling mid-write may have left a partial frame in the sink, so the
+        // socket is unusable even if it later recovers: drop it.
+        self.go_offline();
+        self.clear_sink().await;
+        Err(format!("write timed out after {:?}", self.policy.write_timeout))
+      }
+    }
+  }
+
+  /// Drops the current socket, bounded so a wedged writer can't hold the loop
+  /// here. Best-effort: failing to take the lock only means the socket is still
+  /// being written to, and the next successful connect replaces it anyway.
+  async fn clear_sink(&self) {
+    if let Ok(mut guard) = tokio::time::timeout(self.policy.write_timeout, self.sink.lock()).await {
+      *guard = None;
+    }
   }
 
   async fn serve_offline(&self, frame: &str) {
@@ -395,11 +542,32 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
   /// Connects the socket and runs the receive loop until it closes, folding every
   /// inbound frame into the local store, reconciling create ids, and pushing the
   /// frame to the webview. On a successful connect it flips online and replays the
-  /// queue. Returns when the socket drops; the shell should call it again to
-  /// reconnect.
+  /// queue. Returns when the socket drops.
+  ///
+  /// Prefer [`run_reconnecting`](Self::run_reconnecting), which calls this in the
+  /// loop it belongs in; this is public for a shell that needs one attempt, and
+  /// for tests.
+  ///
+  /// The attempt is bounded by [`ReconnectPolicy::connect_timeout`] and abandoned
+  /// on [`lifecycle::wake`] — a connect that was in flight while the app was in
+  /// the background is reaching for a network the app may no longer be on, and
+  /// waiting for it to notice is the stall this exists to prevent.
   pub async fn connect_and_run(&self) -> Result<(), String> {
-    let (sink, mut stream) = self.remote.connect(&self.url).await?;
-    *self.sink.lock().await = Some(sink);
+    let (sink, mut stream) = tokio::select! {
+      biased;
+      _ = lifecycle::resumed() => return Err("app resumed mid-connect; retrying on a fresh socket".to_string()),
+      connected = tokio::time::timeout(self.policy.connect_timeout, self.remote.connect(&self.url)) => match connected {
+        Ok(halves) => halves?,
+        Err(_) => return Err(format!("connect timed out after {:?}", self.policy.connect_timeout)),
+      },
+    };
+    // Bounded like every other wait here: a previous write still wedged on the
+    // dead socket holds this lock, and blocking on it would sink the very attempt
+    // meant to replace that socket.
+    match tokio::time::timeout(self.policy.write_timeout, self.sink.lock()).await {
+      Ok(mut guard) => *guard = Some(sink),
+      Err(_) => return Err("previous socket is still being written to; retrying".to_string()),
+    }
     self.online.store(true, Ordering::Relaxed);
 
     // The receive loop and the replay run concurrently, on purpose: a replayed
@@ -425,7 +593,53 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
     tokio::join!(receive, replay);
 
     self.go_offline();
+    // Drop the dead socket rather than leave it for the keepalive to ping and for
+    // the next attempt to wait on.
+    self.clear_sink().await;
     Ok(())
+  }
+
+  /// Keeps the socket up for as long as the app runs: connect, serve until it
+  /// drops, wait, connect again. Never returns — spawn it once at startup.
+  ///
+  /// There is no connectivity pre-check: a bounded connect attempt *is* the
+  /// probe, and one that fails costs a backoff rather than a wasted request. A
+  /// [`lifecycle::wake`] collapses the wait, so returning to the foreground
+  /// reconnects at once instead of serving out a backoff measured against a
+  /// network the app may no longer be on.
+  pub async fn run_reconnecting(&self) {
+    self.run_reconnecting_with(|| async {}).await
+  }
+
+  /// [`run_reconnecting`](Self::run_reconnecting) with `after_cycle` run once
+  /// after every connection ends — for a shell with its own queue to drain
+  /// alongside the engine's (uploads that a socket frame can't carry, say).
+  ///
+  /// It runs inline, so it holds up the next attempt: whatever it awaits must be
+  /// bounded. Anything going through the crate's shared `executor::client`
+  /// already is.
+  pub async fn run_reconnecting_with<F, Fut>(&self, after_cycle: F)
+  where
+    F: Fn() -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    let mut delay = self.policy.initial_delay;
+    loop {
+      match self.connect_and_run().await {
+        Ok(()) => delay = self.policy.initial_delay,
+        Err(e) => tracing::debug!("ws connection attempt ended: {e}"),
+      }
+      after_cycle().await;
+      let resumed = tokio::select! {
+        _ = tokio::time::sleep(delay) => false,
+        _ = lifecycle::resumed() => true,
+      };
+      delay = if resumed {
+        self.policy.initial_delay
+      } else {
+        self.policy.next_delay(delay)
+      };
+    }
   }
 
   async fn receive(&self, frame: String) {
@@ -455,17 +669,8 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
         self.backend.rewrite_ids(&entry.frame, &map)
       };
       let frame = self.backend.prepare_outgoing(rewritten);
-      {
-        let mut guard = self.sink.lock().await;
-        let Some(sink) = guard.as_mut() else {
-          return Err("socket not connected".to_string());
-        };
-        if let Err(e) = sink.send(frame).await {
-          *guard = None;
-          drop(guard);
-          self.go_offline();
-          return Err(format!("sync stopped, socket lost: {e}"));
-        }
+      if let Err(e) = self.write_frame(frame).await {
+        return Err(format!("sync stopped, socket lost: {e}"));
       }
       self.queue.ack(entry.id);
       if let Some(provisional) = entry.provisional_id {
