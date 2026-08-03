@@ -57,10 +57,27 @@
 //!
 //! * `pageshow` with `persisted == true` (a bfcache restore) always reconnects,
 //!   since the restored session is stale even if it still reports `Open`.
-//! * `online` and `visibilitychange` (becoming visible) reconnect only when the
-//!   session is not already `Open`/`Connecting`, recovering a `closed` promise
-//!   that never resolved and collapsing any pending backoff into an immediate
-//!   attempt.
+//! * `online` and `visibilitychange` (becoming visible) leave a session that is
+//!   still `Connecting` alone — the connect watchdog bounds that — reconnect at
+//!   once if the session already looks dead, recovering a `closed` promise that
+//!   never resolved and collapsing any pending backoff, and *probe* a session
+//!   that still reports `Open`.
+//!
+//! That last case is the one that otherwise never recovers. A session restored
+//! from a frozen page reports `Open` and leaves its `closed` promise pending
+//! whether or not anything is still listening: the transport died while the page
+//! was not running, so nothing was ever delivered to say so. Waking only on a
+//! session that "looks dead" therefore never fires — the dead one looks alive.
+//!
+//! So the handle asks it to prove otherwise. Register a probe datagram with
+//! [`set_liveness_probe`](WebTransportHandle::set_liveness_probe) and a wake
+//! sends it, giving the session
+//! [`ReconnectOptions::liveness_timeout`](crate::reconnect::ReconnectOptions::liveness_timeout)
+//! to produce any inbound datagram at all; silence rebuilds it. The evidence
+//! arrives through the datagram reader, so this needs a
+//! [`datagram_signal`](WebTransportHandle::datagram_signal) registered — with no
+//! probe, no reader, or no deadline there is nothing to ask, and a wake rebuilds
+//! the session unconditionally instead: costlier, but never silently mute.
 //!
 //! The wake is distinct from a graceful close, so it reconnects where a peer's
 //! `close()` would (correctly) be final. These listeners are inert once
@@ -176,6 +193,12 @@ struct WebTransportInner {
   datagram_sink: RefCell<Option<WriteSignal<Option<Vec<u8>>>>>,
   /// Guards against running more than one datagram reader at a time.
   reader_running: Cell<bool>,
+  /// Datagram sent to make a possibly-dead session answer for itself, set by
+  /// [`WebTransportHandle::set_liveness_probe`].
+  liveness_probe: RefCell<Option<Vec<u8>>>,
+  /// Handle for the deadline on an outstanding liveness probe, cleared by the
+  /// first inbound datagram.
+  liveness: Cell<Option<TimeoutHandle>>,
   /// Live wake used to interrupt the supervisor's `closed`/backoff wait on a
   /// page-lifecycle event. Re-armed by the supervisor after each firing.
   wake: RefCell<Wake>,
@@ -195,8 +218,19 @@ impl WebTransportInner {
 
   /// Resolve the live wake promise, interrupting whichever wait the supervisor
   /// is parked in and forcing an immediate reconnect.
+  ///
+  /// The session this was asked about is on its way out, so any probe still
+  /// waiting on it is moot.
   fn request_wake(&self) {
+    self.clear_liveness();
     let _ = self.wake.borrow().resolve.call1(&JsValue::UNDEFINED, &self.sentinel);
+  }
+
+  /// Drop the deadline on an outstanding liveness probe, if any.
+  fn clear_liveness(&self) {
+    if let Some(handle) = self.liveness.take() {
+      handle.clear();
+    }
   }
 
   /// Install a fresh, unfired wake for the next wait.
@@ -204,25 +238,74 @@ impl WebTransportInner {
     *self.wake.borrow_mut() = Wake::new();
   }
 
-  /// Wake the supervisor only if the session looks dead — used by the `online`
-  /// and `visibilitychange` handlers, which must not disturb a healthy or
-  /// in-progress session.
-  fn wake_if_dead(&self) {
+  /// React to an `online`/`visibilitychange` wake: leave an attempt that is
+  /// still connecting alone, rebuild a session that already looks dead, and make
+  /// one that claims to be `Open` prove it — after a freeze that claim is
+  /// precisely what cannot be trusted. See the module docs.
+  fn revalidate(self: &Rc<Self>) {
     if self.manual_close.get() {
       return;
     }
-    if matches!(
-      self.current_state.get(),
-      WebTransportState::Open | WebTransportState::Connecting
-    ) {
-      return;
+    match self.current_state.get() {
+      // Its own connect watchdog is already counting; adding a second opinion
+      // here would only restart the attempt it is about to finish.
+      WebTransportState::Connecting => (),
+      WebTransportState::Open => self.probe_liveness(),
+      WebTransportState::Closed | WebTransportState::Failed => self.request_wake(),
     }
-    self.request_wake();
+  }
+
+  /// Ask a session that reports `Open` to prove it, and rebuild it if it can't.
+  ///
+  /// The send is not the evidence — a datagram write into a dead session
+  /// resolves as happily as into a live one — so an *inbound* datagram is, and
+  /// its absence within the deadline is what condemns the session. With nothing
+  /// to ask, or nobody reading the answer, the session is rebuilt instead: a
+  /// needless reconnect costs a handshake, while trusting a mute session costs
+  /// the app.
+  fn probe_liveness(self: &Rc<Self>) {
+    let probe = self.liveness_probe.borrow().clone();
+    let (Some(datagram), Some(timeout), true) =
+      (probe, self.config.reconnect.liveness_timeout, self.reader_running.get())
+    else {
+      self.request_wake();
+      return;
+    };
+    let Some(transport) = self.transport.borrow().clone() else {
+      self.request_wake();
+      return;
+    };
+
+    self.clear_liveness();
+    // Fire and forget: a write that fails says the session is gone, and one that
+    // succeeds says nothing at all — either way the deadline below decides.
+    spawn_local(async move {
+      if let Err(e) = send_datagram_on(&transport, &datagram).await {
+        log::debug!("WebTransport liveness probe could not be sent: {e:?}");
+      }
+    });
+
+    let weak = Rc::downgrade(self);
+    let handle = set_timeout_with_handle(
+      move || {
+        let Some(inner) = weak.upgrade() else { return };
+        inner.liveness.set(None);
+        if inner.manual_close.get() {
+          return;
+        }
+        log::warn!("WebTransport did not answer within {timeout:?} of waking; rebuilding the session");
+        inner.request_wake();
+      },
+      timeout,
+    )
+    .ok();
+    self.liveness.set(handle);
   }
 }
 
 impl Drop for WebTransportInner {
   fn drop(&mut self) {
+    self.clear_liveness();
     if let Some(transport) = self.transport.borrow().as_ref() {
       transport.close();
     }
@@ -337,6 +420,8 @@ fn build_handle(config: WebTransportConfig) -> CResult<WebTransportHandle> {
     manual_close: Cell::new(false),
     datagram_sink: RefCell::new(None),
     reader_running: Cell::new(false),
+    liveness_probe: RefCell::new(None),
+    liveness: Cell::new(None),
     wake: RefCell::new(Wake::new()),
     sentinel: js_sys::Object::new().into(),
     lifecycle: RefCell::new(None),
@@ -358,7 +443,8 @@ fn build_handle(config: WebTransportConfig) -> CResult<WebTransportHandle> {
 /// is restored from bfcache, comes back online, or becomes visible again.
 ///
 /// A bfcache restore (`force`) forces an immediate reconnect via the wake, while
-/// an `online`/visible wake only disturbs a session that already looks dead.
+/// an `online`/visible wake goes through [`WebTransportInner::revalidate`], which
+/// makes a session that still claims to be open answer for itself.
 fn install_lifecycle_listeners(inner: &Rc<WebTransportInner>) {
   let weak = Rc::downgrade(inner);
   let listeners = on_page_restore(move |force| {
@@ -368,7 +454,7 @@ fn install_lifecycle_listeners(inner: &Rc<WebTransportInner>) {
         inner.request_wake();
       }
     } else {
-      inner.wake_if_dead();
+      inner.revalidate();
     }
   });
   if listeners.is_none() {
@@ -607,15 +693,35 @@ fn ensure_reader(inner: &Rc<WebTransportInner>, transport: &WebTransport) {
   let transport = transport.clone();
   let weak = Rc::downgrade(inner);
   spawn_local(async move {
-    read_datagrams(transport, sink).await;
+    read_datagrams(transport, sink, weak.clone()).await;
     if let Some(inner) = weak.upgrade() {
       inner.reader_running.set(false);
     }
   });
 }
 
+/// Write one datagram to `transport`. Shared by
+/// [`WebTransportHandle::send_datagram`] and the liveness probe, which has no
+/// handle to go through.
+async fn send_datagram_on(transport: &WebTransport, data: &[u8]) -> CResult<()> {
+  let writable: WritableStream = transport.datagrams().writable();
+  let writer: WritableStreamDefaultWriter = writable
+    .get_writer()
+    .map_err(|e| ClientError::from_str(format!("Failed to acquire datagram writer: {e:?}")))?;
+  let chunk: JsValue = js_sys::Uint8Array::from(data).into();
+  let promise: js_sys::Promise = writer.write_with_chunk(&chunk).unchecked_into();
+  let result = JsFuture::from(promise).await;
+  writer.release_lock();
+  result
+    .map(|_| ())
+    .map_err(|e| ClientError::from_str(format!("Failed to send datagram: {e:?}")))
+}
+
 /// Pump inbound datagrams from `transport` into `sink` until the session ends.
-async fn read_datagrams(transport: WebTransport, sink: WriteSignal<Option<Vec<u8>>>) {
+///
+/// `owner` is told about each one, because an inbound datagram is what answers
+/// an outstanding liveness probe.
+async fn read_datagrams(transport: WebTransport, sink: WriteSignal<Option<Vec<u8>>>, owner: Weak<WebTransportInner>) {
   let readable: ReadableStream = transport.datagrams().readable();
   let reader = match ReadableStreamDefaultReader::new(&readable) {
     Ok(reader) => reader,
@@ -634,6 +740,11 @@ async fn read_datagrams(transport: WebTransport, sink: WriteSignal<Option<Vec<u8
           .unwrap_or(true);
         if done {
           break;
+        }
+        // Whatever it carries, a datagram arriving is the session answering for
+        // itself.
+        if let Some(inner) = owner.upgrade() {
+          inner.clear_liveness();
         }
         if let Ok(value) = js_sys::Reflect::get(&result, &JsValue::from_str("value")) {
           let arr = js_sys::Uint8Array::new(&value);
@@ -681,6 +792,7 @@ impl WebTransportHandle {
   /// suppressed.
   pub fn close(&self) {
     self.inner.manual_close.set(true);
+    self.inner.clear_liveness();
     if let Some(transport) = self.inner.transport.borrow().as_ref() {
       transport.close();
     }
@@ -690,6 +802,7 @@ impl WebTransportHandle {
   /// [`Self::close`], this suppresses reconnection.
   pub fn close_with_info(&self, info: &WebTransportCloseInfo) {
     self.inner.manual_close.set(true);
+    self.inner.clear_liveness();
     if let Some(transport) = self.inner.transport.borrow().as_ref() {
       transport.close_with_close_info(info);
     }
@@ -704,17 +817,7 @@ impl WebTransportHandle {
       .borrow()
       .clone()
       .ok_or_else(|| ClientError::from_str("WebTransport session is not connected"))?;
-    let writable: WritableStream = transport.datagrams().writable();
-    let writer: WritableStreamDefaultWriter = writable
-      .get_writer()
-      .map_err(|e| ClientError::from_str(format!("Failed to acquire datagram writer: {e:?}")))?;
-    let chunk: JsValue = js_sys::Uint8Array::from(data).into();
-    let promise: js_sys::Promise = writer.write_with_chunk(&chunk).unchecked_into();
-    let result = JsFuture::from(promise).await;
-    writer.release_lock();
-    result
-      .map(|_| ())
-      .map_err(|e| ClientError::from_str(format!("Failed to send datagram: {e:?}")))
+    send_datagram_on(&transport, data).await
   }
 
   /// Open a new bidirectional stream for application framing.
@@ -776,5 +879,20 @@ impl WebTransportHandle {
       ensure_reader(&self.inner, &transport);
     }
     Ok(sig)
+  }
+
+  /// Register the datagram sent to prove the session is still alive after the
+  /// page comes back from a freeze.
+  ///
+  /// It should be something the server always answers and the app can ignore on
+  /// arrival — a datagram the protocol treats as "are you there?". Without one, a
+  /// wake rebuilds a session that claims to be open rather than asking it
+  /// anything; see the module docs for why that claim cannot be taken at face
+  /// value.
+  ///
+  /// The answer is observed through the datagram reader, so this only takes
+  /// effect alongside a registered [`datagram_signal`](Self::datagram_signal).
+  pub fn set_liveness_probe(&self, datagram: impl Into<Vec<u8>>) {
+    *self.inner.liveness_probe.borrow_mut() = Some(datagram.into());
   }
 }

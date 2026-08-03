@@ -109,6 +109,15 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   snapshot" message is usually the right one). Configure no probe and a wake
   reconnects unconditionally instead: costlier, but never silently mute.
 
+  **`WebTransport` had the identical hole and gets the identical fix.** Its
+  supervisor woke only on a session that was no longer `Open`/`Connecting`, and a
+  session restored from a freeze reports `Open` with its `closed` promise pending
+  forever — so the wake never fired on exactly the sessions that needed it.
+  `WebTransportHandle::set_liveness_probe` registers a probe datagram, and the
+  answer is observed through the datagram reader, so it works alongside a
+  registered `datagram_signal`; without a probe, a reader, or a deadline the
+  session is rebuilt on wake rather than trusted.
+
 - **Nothing in a reconnect now takes longer than about five seconds.** The old
   numbers were sized for a desktop that reconnects once a day, not a phone whose
   connection dies every time its owner checks a message; a 20-second backoff or a
