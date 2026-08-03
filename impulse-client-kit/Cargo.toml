@@ -6,6 +6,12 @@ rust-version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 authors = { workspace = true }
+build = "build.rs"
+# Publishes this crate's sources to the Tailwind scanner as
+# `DEP_IMPULSE_CLIENT_KIT_STYLES`. Without it, a class named in this crate — the
+# `safe_area` constants, say — is invisible to a consumer's Tailwind pass, and
+# the CSS is silently never emitted.
+links = "impulse-client-kit"
 
 [features]
 default = ["csr", "telemetry"]
@@ -118,6 +124,9 @@ tauri = [
   "dep:wasm-bindgen-futures",
   "dep:serde-wasm-bindgen",
 ]
+
+[build-dependencies]
+impulse-tailwind-sources = { workspace = true }
 
 [dependencies]
 console_error_panic_hook = { workspace = true, optional = true }

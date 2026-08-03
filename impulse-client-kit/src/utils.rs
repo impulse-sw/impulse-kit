@@ -43,6 +43,8 @@ pub mod safe_area {
   /// Clears rounded corners and landscape cutouts on both sides.
   pub const X: &str = "pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]";
   /// All four edges, for a container that owns the whole viewport.
-  pub const ALL: &str = "pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] \
-                         pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]";
+  // Written out on one line rather than composed from the three above, or split
+  // with a line continuation: Tailwind finds classes by scanning source text, so
+  // a class only exists if it appears literally somewhere it looks.
+  pub const ALL: &str = "pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]";
 }
