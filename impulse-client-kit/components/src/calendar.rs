@@ -266,7 +266,9 @@ fn CalendarNav(caption_layout: CaptionLayout) -> impl IntoView {
             // "September 2026" size the whole calendar differently, and every
             // step through the months moves the arrow you are clicking.
             view! {
-              <span class="select-none font-medium text-sm min-w-[7rem] text-center">{month_label}</span>
+              <span class="select-none font-medium text-sm min-w-[7rem] text-center">
+                {month_label}
+              </span>
             }
               .into_any()
           }
