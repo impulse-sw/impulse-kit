@@ -46,7 +46,7 @@ pub use tokio_tungstenite::tungstenite;
 type Ws = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
 /// How often the socket pings while otherwise idle.
-pub const PING_INTERVAL: Duration = Duration::from_secs(20);
+pub const PING_INTERVAL: Duration = Duration::from_secs(3);
 
 /// How long the socket may hear nothing at all before it is declared dead.
 ///
@@ -54,7 +54,7 @@ pub const PING_INTERVAL: Duration = Duration::from_secs(20);
 /// in flight to reset it — one lost ping is not enough to trip it — and short
 /// enough that a phone coming back from doze reconnects while its owner is still
 /// looking at the screen.
-pub const IDLE_TIMEOUT: Duration = Duration::from_secs(50);
+pub const IDLE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Signalled when the app returns to the foreground.
 fn resume_signal() -> &'static Notify {
