@@ -81,13 +81,144 @@ impl Remote for ExecutorRemote {
 /// (e.g. a connectivity probe) without constructing an [`Engine`].
 #[cfg(feature = "executor")]
 pub mod executor {
-  use impulse_endpoint::{HttpRequest, HttpResponse};
+  use std::sync::{Arc, OnceLock};
+  use std::time::Duration;
+
+  use impulse_endpoint::{HttpRequest, HttpResponse, OFFLINE_HEADER};
   use impulse_utils::prelude::{CResult, ClientError};
 
-  /// Runs `req` with reqwest and collects a buffered [`HttpResponse`].
+  /// How long to spend reaching a host before treating it as unreachable —
+  /// generous for a slow mobile network, short enough that a drop isn't felt as
+  /// a hang. Without it an unreachable server holds a request for as long as the
+  /// OS allows, and the engine can't fall back to the local copy until it ends.
+  const CONNECT_TIMEOUT: Duration = Duration::from_secs(6);
+
+  /// Picks `ring` as the process-wide rustls provider. Call once, before any TLS.
+  ///
+  /// [`client`] never needs this — it is handed an explicit provider — but a
+  /// socket library that builds its own config (tokio-tungstenite's
+  /// `connect_async`, say) asks rustls for the process default, and with both
+  /// `ring` and `aws-lc-rs` reachable in the graph rustls refuses to guess and
+  /// panics. An app that opens sockets should call this at startup.
+  pub fn install_crypto_provider() {
+    // `Err` means someone already installed one; either way a provider is set.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+  }
+
+  /// The shared client: bundled Mozilla WebPKI roots, never the platform
+  /// verifier. Built once, on first use.
+  ///
+  /// The platform verifier is not merely a different choice here — on Android it
+  /// reaches the system trust store over JNI and panics unless something has
+  /// initialised it with the app `Context`. Under a release profile's
+  /// `panic = "abort"` that aborts the process on the very first request, which
+  /// is to say on startup. The bundled roots cover the public CAs, so
+  /// verification behaves identically on desktop and mobile with no JNI setup.
+  pub fn client() -> &'static reqwest::Client {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    CLIENT.get_or_init(|| {
+      let roots = rustls::RootCertStore {
+        roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+      };
+      // The provider is pinned explicitly rather than taken from the process
+      // default, so this client works whether or not anything called
+      // `install_crypto_provider`.
+      let tls = rustls::ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+        .with_safe_default_protocol_versions()
+        .expect("rustls default protocol versions")
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+      reqwest::Client::builder()
+        .use_preconfigured_tls(tls)
+        .connect_timeout(CONNECT_TIMEOUT)
+        .pool_idle_timeout(Duration::from_secs(300))
+        .build()
+        .expect("build reqwest client")
+    })
+  }
+
+  /// Runs a request the webview handed over, re-based onto `server_origin`, and
+  /// answers with a response rather than an error when the server can't be
+  /// reached.
+  ///
+  /// This is the body of an app's `ik_http_request` command. Two things it does
+  /// that [`execute`] does not:
+  ///
+  /// The URL is re-based. A webview builds absolute URLs from `window.location`,
+  /// which inside a Tauri shell is the webview origin — `tauri://localhost/api/…`,
+  /// a scheme no HTTP client can dial. Only path and query carry meaning.
+  ///
+  /// A request that never reached the server answers `503` + [`OFFLINE_HEADER`]
+  /// instead of failing. That distinction is the point of an offline-first app: a
+  /// real `401` off the wire means the session was rejected and the user must
+  /// sign in again, while "nobody was asked" must leave the app on what it knows
+  /// locally, or it bounces its owner to a login screen that cannot be completed
+  /// without the very network that is missing.
+  ///
+  /// Auth is the caller's: whatever headers the request arrived with are
+  /// forwarded untouched, and nothing is added.
+  pub async fn serve_webview(server_origin: &str, req: HttpRequest) -> HttpResponse {
+    let url = format!(
+      "{}{}",
+      server_origin.trim_end_matches('/'),
+      super::path_and_query(&req.url)
+    );
+    let mut rb = client().request(req.method.into(), &url);
+    for (name, value) in &req.headers {
+      rb = rb.header(name, value);
+    }
+    if let Some(body) = req.body {
+      rb = rb.body(body);
+    }
+
+    let resp = match rb.send().await {
+      Ok(resp) => resp,
+      Err(e) => return offline(format!("request failed: {e}")),
+    };
+    let status = resp.status().as_u16();
+    let headers = resp
+      .headers()
+      .iter()
+      .filter_map(|(name, value)| value.to_str().ok().map(|v| (name.as_str().to_owned(), v.to_owned())))
+      .collect();
+    match resp.bytes().await {
+      Ok(body) => HttpResponse {
+        status,
+        headers,
+        body: body.to_vec(),
+      },
+      Err(e) => offline(format!("reading the response failed: {e}")),
+    }
+  }
+
+  /// The "nobody was asked" response, which
+  /// [`HttpResponse::is_offline`](impulse_endpoint::HttpResponse::is_offline)
+  /// reports and an auth gate reads as *no connection* rather than *rejected*.
+  fn offline(reason: String) -> HttpResponse {
+    tracing::debug!("serving offline: {reason}");
+    HttpResponse {
+      status: 503,
+      headers: vec![(OFFLINE_HEADER.to_string(), "1".to_string())],
+      body: reason.into_bytes(),
+    }
+  }
+
+  /// Percent-encodes a single query-parameter value: everything outside the
+  /// RFC 3986 unreserved set is escaped.
+  pub fn percent_encode(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for byte in value.bytes() {
+      match byte {
+        b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(byte as char),
+        _ => out.push_str(&format!("%{byte:02X}")),
+      }
+    }
+    out
+  }
+
+  /// Runs `req` with the shared client and collects a buffered [`HttpResponse`].
   pub async fn execute(req: HttpRequest) -> CResult<HttpResponse> {
-    let client = reqwest::Client::new();
-    let mut rb = client.request(req.method.into(), &req.url);
+    let mut rb = client().request(req.method.into(), &req.url);
     for (k, v) in &req.headers {
       rb = rb.header(k, v);
     }

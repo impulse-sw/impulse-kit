@@ -13,7 +13,11 @@ default = ["executor"]
 # natively via reqwest (this is the native side of a Tauri app — the "forward to
 # the server" transport). Turn it off for headless tests that inject a fake
 # `Remote`.
-executor = ["dep:reqwest", "impulse-endpoint/reqwest"]
+# TLS verifies against the bundled Mozilla WebPKI roots rather than the platform
+# verifier: on Android that verifier reaches the system trust store over JNI and
+# panics unless it was initialised with the app `Context`, which under a release
+# profile's `panic = "abort"` takes the whole process down on the first request.
+executor = ["dep:reqwest", "dep:rustls", "dep:webpki-roots", "impulse-endpoint/reqwest"]
 # Streaming offline engine (`WsEngine` + `WsBackend`) for a WebSocket/WebTransport
 # app surface — the sibling of the request/response `Engine`. Transport-agnostic
 # like the request/response side: the app shell supplies the concrete socket
@@ -25,6 +29,8 @@ ws = ["dep:tokio"]
 impulse-endpoint = { workspace = true }
 impulse-utils = { workspace = true, features = ["cresult", "mresult"] }
 reqwest = { workspace = true, optional = true, features = ["json", "rustls", "http2"] }
+rustls = { version = "0.23", optional = true, features = ["ring"] }
+webpki-roots = { version = "0.26", optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true, optional = true, features = ["sync", "time"] }
