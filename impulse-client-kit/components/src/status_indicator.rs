@@ -122,3 +122,93 @@ pub fn StatusIndicator(
     </div>
   }
 }
+
+/// The connection dot for an offline-first app: three states, not two.
+///
+/// A plain [`StatusIndicator`] answers "is there a socket". For an app that
+/// accepts a write locally and hands it over later, that leaves the more useful
+/// question unanswered — does the server have what this device holds. So:
+///
+/// * no connection — red, the only state that asks anything of the reader;
+/// * connected with work still owed — yellow, which says the app is busy handing
+///   it over. That is a normal thing to be doing, not a problem to report;
+/// * connected and owing nothing — green.
+///
+/// Green therefore means what people assume it means: everything here is also
+/// there. That is what makes a separate "you are offline" banner unnecessary —
+/// three states in one dot say what the banner would have, without a row that
+/// appears and shoves the layout down.
+///
+/// `pending` is the app's queue depth. In a browser build there is no queue, so
+/// pass `0` and the dot behaves exactly like the two-state one.
+#[component]
+pub fn SyncIndicator(
+  /// Whether a connection to the server is currently held.
+  #[prop(into)]
+  connected: Signal<bool>,
+  /// How much local work is still owed to the server.
+  #[prop(into)]
+  pending: Signal<usize>,
+  /// Dot size.
+  #[prop(optional)]
+  size: StatusIndicatorSize,
+  /// Tooltip wording, in the app's language. Defaults to English.
+  #[prop(optional)]
+  labels: SyncLabels,
+  /// Extra classes for the outer wrapper.
+  #[prop(into, optional)]
+  class: String,
+) -> impl IntoView {
+  let state = Signal::derive(move || {
+    if !connected.get() {
+      StatusState::Down
+    } else if pending.get() > 0 {
+      StatusState::Fixing
+    } else {
+      StatusState::Active
+    }
+  });
+  let labels = StoredValue::new(labels);
+  let title = move || {
+    labels.with_value(|l| {
+      if !connected.get() {
+        l.disconnected.clone()
+      } else {
+        match pending.get() {
+          0 => l.synced.clone(),
+          n => format!("{} {n}", l.syncing),
+        }
+      }
+    })
+  };
+
+  view! {
+    <span class=cn(&["inline-flex", class.as_str()]) title=title>
+      <StatusIndicator state=state size=size />
+    </span>
+  }
+}
+
+/// Tooltip wording for [`SyncIndicator`].
+///
+/// `syncing` is a prefix: the count of outstanding work is appended to it, so
+/// write it to read naturally before a number.
+#[derive(Clone)]
+pub struct SyncLabels {
+  /// Shown while there is no connection.
+  pub disconnected: String,
+  /// Shown when the server has everything this device holds.
+  pub synced: String,
+  /// Prefix shown while work is still being handed over.
+  pub syncing: String,
+}
+
+impl Default for SyncLabels {
+  fn default() -> Self {
+    Self {
+      disconnected: "No connection".into(),
+      synced: "Everything is synced".into(),
+      syncing: "Syncing… remaining:".into(),
+    }
+  }
+}

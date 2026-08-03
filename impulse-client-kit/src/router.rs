@@ -76,6 +76,31 @@ pub fn redirect(url: impl AsRef<str>) -> CResult<()> {
 ///   assert_eq!(endpoint("/some/api/route").as_str(), "http://127.0.0.1:8080/some/api/route");
 /// }
 /// ```
+/// The URL of an asset that `Trunk`'s `public_url` prefixes on the web but not
+/// under Tauri.
+///
+/// A web build commonly mounts the SPA under a sub-path (`public_url = "/app/"`)
+/// while a Tauri build serves from the protocol root — which is what a
+/// `patch-tauri-base-url`-style pipeline step rewrites `index.html` to expect.
+/// That step edits `index.html`, so it reaches a `<link rel="icon">` but never
+/// an `<img src=…>` compiled into the wasm, and a hard-coded `/app/favicon.svg`
+/// then 404s in the app.
+///
+/// `public_url` is the prefix the web build uses, e.g. `"/app"`; pass what
+/// `Trunk.toml` says, without a trailing slash.
+///
+/// ```rust,ignore
+/// <img src=asset_url("/app", "/favicon.svg") />
+/// ```
+#[cfg(any(feature = "csr", feature = "hydrate"))]
+pub fn asset_url(public_url: &str, path: &str) -> String {
+  if cfg!(tauri) {
+    path.to_string()
+  } else {
+    format!("{}{}", public_url.trim_end_matches('/'), path)
+  }
+}
+
 #[cfg(any(feature = "csr", feature = "hydrate"))]
 pub fn endpoint(api_uri: impl AsRef<str>) -> String {
   format!(
