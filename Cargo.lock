@@ -911,7 +911,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "client-kit-showcase"
-version = "1.8.0-rc.5"
+version = "1.8.0-rc.6"
 dependencies = [
  "chrono",
  "codee",
@@ -2264,7 +2264,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tower-service",
- "webpki-roots",
+ "webpki-roots 1.0.9",
 ]
 
 [[package]]
@@ -2463,7 +2463,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit"
-version = "1.8.0-rc.5"
+version = "1.8.0-rc.6"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -2487,7 +2487,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-blocks"
-version = "1.8.0-rc.5"
+version = "1.8.0-rc.6"
 dependencies = [
  "gloo-net",
  "impulse-client-kit",
@@ -2501,7 +2501,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-components"
-version = "1.8.0-rc.5"
+version = "1.8.0-rc.6"
 dependencies = [
  "chrono",
  "codee",
@@ -2516,7 +2516,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-native-themes"
-version = "1.8.0-rc.5"
+version = "1.8.0-rc.6"
 dependencies = [
  "jni 0.21.1",
  "js-sys",
@@ -2530,7 +2530,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-ring"
-version = "1.8.0-rc.5"
+version = "1.8.0-rc.6"
 dependencies = [
  "bytes",
  "clap",
@@ -2550,7 +2550,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-store"
-version = "1.8.0-rc.5"
+version = "1.8.0-rc.6"
 dependencies = [
  "leptos",
  "log",
@@ -2562,7 +2562,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-endpoint"
-version = "1.8.0-rc.5"
+version = "1.8.0-rc.6"
 dependencies = [
  "impulse-utils",
  "reqwest",
@@ -2574,7 +2574,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-error-pages"
-version = "1.8.0-rc.5"
+version = "1.8.0-rc.6"
 dependencies = [
  "icondata",
  "impulse-client-kit",
@@ -2623,7 +2623,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-server-kit"
-version = "1.8.0-rc.5"
+version = "1.8.0-rc.6"
 dependencies = [
  "any_spawner",
  "axum",
@@ -2675,7 +2675,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-skdsl"
-version = "1.8.0-rc.5"
+version = "1.8.0-rc.6"
 dependencies = [
  "clap",
  "impulse-server-kit",
@@ -2691,7 +2691,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-static-server"
-version = "1.8.0-rc.5"
+version = "1.8.0-rc.6"
 dependencies = [
  "impulse-server-kit",
  "serde",
@@ -2700,24 +2700,28 @@ dependencies = [
 
 [[package]]
 name = "impulse-tailwind-sources"
-version = "1.8.0-rc.5"
+version = "1.8.0-rc.6"
 
 [[package]]
 name = "impulse-tauri-engine"
-version = "1.8.0-rc.5"
+version = "1.8.0-rc.6"
 dependencies = [
+ "futures-util",
  "impulse-endpoint",
  "impulse-utils",
  "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "tokio",
+ "tokio-tungstenite 0.24.0",
  "tracing",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]
 name = "impulse-utils"
-version = "1.8.0-rc.5"
+version = "1.8.0-rc.6"
 dependencies = [
  "anyhow",
  "http",
@@ -5873,7 +5877,7 @@ dependencies = [
 
 [[package]]
 name = "ssr-showcase"
-version = "1.8.0-rc.5"
+version = "1.8.0-rc.6"
 dependencies = [
  "console_error_panic_hook",
  "impulse-client-kit",
@@ -6276,8 +6280,12 @@ checksum = "edc5f74e248dc973e0dbb7b74c7e0d6fcc301c694ff50049504004ef4d0cdcd9"
 dependencies = [
  "futures-util",
  "log",
+ "rustls",
+ "rustls-pki-types",
  "tokio",
+ "tokio-rustls",
  "tungstenite 0.24.0",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]
@@ -6588,6 +6596,8 @@ dependencies = [
  "httparse",
  "log",
  "rand 0.8.7",
+ "rustls",
+ "rustls-pki-types",
  "sha1 0.10.7",
  "thiserror 1.0.69",
  "utf-8",
@@ -6935,6 +6945,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b96554aa2acc8ccdb7e1c9a58a7a68dd5d13bccc69cd124cb09406db612a1c9b"
 dependencies = [
  "rustls-pki-types",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "0.26.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "521bc38abb08001b01866da9f51eb7c5d647a19260e00054a8c7fd5f9e57f7a9"
+dependencies = [
+ "webpki-roots 1.0.9",
 ]
 
 [[package]]
