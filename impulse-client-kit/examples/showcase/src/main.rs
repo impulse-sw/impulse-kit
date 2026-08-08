@@ -319,6 +319,13 @@ fn FormComponentsSection() -> impl IntoView {
             resizable=TextareaSizing::Auto
             max_rows=5
           />
+          <Textarea
+            value=autosize
+            placeholder="...or at a third of the screen, whatever that is here..."
+            rows=1
+            resizable=TextareaSizing::Auto
+            class="max-h-[33vh]"
+          />
         </div>
       </ComponentCard>
 

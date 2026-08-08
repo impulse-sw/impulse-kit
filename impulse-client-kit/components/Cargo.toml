@@ -47,12 +47,22 @@ leptos-use = { version = "0.16", default-features = false, features = ["use_resi
 uuid = { version = "1.18.1", features = ["v4", "js"] }
 web-sys = { version = "0.3.82", features = [
   "ClipboardEvent",
+  # An auto-sizing `Textarea` reads the `max-height` it was given in CSS, so it
+  # can be told to stop at the screen rather than at a line count. That is
+  # `Window::get_computed_style`, which is gated on all three of `Window`,
+  # `Element` and `CssStyleDeclaration` — the last of which also carries the
+  # `HtmlElement::style` every measured height is written through. They were all
+  # reaching this crate through some dependent's feature list until now.
+  "CssStyleDeclaration",
   "DataTransfer",
   "DomRect",
   "Element",
   "HtmlButtonElement",
   "HtmlDivElement",
   "HtmlDocument",
+  "HtmlElement",
+  "HtmlTextAreaElement",
   "NodeList",
+  "Window",
   "Clipboard",
 ] }

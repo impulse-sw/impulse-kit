@@ -52,6 +52,17 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   `Fixed`, which is every call the old `Option<bool>` prop ever accepted — so no
   existing call site has to change.
 
+  **The ceiling can also be written in CSS**, and for a field holding a document
+  rather than a comment that is the one to use: `class="max-h-[70vh]"` says "as
+  tall as the text needs, but never taller than the screen" on a phone and a
+  desktop alike, which no fixed number of rows says on both. It reads whatever
+  `max-height` ends up in force — `max_rows` alongside it simply means the lower
+  of the two wins — and at the ceiling the field scrolls inside itself instead of
+  growing. That also keeps a very long document out of the page's own geometry:
+  the field stops being a fifty-thousand-pixel box that only the browser's
+  scrollbar can make sense of, so the article's scrollbar stays the article's,
+  and only the lines on screen are painted.
+
 - **The Tauri engine reports a no-connection state.** Every response
   `impulse-tauri-engine` produces without reaching the server — a locally-served
   success as much as a "not available offline" error — now carries the
@@ -121,6 +132,27 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   session and lands after the next sign-in.
 
 ### Fixed
+
+- **An auto-sizing `<Textarea>` no longer throws away the scroll position of the
+  page it sits on.** Measuring the text meant giving the field a height of `auto`
+  for an instant — the only way to tell the content apart from the box it is
+  already in — and in a field grown to hold a long document that instant took
+  tens of thousands of pixels out of the page. The browser clamps a scroll offset
+  the page no longer reaches, and gives nothing back when the height returns a
+  microsecond later, so the reader was thrown to the top of their own article by
+  their own keystroke, and only got back when the browser chased the caret again.
+  Every scroll offset above the field is now snapshotted and put back in the same
+  turn, before anything can be painted or scrolled from the collapsed page.
+
+  Growing — which is what typing does — no longer collapses the field at all:
+  a box already shorter than its text reports the text's full height as
+  `scroll_height`, so there is nothing to find out by shrinking it first.
+
+  **A field is also re-measured when it takes focus.** A height measured before
+  the webfont arrived is a height a line or two short of its text, nothing in the
+  value or the width ever says so, and a field that is short of its text scrolls
+  inside itself the moment a caret is put in it — the text lurching under the
+  very click that placed the caret.
 
 - **A socket restored from a frozen page is now made to prove it is alive.** The
   browser handle's page-lifecycle recovery only reconnected a socket that already
