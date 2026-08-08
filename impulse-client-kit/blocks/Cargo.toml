@@ -30,6 +30,9 @@ ssr = [
   "impulse-client-kit/ssr",
   "impulse-client-kit-components/ssr",
   "leptos/ssr",
+  # `leptos-use` wants telling which side it is on, exactly as it does in the
+  # components crate.
+  "leptos-use/ssr",
 ]
 
 [dependencies]
@@ -37,6 +40,10 @@ gloo-net = { version = "0.6", default-features = false, features = ["http"] }
 impulse-client-kit = { workspace = true }
 impulse-client-kit-components = { workspace = true }
 leptos = { version = "0.8", default-features = false }
+# The source editor re-measures its lines when its width changes: the same text
+# wraps into more rows in a narrower editor, and nothing in the document says so.
+# leptos-use gates every hook behind a feature of its own name.
+leptos-use = { version = "0.16", default-features = false, features = ["use_resize_observer"] }
 log = { workspace = true }
 pulldown-cmark = { version = "0.13", default-features = false }
 web-sys = { workspace = true, features = [
@@ -47,4 +54,25 @@ web-sys = { workspace = true, features = [
   "MouseEvent",
   "PointerEvent",
   "WheelEvent",
+  # The source editor drives a `contenteditable` directly: it reads the caret
+  # (`Selection`, `Range`), walks the rendered lines (`Node`, `NodeList`,
+  # `Document`), types through `execCommand` (`HtmlDocument`) and times its undo
+  # coalescing off `Performance`. `CssStyleDeclaration` is the padding that
+  # stands in for the lines off screen.
+  "ClipboardEvent",
+  "CompositionEvent",
+  "CssStyleDeclaration",
+  "DataTransfer",
+  "Document",
+  "DocumentFragment",
+  "HtmlDocument",
+  "InputEvent",
+  "KeyboardEvent",
+  "Node",
+  "NodeList",
+  "Performance",
+  "Range",
+  "Selection",
+  "Text",
+  "Window",
 ] }

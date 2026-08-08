@@ -37,6 +37,42 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   exactly the English the calendar rendered before, and both props are optional,
   so no existing call site changes.
 
+- **`<SourceEditor>`: a writing surface for documents a `<textarea>` cannot
+  carry.** A textarea is one layout box holding the whole document, and a browser
+  re-lays out that box's text on every edit — measured in Chromium, a keystroke
+  in the middle of an article costs ~3 ms at 60 KB, ~6 ms at 380 KB and ~22 ms at
+  1.2 MB, with frames of 60–190 ms around it. That is the lag that makes a field
+  feel heavier the longer the piece gets, and no amount of styling touches it:
+  the cost is in laying out text, and a textarea gives nobody a say in how much
+  of it gets laid out.
+
+  The new block (`impulse_client_kit_blocks::editor`) keeps the document in Rust
+  as a `Vec<String>` and puts only a window of lines around the viewport in the
+  DOM — one `<div>` per line inside a `contenteditable`, with the rest standing
+  in as padding above and below. **2–3 ms per keystroke at every document size**,
+  measured the same way, and a first render of ~2 ms instead of 50–160 ms.
+
+  Editing stays the browser's, which is the point of building it this way:
+  caret, selection, IME, autocorrect, mobile keyboards, spell-check and screen
+  readers work because the thing being typed into is a real editable element.
+  On top of that it has its own undo stack (coalesced by word, since the
+  browser's remembers DOM nodes that windowing throws away), `Tab`/`Shift+Tab`
+  indentation, plain-text paste, and optional line numbers aligned to
+  soft-wrapped lines. `Ctrl+A`, `Ctrl+Home` and `Ctrl+End` materialise the whole
+  document and hand over to the browser, so they mean what they always mean.
+
+  Syntax highlighting is a `fn(&str) -> Vec<HighlightSpan>` run over each line as
+  it is rendered — colouring only the window, because colouring a 10 000-line
+  document as spans costs 170 ms *per keystroke* and colouring the window costs
+  3. `markdown_highlighter` ships with it. The line being typed in is re-coloured
+  a moment after the typing stops, never during: rewriting a line under a live
+  caret is how editors lose keystrokes.
+
+  It takes a `value: RwSignal<String>` like a `Textarea` does, so swapping one
+  for the other is a line of view code — but **give it a height**
+  (`class="h-full"` in a flex column, `class="h-[60vh]"` otherwise): something
+  that renders only what fits has to be told what fits.
+
 - **`<Textarea>` can let the text set its height.** The `resizable` prop is now
   a `TextareaSizing` — `Grabber` (the pill handle, still the default), `Fixed`
   (no handle at all), or the new `Auto`, where the field grows as lines are

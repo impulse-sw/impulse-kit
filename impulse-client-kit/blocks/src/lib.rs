@@ -16,6 +16,7 @@
 //! components crate (see the workspace `README.md` and `impulse-tailwind-sources`).
 
 pub mod charts;
+pub mod editor;
 pub mod graph;
 pub mod landings;
 pub mod markdown;

@@ -88,6 +88,7 @@ use impulse_client_kit_blocks::graph::{
   GraphCanvas, GraphCanvasOptions, GraphEdge, GraphLayout, GraphNode, GraphNodeBody, GraphNodeHeader, GraphPort,
   NodeVariant, PortSide,
 };
+use impulse_client_kit_blocks::editor::{SourceEditor, markdown_highlighter};
 use impulse_client_kit_blocks::markdown::{Markdown, MarkdownClasses, MarkdownSource};
 
 fn main() {
@@ -1294,6 +1295,22 @@ can carry `code`, a [link](https://github.com/impulse-sw/impulse-kit) or a list:
 #[component]
 fn BlocksSection() -> impl IntoView {
   let markdown = RwSignal::new(MARKDOWN_SAMPLE.to_string());
+  // A document far past the size where a `<textarea>` starts to drag its feet,
+  // so the editor below can be typed in and felt rather than described.
+  let long_document = RwSignal::new(
+    (1..=4000)
+      .map(|i| {
+        if i % 20 == 1 {
+          format!("## Раздел {}", i / 20 + 1)
+        } else {
+          format!(
+            "Строка {i}. Обычный абзац, который переносится по словам — ровно то, что делает документ дорогим для одного `<textarea>`."
+          )
+        }
+      })
+      .collect::<Vec<_>>()
+      .join("\n"),
+  );
 
   // A few per-element overrides, leaving everything else at its default.
   let custom_classes = MarkdownClasses {
@@ -1585,7 +1602,7 @@ fn BlocksSection() -> impl IntoView {
         <div class="grid gap-4 md:grid-cols-2">
           <div class="space-y-2">
             <Label>"Markdown source"</Label>
-            <Textarea value=markdown class="min-h-[28rem] w-full font-mono text-sm" />
+            <SourceEditor value=markdown class="h-[28rem] w-full font-mono text-sm" highlight=markdown_highlighter />
           </div>
           <div class="space-y-2">
             <Label>"Rendered output"</Label>
@@ -1593,6 +1610,27 @@ fn BlocksSection() -> impl IntoView {
               {move || view! { <Markdown source=MarkdownSource::inline(markdown.get()) /> }}
             </div>
           </div>
+        </div>
+      </ComponentCard>
+
+      // The source editor, on a document big enough to matter.
+      <ComponentCard
+        title="SourceEditor"
+        description="A 4 000-line document — only the lines on screen are in the DOM, so typing costs the same as it does on one line"
+      >
+        <div class="space-y-2">
+          <div class="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            <span>{move || format!("{} строк", long_document.get().lines().count())}</span>
+            <span>{move || format!("{} КБ", long_document.get().len() / 1024)}</span>
+            <span>"Ctrl+A, Ctrl+Z, Tab и IME работают так же, как в обычном поле"</span>
+          </div>
+          <SourceEditor
+            value=long_document
+            class="h-[28rem] w-full font-mono text-sm"
+            highlight=markdown_highlighter
+            line_numbers=true
+            placeholder="Пишите здесь…"
+          />
         </div>
       </ComponentCard>
 
