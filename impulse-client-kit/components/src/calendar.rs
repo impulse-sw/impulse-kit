@@ -27,6 +27,43 @@ pub fn Calendar(
   /// current month, uncontrolled.
   #[prop(optional)]
   month: Option<RwSignal<NaiveDate>>,
+  /// Extra content for a day's cell, drawn under its number — a dot, a total, a
+  /// badge. Called for **every** day the grid shows, the neighbouring months'
+  /// days included (the grid pads to six rows), so deciding whether those get
+  /// anything is the caller's: the date is right there to compare against
+  /// [`month`](Calendar).
+  ///
+  /// It renders inside the day's button, which is already a `flex-col`, so the
+  /// whole cell stays one click target and the extra content dims along with the
+  /// number on days outside the month. Two things are worth knowing when styling
+  /// it: the square wants to be bigger than a bare picker's — see
+  /// [`cell_size`](Calendar) and [`full_width`](Calendar) — and the `<td>`
+  /// exposes `group/day` + `data-selected`, so a colour of your own can step
+  /// aside on the selected day with
+  /// `group-data-[selected=true]/day:text-primary-foreground`.
+  #[prop(optional)]
+  day_content: Option<Callback<NaiveDate, AnyView>>,
+  /// Month and weekday names. Defaults to English; pass your own to render the
+  /// calendar in the app's language.
+  #[prop(optional)]
+  labels: CalendarLabels,
+  /// The size of a day's square, as a CSS length. Defaults to `2rem`, which is
+  /// right for a bare date picker and too small the moment
+  /// [`day_content`](Calendar) puts anything under the number.
+  ///
+  /// A prop rather than something to override with a class: `cn` concatenates,
+  /// it does not merge, so a `[--cell-size:…]` of your own would land *next to*
+  /// the default and leave the stylesheet's order to decide. This is applied as
+  /// an inline style, which always wins.
+  #[prop(optional, into)]
+  cell_size: Option<String>,
+  /// Let the calendar fill its container, its cells stretching to share the
+  /// width, instead of sizing itself to seven [`cell_size`](Calendar) squares.
+  /// What a month *view* wants; a picker in a popover does not.
+  ///
+  /// With this on, `cell_size` becomes the floor a cell may not shrink past.
+  #[prop(optional)]
+  full_width: bool,
   #[prop(optional, into)] class: String,
 ) -> impl IntoView {
   let selected = selected.unwrap_or_else(|| RwSignal::new(CalendarSelection::None));
@@ -48,15 +85,21 @@ pub fn Calendar(
       min_date,
       max_date,
       show_week_numbers,
+      day_content,
+      labels,
     }>
       <div
         data-slot="calendar"
         class=cn(
           &[
-            "bg-background border rounded-md group/calendar p-3 w-fit [--cell-size:theme(spacing.8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
+            "bg-background border rounded-md group/calendar p-3 [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
+            if full_width { "w-full" } else { "w-fit" },
             class.as_str(),
           ],
         )
+        // The default lived in the class list as `[--cell-size:theme(spacing.8)]`
+        // until `cell_size` existed; 2rem is that same value.
+        style=format!("--cell-size: {}", cell_size.as_deref().unwrap_or("2rem"))
       >
         <div class="flex gap-4 flex-col md:flex-row relative">
           <CalendarMonth caption_layout=caption_layout />
@@ -225,9 +268,10 @@ fn CalendarNav(caption_layout: CaptionLayout) -> impl IntoView {
     }
   });
 
+  // Built from `labels` rather than `%B`, which only ever speaks English.
   let month_label = move || {
     let date = context.current_month.get();
-    date.format("%B %Y").to_string()
+    format!("{} {}", context.labels.months[date.month0() as usize], date.year())
   };
 
   view! {
@@ -304,9 +348,7 @@ fn CalendarNav(caption_layout: CaptionLayout) -> impl IntoView {
 fn CalendarDropdowns() -> impl IntoView {
   let context = use_context::<CalendarContext>().expect("CalendarDropdowns must be used within Calendar");
 
-  let months = vec![
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-  ];
+  let months = context.labels.months_short.to_vec();
 
   let current_year = context.current_month.get().year();
   let years: Vec<i32> = ((current_year - 10)..=(current_year + 10)).collect();
@@ -405,7 +447,7 @@ fn CalendarDropdowns() -> impl IntoView {
 fn CalendarWeekdays() -> impl IntoView {
   let context = use_context::<CalendarContext>().expect("CalendarWeekdays must be used within Calendar");
 
-  let weekdays = vec!["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+  let weekdays = context.labels.weekdays.to_vec();
 
   view! {
     <tr class="flex">
@@ -656,6 +698,7 @@ fn CalendarDay(day: Option<NaiveDate>) -> impl IntoView {
         on:click=handle_click
       >
         {day.day()}
+        {context.day_content.map(|content| content.run(day))}
       </Button>
     </td>
   }
@@ -734,4 +777,46 @@ struct CalendarContext {
   min_date: Option<NaiveDate>,
   max_date: Option<NaiveDate>,
   show_week_numbers: bool,
+  day_content: Option<Callback<NaiveDate, AnyView>>,
+  labels: CalendarLabels,
+}
+
+/// The names a calendar spells out: the twelve months and the seven weekday
+/// headers. [`Default`] is English, which is what the calendar has always
+/// rendered, so a call site that doesn't pass this sees no change.
+///
+/// Both arrays start where the grid does — January, and Monday.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct CalendarLabels {
+  pub months: [&'static str; 12],
+  /// Short weekday headers, Monday-first.
+  pub weekdays: [&'static str; 7],
+  /// Month names for the dropdown caption, where the full names of
+  /// [`months`](Self::months) rarely fit. Keep them short.
+  pub months_short: [&'static str; 12],
+}
+
+impl Default for CalendarLabels {
+  fn default() -> Self {
+    Self {
+      months: [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+      ],
+      weekdays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
+      months_short: [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+      ],
+    }
+  }
 }

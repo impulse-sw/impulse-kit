@@ -8,6 +8,35 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
 
 ### Added
 
+- **`<Calendar>` can put something in a day's cell.** The new `day_content` prop
+  is a `Callback<NaiveDate, AnyView>` called for every day the grid shows, and
+  whatever it returns is drawn under that day's number — a dot for "something
+  happens here", a running total, a badge. It renders inside the day's button,
+  which was already a `flex-col`, so the whole cell stays one click target and
+  the extra content dims along with the number on the neighbouring months' days.
+  The `<td>`'s `group/day` + `data-selected` let a colour of your own step aside
+  on the selected day with
+  `group-data-[selected=true]/day:text-primary-foreground`. This is what turns
+  the calendar from a date picker into a month view — an expense planner showing
+  each day's spend, a schedule showing how full a day is.
+
+- **`<Calendar>` can be sized for that.** A square built for a bare date picker
+  has no room under the number, so `cell_size` (any CSS length, default `2rem` —
+  exactly what the calendar used before) and `full_width` (fill the container,
+  cells sharing the width, with `cell_size` as their floor) are now props.
+  Deliberately props and not classes: `cn` concatenates rather than merges, so a
+  `[--cell-size:…]` passed in `class` would sit *beside* the built-in one and
+  leave the stylesheet's order to pick a winner. `cell_size` is applied as an
+  inline style, which always wins.
+
+- **`<Calendar>` speaks languages other than English.** The month caption used
+  to go through `%B` and the weekday headers were a hard-coded `["Mo", "Tu", …]`,
+  so the calendar was English wherever it was mounted. The new `labels` prop
+  takes a `CalendarLabels { months, weekdays, months_short }` — `months_short`
+  being the shorter names the dropdown caption has room for. `Default` is
+  exactly the English the calendar rendered before, and both props are optional,
+  so no existing call site changes.
+
 - **`<Textarea>` can let the text set its height.** The `resizable` prop is now
   a `TextareaSizing` — `Grabber` (the pill handle, still the default), `Fixed`
   (no handle at all), or the new `Auto`, where the field grows as lines are

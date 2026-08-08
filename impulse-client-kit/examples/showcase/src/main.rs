@@ -793,9 +793,45 @@ fn FeedbackComponentsSection() -> impl IntoView {
   }
 }
 
+/// A stand-in for whatever a real app would look up per day — here, how many
+/// meetings a date carries.
+fn workload(day: chrono::NaiveDate) -> u32 {
+  use chrono::Datelike;
+  match day.day() % 7 {
+    0 => 3,
+    3 => 1,
+    5 => 2,
+    _ => 0,
+  }
+}
+
+/// Russian month and weekday names, to show that nothing about the calendar is
+/// hard-wired to English.
+const RU_LABELS: CalendarLabels = CalendarLabels {
+  months: [
+    "Январь",
+    "Февраль",
+    "Март",
+    "Апрель",
+    "Май",
+    "Июнь",
+    "Июль",
+    "Август",
+    "Сентябрь",
+    "Октябрь",
+    "Ноябрь",
+    "Декабрь",
+  ],
+  weekdays: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"],
+  months_short: [
+    "Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек",
+  ],
+};
+
 #[component]
 fn DataDisplayComponentsSection() -> impl IntoView {
   let selected_date = RwSignal::new(CalendarSelection::None);
+  let busy_date = RwSignal::new(CalendarSelection::None);
   // Shared by the three pickers below, and empty until something is picked.
   let deadline = RwSignal::new(None::<chrono::NaiveDateTime>);
 
@@ -848,6 +884,33 @@ fn DataDisplayComponentsSection() -> impl IntoView {
       // Calendar
       <ComponentCard title="Calendar" description="Calendar date picker">
         <Calendar selected=selected_date class="rounded-md border" />
+      </ComponentCard>
+
+      // Calendar with per-day content and translated labels
+      <ComponentCard
+        title="Calendar with day content"
+        description="`day_content` draws under each day's number; `labels` renders the month and weekday names in the app's language"
+      >
+        <Calendar
+          selected=busy_date
+          labels=RU_LABELS
+          full_width=true
+          cell_size="3rem"
+          day_content=Callback::new(|day: chrono::NaiveDate| {
+            let load = workload(day);
+            if load == 0 {
+              return ().into_any();
+            }
+            view! {
+              <span class=if load > 2 {
+                "text-[0.65rem] text-destructive group-data-[selected=true]/day:text-primary-foreground"
+              } else {
+                "text-[0.65rem] text-muted-foreground group-data-[selected=true]/day:text-primary-foreground"
+              }>{format!("{load} встр.")}</span>
+            }
+              .into_any()
+          })
+        />
       </ComponentCard>
 
       // Date / time pickers
