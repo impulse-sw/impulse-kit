@@ -394,7 +394,9 @@ pub fn SourceEditor(
       ctx.state.update_value(|st| st.tab_escapes = true);
       return;
     }
-    let escaping = ctx.state.try_update_value(|st| std::mem::replace(&mut st.tab_escapes, false));
+    let escaping = ctx
+      .state
+      .try_update_value(|st| std::mem::replace(&mut st.tab_escapes, false));
     if key == "Tab" && editable && escaping != Some(true) {
       ev.prevent_default();
       if ev.shift_key() {
@@ -574,7 +576,10 @@ fn sync(ctx: Ctx) {
     return;
   }
   let read = read_window(&content);
-  let caret = ctx.state.with_value(|st| dom_caret(&content, st.first)).unwrap_or_default();
+  let caret = ctx
+    .state
+    .with_value(|st| dom_caret(&content, st.first))
+    .unwrap_or_default();
 
   let restructured = ctx.state.try_update_value(|st| {
     let first = st.first.min(st.lines.len());
@@ -611,7 +616,12 @@ fn sync(ctx: Ctx) {
   });
 
   if restructured {
-    draw(ctx, &root, &content, dom_caret(&content, ctx.state.with_value(|st| st.first)));
+    draw(
+      ctx,
+      &root,
+      &content,
+      dom_caret(&content, ctx.state.with_value(|st| st.first)),
+    );
   } else {
     // Nothing moved between lines: measure the line that was typed in, so the
     // scrollbar keeps up with a paragraph growing a row, and leave the DOM alone.
@@ -850,7 +860,9 @@ fn paint_gutter(st: &State, gutter: &Element) {
   gutter.set_inner_html("");
   let _ = gutter.append_child(&fragment);
   if let Some(gutter_el) = gutter.dyn_ref::<HtmlElement>() {
-    let _ = gutter_el.style().set_property("padding-top", &format!("{}px", top.round()));
+    let _ = gutter_el
+      .style()
+      .set_property("padding-top", &format!("{}px", top.round()));
   }
 }
 
@@ -1106,7 +1118,8 @@ fn outdent(ctx: Ctx, indent: &str) {
     return;
   };
   let (mut from_acc, mut to_acc) = (0usize, 0usize);
-  if !place_in(child.unchecked_ref(), 0, &mut from_acc, &range) || !place_in(child.unchecked_ref(), strip, &mut to_acc, &end)
+  if !place_in(child.unchecked_ref(), 0, &mut from_acc, &range)
+    || !place_in(child.unchecked_ref(), strip, &mut to_acc, &end)
   {
     return;
   }
@@ -1197,7 +1210,11 @@ fn history(ctx: Ctx, undo: bool) {
         st.measured.push(false);
       }
       let caret = if undo { edit.before } else { edit.after };
-      if undo { st.redo.push(edit) } else { st.undo.push(edit) }
+      if undo {
+        st.redo.push(edit)
+      } else {
+        st.undo.push(edit)
+      }
       st.emitted = st.text();
       st.last_edit_ms = 0.0;
       // The window is stale by construction — the document under it just

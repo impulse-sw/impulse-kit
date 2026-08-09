@@ -84,11 +84,11 @@ use impulse_client_kit_blocks::charts::{
   BarChart, BarChartData, BarChartOptions, BarSeries, LineChart, LineChartData, LineChartOptions, LineSeries, PieChart,
   PieChartData, PieChartOptions, PieSlice, Sparkline, SparklineKind, SparklineOptions,
 };
+use impulse_client_kit_blocks::editor::{SourceEditor, markdown_highlighter};
 use impulse_client_kit_blocks::graph::{
   GraphCanvas, GraphCanvasOptions, GraphEdge, GraphLayout, GraphNode, GraphNodeBody, GraphNodeHeader, GraphPort,
   NodeVariant, PortSide,
 };
-use impulse_client_kit_blocks::editor::{SourceEditor, markdown_highlighter};
 use impulse_client_kit_blocks::markdown::{Markdown, MarkdownClasses, MarkdownSource};
 
 fn main() {
@@ -909,14 +909,12 @@ fn DataDisplayComponentsSection() -> impl IntoView {
             if load == 0 {
               return ().into_any();
             }
-            view! {
-              <span class=if load > 2 {
-                "text-[0.65rem] text-destructive group-data-[selected=true]/day:text-primary-foreground"
-              } else {
-                "text-[0.65rem] text-muted-foreground group-data-[selected=true]/day:text-primary-foreground"
-              }>{format!("{load} встр.")}</span>
-            }
-              .into_any()
+            let class = if load > 2 {
+              "text-[0.65rem] text-destructive group-data-[selected=true]/day:text-primary-foreground"
+            } else {
+              "text-[0.65rem] text-muted-foreground group-data-[selected=true]/day:text-primary-foreground"
+            };
+            view! { <span class=class>{format!("{load} встр.")}</span> }.into_any()
           })
         />
       </ComponentCard>
@@ -1602,7 +1600,11 @@ fn BlocksSection() -> impl IntoView {
         <div class="grid gap-4 md:grid-cols-2">
           <div class="space-y-2">
             <Label>"Markdown source"</Label>
-            <SourceEditor value=markdown class="h-[28rem] w-full font-mono text-sm" highlight=markdown_highlighter />
+            <SourceEditor
+              value=markdown
+              class="h-[28rem] w-full font-mono text-sm"
+              highlight=markdown_highlighter
+            />
           </div>
           <div class="space-y-2">
             <Label>"Rendered output"</Label>
@@ -1622,7 +1624,9 @@ fn BlocksSection() -> impl IntoView {
           <div class="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             <span>{move || format!("{} строк", long_document.get().lines().count())}</span>
             <span>{move || format!("{} КБ", long_document.get().len() / 1024)}</span>
-            <span>"Ctrl+A, Ctrl+Z, Tab и IME работают так же, как в обычном поле"</span>
+            <span>
+              "Ctrl+A, Ctrl+Z, Tab и IME работают так же, как в обычном поле"
+            </span>
           </div>
           <SourceEditor
             value=long_document
