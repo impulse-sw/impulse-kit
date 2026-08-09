@@ -62,10 +62,23 @@ const ROOT_CLASSES: &str = "relative w-full overflow-auto rounded-md border bord
 /// changed, which is every time the window moves.
 const CONTENT_CLASSES: &str = "min-h-full whitespace-pre-wrap break-words outline-none [overflow-anchor:none]";
 
-/// How much beyond the viewport is kept in the DOM, in viewports. Anything one
-/// arrow key can reach is already rendered; a drag-selection reaches the edge of
-/// this and no further.
+/// How much beyond the viewport is kept in the DOM, in viewports.
 const OVERSCAN: f64 = 1.0;
+
+/// ...and never fewer than this many lines on either side. A viewport is a poor
+/// unit for a margin when the lines are tall: on a phone a wrapped paragraph can
+/// be a third of the screen, so one viewport of margin comes to three lines, and
+/// a flick clears it long before the next frame is drawn. On a screen that
+/// already shows more lines than this, the viewport is the wider of the two and
+/// nothing changes.
+const MIN_OVERSCAN_LINES: usize = 8;
+
+/// How much further the window reaches in the direction the reader is going. A
+/// fling travels much further than a frame of scrolling does, and it travels one
+/// way — so the margin is worth spending where the reader is heading rather than
+/// evenly around them.
+const LEAD: f64 = 2.0;
+const TRAIL: f64 = 0.5;
 
 /// How long a run of single-character edits keeps folding into one undo entry.
 const UNDO_COALESCE_MS: f64 = 700.0;
@@ -77,6 +90,9 @@ const FIT_DECAY: f64 = 0.995;
 
 /// What the font probe is worth in the fit, in characters — about a line.
 const PROBE_WEIGHT: f64 = 120.0;
+
+/// How long after the last scroll the window is drawn back in to the viewport.
+const SETTLE_AFTER: std::time::Duration = std::time::Duration::from_millis(220);
 
 /// How long after the last keystroke the caret's line is re-coloured.
 const RELIGHT_AFTER: std::time::Duration = std::time::Duration::from_millis(250);
@@ -158,6 +174,9 @@ struct State {
   /// The range of lines the DOM actually holds. Kept apart from the window
   /// itself so a render can tell what is already there from what it has to make.
   painted: (usize, usize),
+  /// Where the scroll was at the last render, so the next one can tell which way
+  /// the reader is going.
+  last_scroll: f64,
   /// The last string this editor put into `value`, so its own writes can be told
   /// from somebody else setting the document.
   emitted: String,
@@ -184,6 +203,7 @@ impl Default for State {
       last: 0,
       composing: false,
       painted: (0, 0),
+      last_scroll: 0.0,
       emitted: String::new(),
       undo: Vec::new(),
       redo: Vec::new(),
@@ -317,6 +337,8 @@ struct Ctx {
   blank: RwSignal<bool>,
   /// The pending "colour the line being typed in" timer, if any.
   relight: StoredValue<Option<TimeoutHandle>>,
+  /// The pending "the scrolling has stopped" timer, if any.
+  settle: StoredValue<Option<TimeoutHandle>>,
 }
 
 impl Ctx {
@@ -374,6 +396,7 @@ pub fn SourceEditor(
     value,
     blank: RwSignal::new(true),
     relight: StoredValue::new(None),
+    settle: StoredValue::new(None),
   };
   let editable = !disabled && !readonly;
   let indent = StoredValue::new(" ".repeat(tab_size.unwrap_or(2).clamp(1, 8)));
@@ -537,7 +560,17 @@ pub fn SourceEditor(
       data-slot="source-editor"
       class=cn(&[ROOT_CLASSES, class.as_str()])
       aria-disabled=disabled.then_some("true")
-      on:scroll=move |_| render(ctx, false)
+      on:scroll=move |_| {
+        render(ctx, false);
+        // The window leans the way the reader is going while they are going;
+        // once they stop, one more render draws it back to the viewport, so a
+        // field being *typed* in is not carrying three screens of margin.
+        if let Some(pending) = ctx.settle.get_value() {
+          pending.clear();
+        }
+        let handle = set_timeout_with_handle(move || render(ctx, false), SETTLE_AFTER);
+        ctx.settle.set_value(handle.ok());
+      }
       // A drag that ends is a selection that stops growing: the window is free
       // to shrink back to the viewport again.
       on:pointerup=move |_| request_animation_frame(move || render(ctx, false))
@@ -609,7 +642,9 @@ fn render(ctx: Ctx, force: bool) {
   let moved = ctx.state.try_update_value(|st| {
     let view_h = f64::from(root.client_height());
     let scroll_top = f64::from(root.scroll_top());
-    let (mut first, mut last) = window_for(st, scroll_top, view_h, caret);
+    let going = scroll_top - st.last_scroll;
+    st.last_scroll = scroll_top;
+    let (mut first, mut last) = window_for(st, scroll_top, view_h, caret, going);
     if held && st.last > st.first {
       first = first.min(st.first);
       last = last.max(st.last);
@@ -695,7 +730,8 @@ fn sync(ctx: Ctx) {
     let (head, tail) = diff(&st.lines[first..last], &read);
     let removed = st.lines[first + head..last - tail].to_vec();
     let inserted = read[head..read.len() - tail].to_vec();
-    record(st, first + head, removed, inserted, caret);
+    let touched = first + head;
+    record(st, touched, removed, inserted, caret);
     // A changed line count means the browser merged or split our line divs —
     // Enter drops a bare `\n` into one of them — so the DOM has to be rebuilt
     // into one div per line before anything measures it again.
@@ -712,9 +748,9 @@ fn sync(ctx: Ctx) {
       st.painted = (0, 0);
     }
     st.emitted = st.text();
-    Some(restructured)
+    Some((restructured, touched))
   });
-  let Some(Some(restructured)) = restructured else {
+  let Some(Some((restructured, touched))) = restructured else {
     return;
   };
 
@@ -731,17 +767,25 @@ fn sync(ctx: Ctx) {
       dom_caret(&content, ctx.state.with_value(|st| st.first)),
     );
   } else {
-    // Nothing moved between lines: measure the line that was typed in, so the
-    // scrollbar keeps up with a paragraph growing a row, and leave the DOM alone.
-    // Rewriting it under a live caret is how editors lose keystrokes.
+    // Nothing moved between lines, so only the line that was typed in can have
+    // changed height — and usually it has not. Measuring that one line, and
+    // touching the padding and the numbers only when it grew a row, is what
+    // keeps a keystroke costing the same whether the window holds ten rows or a
+    // hundred. The DOM is otherwise left alone: rewriting a line under a live
+    // caret is how editors lose keystrokes.
     let gutter = ctx.gutter_element();
-    ctx.state.update_value(|st| {
-      measure(st, &content);
-      pad(st, &content);
-      if let Some(gutter) = &gutter {
-        paint_gutter(st, gutter, &content);
-      }
-    });
+    let grew = ctx
+      .state
+      .try_update_value(|st| measure_line(st, &content, touched))
+      .unwrap_or(false);
+    if grew {
+      ctx.state.update_value(|st| {
+        pad(st, &content);
+        if let Some(gutter) = &gutter {
+          paint_gutter(st, gutter, &content);
+        }
+      });
+    }
     if ctx.highlight.is_some() {
       if let Some(pending) = ctx.relight.get_value() {
         pending.clear();
@@ -754,14 +798,35 @@ fn sync(ctx: Ctx) {
 
 // -- The window -------------------------------------------------------------
 
-/// Which lines belong in the DOM at a given scroll position: what shows,
-/// [`OVERSCAN`] screens either side of it, and — always — the caret's line, so
-/// an arrow key never walks off the end of what exists.
-fn window_for(st: &State, scroll_top: f64, view_h: f64, caret: Option<Pos>) -> (usize, usize) {
+/// Which lines belong in the DOM at a given scroll position: what shows, a
+/// margin either side of it — wider in the direction of travel — and always the
+/// caret's line, so an arrow key never walks off the end of what exists.
+fn window_for(
+  st: &State,
+  scroll_top: f64,
+  view_h: f64,
+  caret: Option<Pos>,
+  going: f64,
+) -> (usize, usize) {
   let count = st.lines.len();
   let margin = view_h * OVERSCAN;
-  let mut first = st.line_at((scroll_top - margin).max(0.0));
-  let mut last = (st.line_at(scroll_top + view_h + margin) + 1).min(count);
+  let (above, below) = if going > 1.0 {
+    (margin * TRAIL, margin * LEAD)
+  } else if going < -1.0 {
+    (margin * LEAD, margin * TRAIL)
+  } else {
+    (margin, margin)
+  };
+  let top_line = st.line_at(scroll_top);
+  let bottom_line = st.line_at(scroll_top + view_h);
+  // The floor only bites where a screenful is fewer lines than it.
+  let floor = MIN_OVERSCAN_LINES.saturating_sub(bottom_line - top_line);
+  let mut first = st
+    .line_at((scroll_top - above).max(0.0))
+    .min(top_line.saturating_sub(floor));
+  let mut last = (st.line_at(scroll_top + view_h + below) + 1)
+    .max(bottom_line + 1 + floor)
+    .min(count);
   if let Some(caret) = caret {
     first = first.min(caret.line.saturating_sub(2));
     last = last.max((caret.line + 3).min(count));
@@ -964,6 +1029,31 @@ fn measure(st: &mut State, content: &Element) {
   if st.estimates_are_stale() {
     st.reprice();
   }
+}
+
+/// Re-measures one line — the one just typed in — and says whether it changed
+/// height. Nothing else on screen can have moved, so nothing else is worth
+/// asking the browser about.
+fn measure_line(st: &mut State, content: &Element, line: usize) -> bool {
+  let Some(index) = line.checked_sub(st.first) else {
+    return false;
+  };
+  let Some(row) = content.children().item(index as u32) else {
+    return false;
+  };
+  if line >= st.heights.len() {
+    return false;
+  }
+  let height = row.get_bounding_client_rect().height();
+  if height <= 0.0 {
+    return false;
+  }
+  let grew = (height - st.heights[line]).abs() > 0.5;
+  st.heights[line] = height;
+  st.measured[line] = true;
+  let text = st.lines[line].clone();
+  st.observe(&text, height);
+  grew
 }
 
 /// Measures the font: one row's height, and how many characters fit on a row at
@@ -1410,7 +1500,7 @@ fn history(ctx: Ctx, undo: bool) {
   ctx.state.update_value(|st| {
     let view_h = f64::from(root.client_height());
     let scroll_top = f64::from(root.scroll_top());
-    let (first, last) = window_for(st, scroll_top, view_h, Some(caret));
+    let (first, last) = window_for(st, scroll_top, view_h, Some(caret), 0.0);
     st.first = first;
     st.last = last;
   });
