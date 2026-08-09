@@ -331,9 +331,7 @@ impl State {
   /// the page they are on, and a keystroke that has to pay for a re-layout is a
   /// keystroke they can feel.
   fn is_busy(&self) -> bool {
-    self.is_moving()
-      || (self.last_edit_ms > 0.0
-        && now_ms() - self.last_edit_ms <= SETTLE_AFTER.as_millis() as f64)
+    self.is_moving() || (self.last_edit_ms > 0.0 && now_ms() - self.last_edit_ms <= SETTLE_AFTER.as_millis() as f64)
   }
 
   /// Whether the fit has moved far enough from the estimates on the books to be
@@ -670,9 +668,6 @@ pub fn SourceEditor(
       aria-disabled=disabled.then_some("true")
       on:scroll=move |_| {
         render(ctx, false);
-        // The window leans the way the reader is going while they are going;
-        // once they stop, one more render draws it back to the viewport, so a
-        // field being *typed* in is not carrying three screens of margin.
         if let Some(pending) = ctx.settle.get_value() {
           pending.clear();
         }
@@ -1195,13 +1190,7 @@ fn sync(ctx: Ctx) {
 /// Which lines belong in the DOM at a given scroll position: what shows, a
 /// margin either side of it — wider in the direction of travel — and always the
 /// caret's line, so an arrow key never walks off the end of what exists.
-fn window_for(
-  st: &State,
-  scroll_top: f64,
-  view_h: f64,
-  caret: Option<Pos>,
-  going: f64,
-) -> (usize, usize) {
+fn window_for(st: &State, scroll_top: f64, view_h: f64, caret: Option<Pos>, going: f64) -> (usize, usize) {
   let count = st.lines.len();
   let margin = view_h * OVERSCAN;
   let (above, below) = if going > 1.0 {
