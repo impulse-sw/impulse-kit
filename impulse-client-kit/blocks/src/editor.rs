@@ -177,6 +177,15 @@ struct State {
   /// Where the scroll was at the last render, so the next one can tell which way
   /// the reader is going.
   last_scroll: f64,
+  /// Which way they were last actually going. A render that happens while the
+  /// scroll is still — the one that runs a fifth of a second after they stop —
+  /// sees no movement at all, and "no movement" must not be read as "not on
+  /// their way up": that is how a reader creeping up off the last line gets
+  /// posted back down to it.
+  heading: f64,
+  /// Where the end of the document was at the last look, so a render can tell
+  /// whether it has moved — and by how much — since.
+  last_max: f64,
   /// The last string this editor put into `value`, so its own writes can be told
   /// from somebody else setting the document.
   emitted: String,
@@ -204,6 +213,8 @@ impl Default for State {
       composing: false,
       painted: (0, 0),
       last_scroll: 0.0,
+      heading: 0.0,
+      last_max: 0.0,
       emitted: String::new(),
       undo: Vec::new(),
       redo: Vec::new(),
@@ -285,6 +296,40 @@ impl State {
   fn estimates_are_stale(&self) -> bool {
     !self.applied_slope.is_finite()
       || (self.slope() - self.applied_slope).abs() > self.applied_slope.abs() * 0.01 + 0.0002
+  }
+
+  /// Swallows `drift` pixels into the guesses above the window.
+  ///
+  /// Rows are rendered above the viewport as well as below it, and measuring one
+  /// that was until now a guess moves every line under it — which moves the
+  /// reader. The obvious repair is to move the scroll position back by as much;
+  /// the trouble is that writing the scroll position on Android cancels the
+  /// gesture the platform is animating, so the repair is felt as a jolt, or as a
+  /// slow drag that will not move at all.
+  ///
+  /// So the correction goes where it costs nothing instead: the lines above the
+  /// window have never been laid out and their heights are guesses, and a guess
+  /// is exactly the thing that can absorb a few pixels. The region above keeps
+  /// the total it had, the reader keeps the line they were reading, and nobody
+  /// writes a scroll position. `false` if the guesses could not swallow all of
+  /// it — near the top of a document there may be nothing above to adjust.
+  fn absorb_above(&mut self, drift: f64) -> bool {
+    let mut left = drift;
+    for i in (0..self.first.min(self.heights.len())).rev() {
+      if left.abs() < 0.5 {
+        return true;
+      }
+      if self.measured[i] {
+        continue;
+      }
+      // A guess may be nudged, not turned into a nonsense: one row is the floor
+      // and a screenful of rows the ceiling.
+      let was = self.heights[i];
+      let want = (was - left).clamp(self.row_h, self.row_h * 40.0);
+      self.heights[i] = want;
+      left -= was - want;
+    }
+    left.abs() < 0.5
   }
 
   /// Re-prices the unmeasured lines from `from` onwards, on the current fit.
@@ -647,11 +692,21 @@ fn render(ctx: Ctx, force: bool) {
   // what was rendered instead of stopping at it — it just may not let go of
   // anything.
   let held = selection_is_ranged(&content);
+  let (going, heading) = ctx
+    .state
+    .try_update_value(|st| {
+      let scroll_top = f64::from(root.scroll_top());
+      let going = scroll_top - st.last_scroll;
+      st.last_scroll = scroll_top;
+      if going.abs() > 1.0 {
+        st.heading = going;
+      }
+      (going, st.heading)
+    })
+    .unwrap_or((0.0, 0.0));
   let moved = ctx.state.try_update_value(|st| {
     let view_h = f64::from(root.client_height());
     let scroll_top = f64::from(root.scroll_top());
-    let going = scroll_top - st.last_scroll;
-    st.last_scroll = scroll_top;
     let (mut first, mut last) = window_for(st, scroll_top, view_h, caret, going);
     if held && st.last > st.first {
       first = first.min(st.first);
@@ -670,7 +725,9 @@ fn render(ctx: Ctx, force: bool) {
   // Only a bare caret is worth putting back. A live selection is already in the
   // rows that were kept — and "putting the caret back" would collapse it, which
   // is how a drag used to die the moment the mouse came up.
-  draw(ctx, &root, &content, (!held).then_some(caret).flatten());
+  // The window leans towards where the scroll is going *now*; whether the end
+  // may be followed depends on where the reader was last actually going.
+  draw(ctx, &root, &content, (!held).then_some(caret).flatten(), heading);
 }
 
 /// Paints the window, measures it, and keeps the line the reader is looking at
@@ -680,7 +737,7 @@ fn render(ctx: Ctx, force: bool) {
 /// estimate with the truth — which moves everything below it. Anchoring on the
 /// topmost visible line is what keeps that correction from yanking the text
 /// around as the reader scrolls.
-fn draw(ctx: Ctx, root: &Element, content: &Element, caret: Option<Pos>) {
+fn draw(ctx: Ctx, root: &Element, content: &Element, caret: Option<Pos>, going: f64) {
   let scroll_top = f64::from(root.scroll_top());
   // Somebody who scrolled to the end meant the end, not the pixel the end used
   // to be at. Measuring the last window replaces estimates with the truth and
@@ -689,19 +746,35 @@ fn draw(ctx: Ctx, root: &Element, content: &Element, caret: Option<Pos>) {
   // anyone who had effectively arrived is taken to wherever the end turned out
   // to be. The slack is two lines, wide enough to cover the error and narrow
   // enough that somebody deliberately stopping short is left where they are.
-  // `scroll_top > 0` and not merely "within a slack of the end": at the first
-  // draw the content is still empty, so the end *is* the beginning, and a reader
-  // who has not scrolled at all would be carried to the bottom of a document
-  // they have not read a line of.
-  let slack = ctx.state.with_value(|st| st.row_h * 2.0);
-  let was_max = f64::from(root.scroll_height() - root.client_height());
-  let at_bottom = scroll_top > 0.0 && scroll_top >= was_max - slack;
   let gutter = ctx.gutter_element();
+  // A reader at the end is anchored to the end, not to a line: swallowing a
+  // measurement into the guesses above would keep their *line* still and push
+  // the end away from them, which is the whole complaint — arriving at the end
+  // and finding it has moved on again.
+  let near_end = ctx.state.with_value(|st| {
+    let reach = (st.heights.last().copied().unwrap_or(st.row_h) * 2.0).max(st.row_h * 3.0);
+    let max = f64::from(root.scroll_height() - root.client_height());
+    scroll_top > 0.0 && scroll_top >= max - reach
+  });
+  // Hold the document's height up while the rows are swapped. Between taking the
+  // old rows out and putting the new padding in, the content is briefly shorter
+  // than it was — and a browser will not keep a scroll position that no longer
+  // exists, so it clamps, and the reader is thrown back by whatever the document
+  // momentarily lost. Nothing in this code moves them; the damage is done before
+  // it gets to look. Padding the bottom out to the height the document already
+  // has means it never shrinks in between, so there is nothing to clamp.
+  hold_height(content, root.scroll_height());
   let corrected = ctx.state.try_update_value(|st| {
     let anchor = st.line_at(scroll_top);
-    let gap = scroll_top - st.offset_of(anchor);
+    let was = st.offset_of(anchor);
     paint(st, content, ctx.highlight);
     measure(st, content);
+    // Measuring rows that were guesses has moved the anchor line. Take the
+    // difference out of the guesses above rather than out of the reader's scroll
+    // position; only when there is nothing up there to take it from does the
+    // scroll have to move.
+    let drift = st.offset_of(anchor) - was;
+    let absorbed = !near_end && (drift.abs() < 0.5 || st.absorb_above(drift));
     pad(st, content);
     if let Some(gutter) = &gutter {
       paint_gutter(st, gutter, content);
@@ -709,14 +782,60 @@ fn draw(ctx: Ctx, root: &Element, content: &Element, caret: Option<Pos>) {
     if let Some(caret) = caret {
       set_dom_caret(content, st.first, caret);
     }
-    st.offset_of(anchor) + gap
+    if absorbed {
+      None
+    } else {
+      Some(st.offset_of(anchor) + (scroll_top - was))
+    }
   });
-  if at_bottom {
-    root.set_scroll_top(root.scroll_height() - root.client_height());
-  } else if let Some(corrected) = corrected
+  if let Some(Some(corrected)) = corrected
     && (corrected - scroll_top).abs() > 0.5
   {
-    root.set_scroll_top(corrected.round() as i32);
+    set_scroll(ctx, root, corrected);
+  }
+  follow_end(ctx, root, going);
+}
+
+/// Carries a reader who is at the end of the document along when the end moves.
+///
+/// The end moves for one reason: measuring the last window replaces guesses with
+/// the truth, and the truth is a couple of lines further down. That is exactly
+/// far enough to leave somebody who flicked at the end stranded short of the
+/// last line, for a reason no reader can see.
+///
+/// So this fires on one condition — **the end moved away from them**, and they
+/// were at it before it did — and carries them by exactly as far as it moved.
+/// Never because *they* moved away from it: a reader creeping up off the last
+/// line has left, and posting them back down on the next frame is every bit as
+/// bad as never letting them arrive. Nothing is remembered here between calls
+/// except where the end was, because a rule with no memory cannot strand anybody
+/// in a state it forgot to leave.
+fn follow_end(ctx: Ctx, root: &Element, going: f64) {
+  let scroll_top = f64::from(root.scroll_top());
+  let max = f64::from(root.scroll_height() - root.client_height());
+  let view_h = f64::from(root.client_height());
+  let Some((growth, reach)) = ctx.state.try_update_value(|st| {
+    let growth = max - st.last_max;
+    st.last_max = max;
+    // "At the end" measured in the lines this document actually has, not in
+    // rows: on a phone a wrapped paragraph is a third of the screen, and a
+    // couple of rows would be no slack at all. Half a screen is the ceiling —
+    // beyond that they are not at the end by any reading, whatever the last
+    // paragraph of the document happens to be worth.
+    let last_line = st.heights.last().copied().unwrap_or(st.row_h);
+    let reach = (last_line * 2.0).max(st.row_h * 3.0).min(view_h * 0.5);
+    (growth, reach)
+  }) else {
+    return;
+  };
+  // `scroll_top > 0` so that the first draw of all — content still empty, so the
+  // end is also the beginning — cannot carry a reader to the bottom of a
+  // document they have not read a line of.
+  if growth <= 0.5 || going < -1.0 || scroll_top <= 0.0 {
+    return;
+  }
+  if scroll_top >= max - growth - reach {
+    set_scroll(ctx, root, (scroll_top + growth).min(max));
   }
 }
 
@@ -781,6 +900,7 @@ fn sync(ctx: Ctx) {
       &root,
       &content,
       dom_caret(&content, ctx.state.with_value(|st| st.first)),
+      0.0,
     );
   } else {
     // Nothing moved between lines, so only the line that was typed in can have
@@ -1005,6 +1125,30 @@ fn collect_text(node: &Node, out: &mut String) {
   }
 }
 
+/// Moves the scroll ourselves, and remembers that it was us.
+///
+/// Every write here is the editor making good on one of its own guesses, never
+/// the reader going anywhere — so it must not be read back as movement on the
+/// next render. Left unmarked, a correction downwards reads as "they are heading
+/// down", which is exactly the licence the end-following rule needs to do it
+/// again: the editor ends up chasing its own tail down the document.
+fn set_scroll(ctx: Ctx, root: &Element, px: f64) {
+  let px = px.round();
+  root.set_scroll_top(px as i32);
+  let landed = f64::from(root.scroll_top());
+  ctx.state.update_value(|st| st.last_scroll = landed);
+}
+
+/// Props the scrollable area up at `px` while the rows underneath it change.
+///
+/// Only ever grows it; the real padding is written a moment later, once the new
+/// rows have been measured.
+fn hold_height(content: &Element, px: i32) {
+  if let Some(el) = content.dyn_ref::<HtmlElement>() {
+    let _ = el.style().set_property("padding-bottom", &format!("{px}px"));
+  }
+}
+
 /// Replaces the lines off screen with the space they would have taken.
 ///
 /// Padding rather than spacer elements on purpose: padding cannot be typed into,
@@ -1165,7 +1309,7 @@ fn materialise(ctx: Ctx) {
     st.first = 0;
     st.last = st.lines.len();
   });
-  draw(ctx, &root, &content, caret);
+  draw(ctx, &root, &content, caret, 0.0);
 }
 
 /// Whether the editor holds a selection with something in it, rather than a
@@ -1521,7 +1665,7 @@ fn history(ctx: Ctx, undo: bool) {
     st.first = first;
     st.last = last;
   });
-  draw(ctx, &root, &content, Some(caret));
+  draw(ctx, &root, &content, Some(caret), 0.0);
   ctx.state.with_value(|st| {
     ctx.blank.set(st.is_blank());
     ctx.value.set(st.emitted.clone());
