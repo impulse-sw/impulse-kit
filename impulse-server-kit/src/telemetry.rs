@@ -59,6 +59,7 @@ impl TelemetryRequestCtx {
 /// to control how events are stored or forwarded. Implementations must be cheap
 /// to clone behind an `Arc` and safe to call concurrently.
 #[salvo::async_trait]
+#[allow(clippy::double_must_use)]
 pub trait TelemetrySink: Send + Sync + 'static {
   /// Handle a single telemetry event.
   async fn record(&self, event: &TelemetryEvent, ctx: &TelemetryRequestCtx);
