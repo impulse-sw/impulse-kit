@@ -177,6 +177,10 @@ struct State {
   /// Where the scroll was at the last render, so the next one can tell which way
   /// the reader is going.
   last_scroll: f64,
+  /// When the reader last actually moved. Re-pricing changes the height of the
+  /// document, and the height of the document is what a scrollbar drag is
+  /// measured against — so it waits until they have stopped.
+  last_moved_ms: f64,
   /// Which way they were last actually going. A render that happens while the
   /// scroll is still — the one that runs a fifth of a second after they stop —
   /// sees no movement at all, and "no movement" must not be read as "not on
@@ -213,6 +217,7 @@ impl Default for State {
       composing: false,
       painted: (0, 0),
       last_scroll: 0.0,
+      last_moved_ms: 0.0,
       heading: 0.0,
       last_max: 0.0,
       emitted: String::new(),
@@ -284,6 +289,17 @@ impl State {
     }
     self.fit_chars = self.fit_chars * FIT_DECAY + chars;
     self.fit_extra = self.fit_extra * FIT_DECAY + (height - self.row_h).max(0.0);
+  }
+
+  /// Whether the reader is in the middle of a gesture — scrolling now, or having
+  /// scrolled a moment ago. Nothing that changes the document's height or the
+  /// scroll position may happen while this is true.
+  ///
+  /// `last_moved_ms > 0` matters: it is zero before they have ever moved, and at
+  /// that point the page is young enough that a plain "was it less than a fifth
+  /// of a second ago" reads as yes and holds up the first re-pricing of all.
+  fn is_moving(&self) -> bool {
+    self.last_moved_ms > 0.0 && now_ms() - self.last_moved_ms <= SETTLE_AFTER.as_millis() as f64
   }
 
   /// Whether the fit has moved far enough from the estimates on the books to be
@@ -700,6 +716,7 @@ fn render(ctx: Ctx, force: bool) {
       st.last_scroll = scroll_top;
       if going.abs() > 1.0 {
         st.heading = going;
+        st.last_moved_ms = now_ms();
       }
       (going, st.heading)
     })
@@ -763,7 +780,8 @@ fn draw(ctx: Ctx, root: &Element, content: &Element, caret: Option<Pos>, going: 
   // momentarily lost. Nothing in this code moves them; the damage is done before
   // it gets to look. Padding the bottom out to the height the document already
   // has means it never shrinks in between, so there is nothing to clamp.
-  hold_height(content, root.scroll_height());
+  let moving = ctx.state.with_value(State::is_moving);
+  hold_height(content, f64::from(root.scroll_height()));
   let corrected = ctx.state.try_update_value(|st| {
     let anchor = st.line_at(scroll_top);
     let was = st.offset_of(anchor);
@@ -790,7 +808,15 @@ fn draw(ctx: Ctx, root: &Element, content: &Element, caret: Option<Pos>, going: 
   });
   if let Some(Some(corrected)) = corrected
     && (corrected - scroll_top).abs() > 0.5
+    && !moving
   {
+    // Never while the reader is moving. This correction keeps the line they are
+    // looking at still when a measurement changes the geometry above it — worth
+    // having when they are at rest, and not worth anything at all mid-gesture:
+    // writing the scroll position while a scrollbar thumb is being dragged
+    // fights the drag, and the drag feels like a wall the reader is pushing
+    // against. Better a line that shifts a little than a document that will not
+    // move. What is left settles a fifth of a second after they stop.
     set_scroll(ctx, root, corrected);
   }
   follow_end(ctx, root, going);
@@ -1141,11 +1167,14 @@ fn set_scroll(ctx: Ctx, root: &Element, px: f64) {
 
 /// Props the scrollable area up at `px` while the rows underneath it change.
 ///
-/// Only ever grows it; the real padding is written a moment later, once the new
-/// rows have been measured.
-fn hold_height(content: &Element, px: i32) {
+/// `min-height` rather than padding: it holds the floor without ever raising the
+/// ceiling, so the document's height cannot momentarily *grow* either. A browser
+/// dragging a scrollbar thumb maps the pointer against the height it saw when
+/// the drag began, and every wobble in that height is a wobble in the drag.
+/// [`pad`] takes it off again once the real padding is known.
+fn hold_height(content: &Element, px: f64) {
   if let Some(el) = content.dyn_ref::<HtmlElement>() {
-    let _ = el.style().set_property("padding-bottom", &format!("{px}px"));
+    let _ = el.style().set_property("min-height", &format!("{}px", px.round()));
   }
 }
 
@@ -1162,6 +1191,9 @@ fn pad(st: &State, content: &Element) {
   let style = el.style();
   let _ = style.set_property("padding-top", &format!("{}px", above.max(0.0).round()));
   let _ = style.set_property("padding-bottom", &format!("{}px", below.max(0.0).round()));
+  // The prop [`hold_height`] put under the swap comes off now that the real
+  // heights are in.
+  let _ = style.remove_property("min-height");
 }
 
 /// Records what the rendered lines actually turned out to be worth.
@@ -1186,7 +1218,14 @@ fn measure(st: &mut State, content: &Element) {
   // What was just measured may well say that everything still estimated is worth
   // something else. Re-pricing here is what keeps the scrollbar — and with it the
   // end of the document — from moving as the reader scrolls into it.
-  if st.estimates_are_stale() {
+  //
+  // But not *while* they are moving. Re-pricing changes the document's height,
+  // and a scrollbar drag is mapped against the height the browser saw when the
+  // drag began: shift it mid-drag and the rest of the thumb's travel points
+  // somewhere else, which is felt as running into a wall short of the end. It
+  // waits for the scrolling to stop — the settle render, a fifth of a second
+  // later, does it when nobody is holding on to anything.
+  if st.estimates_are_stale() && !st.is_moving() {
     let from = st.first;
     st.reprice(from);
   }
