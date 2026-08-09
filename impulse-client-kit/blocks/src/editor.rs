@@ -69,6 +69,14 @@ const OVERSCAN: f64 = 1.0;
 /// How long a run of single-character edits keeps folding into one undo entry.
 const UNDO_COALESCE_MS: f64 = 700.0;
 
+/// How much of the fit survives each measured line. Low enough to follow a
+/// document that changes shape halfway through, high enough that one odd
+/// paragraph does not reprice the rest of it.
+const FIT_DECAY: f64 = 0.995;
+
+/// What the font probe is worth in the fit, in characters — about a line.
+const PROBE_WEIGHT: f64 = 120.0;
+
 /// How long after the last keystroke the caret's line is re-coloured.
 const RELIGHT_AFTER: std::time::Duration = std::time::Duration::from_millis(250);
 
@@ -124,10 +132,22 @@ struct State {
   /// estimated from its length until then.
   heights: Vec<f64>,
   measured: Vec<bool>,
-  /// The height of one unwrapped row and how many characters fit on one, both
-  /// measured from the real font at the real width.
+  /// The height of one unwrapped row, measured from the real font.
   row_h: f64,
-  chars_per_row: f64,
+  /// The fit that prices a line nobody has rendered: how many characters have
+  /// been measured, and how many pixels of *extra* height beyond the first row
+  /// those characters came to. Their ratio is the cost of a character, carrying
+  /// the real font, the real width and the way real words wrap.
+  ///
+  /// Weighted by characters rather than by lines, and that is the whole trick: a
+  /// line that fits on one row says nothing about what a character costs — only
+  /// that this many of them still fit — so a screenful of short lines must not
+  /// be allowed to talk a document of long ones down to one row each.
+  fit_chars: f64,
+  fit_extra: f64,
+  /// The cost of a character the current estimates were computed with. When the
+  /// fit moves away from it, the estimates are worth redoing.
+  applied_slope: f64,
   /// The half-open range of lines currently in the DOM.
   first: usize,
   last: usize,
@@ -156,7 +176,9 @@ impl Default for State {
       heights: vec![20.0],
       measured: vec![false],
       row_h: 20.0,
-      chars_per_row: 60.0,
+      fit_chars: 0.0,
+      fit_extra: 0.0,
+      applied_slope: f64::NAN,
       first: 0,
       last: 0,
       composing: false,
@@ -193,12 +215,65 @@ impl State {
     self.lines.len().saturating_sub(1)
   }
 
-  /// What a line is worth before anybody has laid it out: one row per screenful
-  /// of characters. Close enough for a scrollbar, and replaced by the real
-  /// height the moment the line is rendered.
+  /// What a line is worth before anybody has laid it out: one row, plus what the
+  /// measured lines say each character beyond that costs.
+  ///
+  /// Deliberately a straight line rather than `rows = chars / width`, which is
+  /// the obvious formula and is systematically wrong: it steps to two rows the
+  /// moment a line is one character past the width, and real text wraps on word
+  /// boundaries at a width no character count knows. On a document of 4 000
+  /// ordinary paragraphs that guess came out **twice** the real height — and an
+  /// over-estimate is not a cosmetic problem, it is the bottom of the document
+  /// running away from the reader, because every window that gets measured
+  /// shortens the page under them. A fitted average is wrong in both directions
+  /// instead of one, so the errors cancel over a document instead of piling up.
   fn estimate(&self, text: &str) -> f64 {
+    self.row_h + self.slope() * text.chars().count() as f64
+  }
+
+  /// What one character of a line costs beyond its first row.
+  fn slope(&self) -> f64 {
+    if self.fit_chars < 1.0 {
+      return 0.0;
+    }
+    (self.fit_extra / self.fit_chars).max(0.0)
+  }
+
+  /// Folds one measured line into the fit.
+  ///
+  /// Decaying sums rather than exact totals: no bookkeeping is needed when lines
+  /// are edited, re-measured or replaced, the fit follows a document whose
+  /// paragraphs change shape halfway through, and one window's worth of real
+  /// lines outweighs the opening guess.
+  fn observe(&mut self, text: &str, height: f64) {
     let chars = text.chars().count() as f64;
-    ((chars / self.chars_per_row.max(1.0)).floor() + 1.0) * self.row_h
+    if chars < 1.0 || height <= 0.0 {
+      return;
+    }
+    self.fit_chars = self.fit_chars * FIT_DECAY + chars;
+    self.fit_extra = self.fit_extra * FIT_DECAY + (height - self.row_h).max(0.0);
+  }
+
+  /// Whether the fit has moved far enough from the estimates on the books to be
+  /// worth redoing them.
+  ///
+  /// The bar is deliberately low. Re-pricing four thousand lines is a few
+  /// hundred microseconds of arithmetic, and it only happens when the fit
+  /// actually moves — while a fit left a tenth of a percent stale is a document
+  /// whose end sits in the wrong place, which is the one thing a reader notices.
+  fn estimates_are_stale(&self) -> bool {
+    !self.applied_slope.is_finite()
+      || (self.slope() - self.applied_slope).abs() > self.applied_slope.abs() * 0.01 + 0.0002
+  }
+
+  /// Re-prices every line nobody has measured, from the current fit.
+  fn reprice(&mut self) {
+    self.applied_slope = self.slope();
+    for i in 0..self.lines.len() {
+      if !self.measured[i] {
+        self.heights[i] = self.estimate(&self.lines[i]);
+      }
+    }
   }
 
   /// Re-derives the document from `text`, keeping nothing.
@@ -354,12 +429,12 @@ pub fn SourceEditor(
       }
       last_width.set_value(width);
       ctx.state.update_value(|st| {
+        // Every height on the books was measured at the old width, and the same
+        // text wraps into a different number of rows at the new one — so none of
+        // them is worth keeping. The window is re-measured on the way out.
         probe_metrics(st, &content);
-        for i in 0..st.lines.len() {
-          if !st.measured[i] {
-            st.heights[i] = st.estimate(&st.lines[i]);
-          }
-        }
+        st.measured.iter_mut().for_each(|measured| *measured = false);
+        st.reprice();
       });
       render(ctx, true);
     });
@@ -373,6 +448,17 @@ pub fn SourceEditor(
     // on the next scroll or edit.
     if ctrl && matches!(key.as_str(), "a" | "A" | "ф" | "Ф" | "Home" | "End") {
       materialise(ctx);
+      // `Ctrl+End` is the browser's to carry out once the document is there, and
+      // it carries it out by showing the *caret* — which on a soft-wrapped last
+      // line leaves the rest of that line below the fold. Somebody who asked for
+      // the end of the document meant the end of the document.
+      if matches!(key.as_str(), "Home" | "End") {
+        request_animation_frame(move || {
+          if let Some((root, content)) = ctx.elements() {
+            scroll_caret_into_view(&root, &content);
+          }
+        });
+      }
       return;
     }
     // Firefox does not always raise `beforeinput` for undo, so the shortcut is
@@ -544,6 +630,12 @@ fn render(ctx: Ctx, force: bool) {
 /// around as the reader scrolls.
 fn draw(ctx: Ctx, root: &Element, content: &Element, caret: Option<Pos>) {
   let scroll_top = f64::from(root.scroll_top());
+  // Somebody who has scrolled to the end wants to be at the end, not at the
+  // pixel the end used to be at. Measuring a window replaces estimates with the
+  // truth, and when the truth is shorter the page gets shorter under them: hold
+  // them to the top of the last line and the end stays where they scrolled to,
+  // instead of retreating a screen every time they reach for it.
+  let at_bottom = scroll_top >= f64::from(root.scroll_height() - root.client_height()) - 2.0;
   let gutter = ctx.gutter_element();
   let corrected = ctx.state.try_update_value(|st| {
     let anchor = st.line_at(scroll_top);
@@ -559,7 +651,9 @@ fn draw(ctx: Ctx, root: &Element, content: &Element, caret: Option<Pos>) {
     }
     st.offset_of(anchor) + gap
   });
-  if let Some(corrected) = corrected
+  if at_bottom {
+    root.set_scroll_top(root.scroll_height() - root.client_height());
+  } else if let Some(corrected) = corrected
     && (corrected - scroll_top).abs() > 0.5
   {
     root.set_scroll_top(corrected.round() as i32);
@@ -649,7 +743,13 @@ fn sync(ctx: Ctx) {
 /// Which lines belong in the DOM at a given scroll position: what shows,
 /// [`OVERSCAN`] screens either side of it, and — always — the caret's line, so
 /// an arrow key never walks off the end of what exists.
-fn window_for(st: &State, scroll_top: f64, view_h: f64, caret: Option<Pos>, held: bool) -> (usize, usize) {
+fn window_for(
+  st: &State,
+  scroll_top: f64,
+  view_h: f64,
+  caret: Option<Pos>,
+  held: bool,
+) -> (usize, usize) {
   let count = st.lines.len();
   if held && st.last > st.first {
     return (st.first, st.last);
@@ -804,7 +904,15 @@ fn measure(st: &mut State, content: &Element) {
     if height > 0.0 {
       st.heights[line] = height;
       st.measured[line] = true;
+      let text = st.lines[line].clone();
+      st.observe(&text, height);
     }
+  }
+  // What was just measured may well say that everything still estimated is worth
+  // something else. Re-pricing here is what keeps the scrollbar — and with it the
+  // end of the document — from moving as the reader scrolls into it.
+  if st.estimates_are_stale() {
+    st.reprice();
   }
 }
 
@@ -823,6 +931,8 @@ fn probe_metrics(st: &mut State, content: &Element) {
   let row = probe.get_bounding_client_rect().height();
   // A long, ordinary-looking run measures the *average* character rather than
   // the widest one, which is what an estimate wants from a proportional font.
+  // This is only the opening guess: the first window that gets rendered replaces
+  // it with the document's own lines.
   let sample = "aeiou nstr lmdc ohig ".repeat(20);
   probe.set_text_content(Some(&sample));
   let sample_h = probe.get_bounding_client_rect().height();
@@ -830,8 +940,14 @@ fn probe_metrics(st: &mut State, content: &Element) {
 
   if row > 0.0 {
     st.row_h = row;
-    let rows = (sample_h / row).round().max(1.0);
-    st.chars_per_row = (sample.chars().count() as f64 / rows).max(1.0);
+    // The probe enters the fit as evidence like any other, worth about a line's
+    // worth of characters: enough to price a document before a single line of it
+    // has been laid out, light enough that the document's own lines overrule it
+    // as soon as there are any.
+    let sample_chars = sample.chars().count() as f64;
+    st.fit_chars = PROBE_WEIGHT;
+    st.fit_extra = (sample_h - row).max(0.0) * PROBE_WEIGHT / sample_chars;
+    st.applied_slope = f64::NAN;
   }
 }
 

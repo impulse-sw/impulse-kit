@@ -68,6 +68,17 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   a moment after the typing stops, never during: rewriting a line under a live
   caret is how editors lose keystrokes.
 
+  The scrollbar is honest about a document it has not laid out: the height of an
+  unrendered line is fitted from the lines that *have* been measured — weighted
+  by their characters, because a line that fits on one row says nothing about
+  what a character costs — and every line still on an estimate is re-priced the
+  moment that fit moves. Getting this wrong is not cosmetic. An estimate that
+  runs high makes the end of the document retreat from the reader: each window
+  they scroll into is measured, the page shortens under them, and the last line
+  bobs into view and is gone again. Measured on a 4 000-line document, the height
+  at first render is now within a percent or so of the truth, and scrolling to
+  the end arrives at the end.
+
   It takes a `value: RwSignal<String>` like a `Textarea` does, so swapping one
   for the other is a line of view code — but **give it a height**
   (`class="h-full"` in a flex column, `class="h-[60vh]"` otherwise): something
