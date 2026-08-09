@@ -287,10 +287,18 @@ impl State {
       || (self.slope() - self.applied_slope).abs() > self.applied_slope.abs() * 0.01 + 0.0002
   }
 
-  /// Re-prices every line nobody has measured, from the current fit.
-  fn reprice(&mut self) {
+  /// Re-prices the unmeasured lines from `from` onwards, on the current fit.
+  ///
+  /// **From `from` onwards, and never above it.** Everything above the window is
+  /// ground the reader is standing on: re-pricing a line up there moves every
+  /// line below it, which moves the reader, and the only way to put them back is
+  /// to write the scroll position — mid-gesture, against a fling the platform is
+  /// animating. That is what "it keeps throwing me back" is. Below the window
+  /// nothing has been painted yet, so re-pricing there costs a scrollbar that
+  /// twitches and nothing else.
+  fn reprice(&mut self, from: usize) {
     self.applied_slope = self.slope();
-    for i in 0..self.lines.len() {
+    for i in from..self.lines.len() {
       if !self.measured[i] {
         self.heights[i] = self.estimate(&self.lines[i]);
       }
@@ -459,7 +467,7 @@ pub fn SourceEditor(
         // them is worth keeping. The window is re-measured on the way out.
         probe_metrics(st, &content);
         st.measured.iter_mut().for_each(|measured| *measured = false);
-        st.reprice();
+        st.reprice(0);
       });
       render(ctx, true);
     });
@@ -674,12 +682,20 @@ fn render(ctx: Ctx, force: bool) {
 /// around as the reader scrolls.
 fn draw(ctx: Ctx, root: &Element, content: &Element, caret: Option<Pos>) {
   let scroll_top = f64::from(root.scroll_top());
-  // Somebody who has scrolled to the end wants to be at the end, not at the
-  // pixel the end used to be at. Measuring a window replaces estimates with the
-  // truth, and when the truth is shorter the page gets shorter under them: hold
-  // them to the top of the last line and the end stays where they scrolled to,
-  // instead of retreating a screen every time they reach for it.
-  let at_bottom = scroll_top >= f64::from(root.scroll_height() - root.client_height()) - 2.0;
+  // Somebody who scrolled to the end meant the end, not the pixel the end used
+  // to be at. Measuring the last window replaces estimates with the truth and
+  // the end moves — a couple of lines further off, typically, which is exactly
+  // far enough to leave a reader who flicked at it stranded just short. So:
+  // anyone who had effectively arrived is taken to wherever the end turned out
+  // to be. The slack is two lines, wide enough to cover the error and narrow
+  // enough that somebody deliberately stopping short is left where they are.
+  // `scroll_top > 0` and not merely "within a slack of the end": at the first
+  // draw the content is still empty, so the end *is* the beginning, and a reader
+  // who has not scrolled at all would be carried to the bottom of a document
+  // they have not read a line of.
+  let slack = ctx.state.with_value(|st| st.row_h * 2.0);
+  let was_max = f64::from(root.scroll_height() - root.client_height());
+  let at_bottom = scroll_top > 0.0 && scroll_top >= was_max - slack;
   let gutter = ctx.gutter_element();
   let corrected = ctx.state.try_update_value(|st| {
     let anchor = st.line_at(scroll_top);
@@ -1027,7 +1043,8 @@ fn measure(st: &mut State, content: &Element) {
   // something else. Re-pricing here is what keeps the scrollbar — and with it the
   // end of the document — from moving as the reader scrolls into it.
   if st.estimates_are_stale() {
-    st.reprice();
+    let from = st.first;
+    st.reprice(from);
   }
 }
 
