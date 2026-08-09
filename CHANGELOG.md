@@ -8,6 +8,13 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
 
 ### Added
 
+- **`ButtonSize::None`** — a size that emits no height, no padding and no gap,
+  for a button whose call site sizes it itself. Until now such a call site passed
+  its geometry in `class` and got it *beside* a size's own, with the stylesheet's
+  order picking the winner; a button that looks right until its content outgrows
+  the height it was quietly given is the failure that costs the most to find. The
+  calendar's day cells and month arrows are the first two users.
+
 - **`<Calendar>` can put something in a day's cell.** The new `day_content` prop
   is a `Callback<NaiveDate, AnyView>` called for every day the grid shows, and
   whatever it returns is drawn under that day's number — a dot for "something
@@ -179,6 +186,32 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   session and lands after the next sign-in.
 
 ### Fixed
+
+- **A `<Calendar>` day's highlight covers the whole day.** With `day_content`
+  drawing anything under the number, the selected (or today's) colour stopped at
+  the number and the content sat below it, outside the coloured square — and the
+  square itself was the wrong shape, since the cell was trying to be two heights
+  at once.
+
+  The day's button asked for the geometry it wanted in `class` — a square, no
+  padding, its own column gap — while still carrying a `ButtonSize`, which brings
+  `h-8`, `px-3` and a `gap` of its own. `cn` concatenates rather than merges, so
+  both landed on the element and the stylesheet's order decided: the fixed `h-8`
+  won the height, which pinned the background to two rem and made `aspect-square`
+  inert, and the padding and gap fought the same way. Anything the day held past
+  those two rem simply hung out of the highlight.
+
+  The cell is now sized in one place. The day's button takes the new
+  `ButtonSize::None`, so nothing arrives to argue with, and it stretches to fill
+  its `<td>` — which keeps `aspect-square` as a *floor* rather than a size, so a
+  day with two lines under its number grows, its row grows with it, and the
+  highlight grows with both. `day_content`'s column moved inside a wrapper of its
+  own, out of reach of the button's base `gap`.
+
+- **`<Calendar>`'s month arrows are the size they ask for.** Same conflict, same
+  cause: `size-[var(--cell-size)] p-0` beside a `ButtonSize`'s `h-8 px-3`. They
+  now use `ButtonSize::None` too, so a calendar given a larger `cell_size` gets
+  arrows that match its cells instead of arrows stuck at two rem.
 
 - **`<SourceEditor>` now measures the document it is given instead of guessing at
   it.** Every line nobody had scrolled to yet was priced from a fitted average —

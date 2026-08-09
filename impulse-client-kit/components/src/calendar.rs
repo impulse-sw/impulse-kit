@@ -10,7 +10,7 @@ use leptos::context::Provider;
 use leptos::prelude::*;
 use std::collections::HashSet;
 
-use super::button::{Button, ButtonVariant};
+use super::button::{Button, ButtonSize, ButtonVariant};
 
 #[component]
 pub fn Calendar(
@@ -33,10 +33,12 @@ pub fn Calendar(
   /// anything is the caller's: the date is right there to compare against
   /// [`month`](Calendar).
   ///
-  /// It renders inside the day's button, which is already a `flex-col`, so the
-  /// whole cell stays one click target and the extra content dims along with the
-  /// number on days outside the month. Two things are worth knowing when styling
-  /// it: the square wants to be bigger than a bare picker's — see
+  /// It renders inside the day's button, in a column under the number, so the
+  /// whole cell stays one click target, the extra content dims along with the
+  /// number on days outside the month, and the day's highlight covers it — the
+  /// cell grows to whatever this returns rather than the content spilling past
+  /// the coloured square. Two things are worth knowing when styling it: the
+  /// square wants to be bigger than a bare picker's — see
   /// [`cell_size`](Calendar) and [`full_width`](Calendar) — and the `<td>`
   /// exposes `group/day` + `data-selected`, so a colour of your own can step
   /// aside on the selected day with
@@ -278,6 +280,7 @@ fn CalendarNav(caption_layout: CaptionLayout) -> impl IntoView {
     <div class="flex items-center gap-1 w-full justify-between">
       <Button
         variant=ButtonVariant::Ghost
+        size=ButtonSize::None
         class="size-[var(--cell-size)] p-0 select-none"
         attr:disabled=move || !can_go_prev.get()
         on:click=handle_prev
@@ -321,6 +324,7 @@ fn CalendarNav(caption_layout: CaptionLayout) -> impl IntoView {
 
       <Button
         variant=ButtonVariant::Ghost
+        size=ButtonSize::None
         class="size-[var(--cell-size)] p-0 select-none"
         attr:disabled=move || !can_go_next.get()
         on:click=handle_next
@@ -639,7 +643,13 @@ fn CalendarDay(day: Option<NaiveDate>) -> impl IntoView {
   let button_class = Signal::derive(move || {
     let state = selection_state.get();
     cn(&[
-      "flex aspect-square size-auto w-full min-w-[var(--cell-size)] flex-col gap-1 leading-none font-normal rounded-md",
+      // Sized entirely from here (the `<Button>` below asks for
+      // `ButtonSize::None`), and stretched to the whole `<td>` rather than given
+      // a height of its own: the cell is what grows when `day_content` puts
+      // something under the number, and the highlight is this button's
+      // background, so anything the cell holds that the button does not cover is
+      // content sitting *outside* the day's selected colour.
+      "flex h-full w-full min-w-[var(--cell-size)] items-center justify-center rounded-md p-1 font-normal",
       if matches!(state, DaySelectionState::SelectedSingle) {
         "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
       } else if matches!(state, DaySelectionState::RangeStart) {
@@ -673,10 +683,14 @@ fn CalendarDay(day: Option<NaiveDate>) -> impl IntoView {
   });
 
   view! {
+    // `flex` so the button stretches to the cell in both axes; `aspect-square`
+    // is the cell's *floor* rather than its size — a box with an aspect ratio
+    // takes its content as its automatic minimum height, so a day carrying
+    // `day_content` grows and the rest of its row grows with it.
     <td
       class=cn(
         &[
-          "relative w-full h-full p-0 text-center group/day aspect-square select-none [&:last-child[data-selected=true]_button]:rounded-r-md",
+          "relative flex w-full p-0 text-center group/day aspect-square select-none [&:last-child[data-selected=true]_button]:rounded-r-md",
           first_col_class,
         ],
       )
@@ -685,6 +699,7 @@ fn CalendarDay(day: Option<NaiveDate>) -> impl IntoView {
     >
       <Button
         variant=ButtonVariant::Ghost
+        size=ButtonSize::None
         class=button_class
         attr:data-selected-single=move || {
           matches!(selection_state.get(), DaySelectionState::SelectedSingle)
@@ -697,8 +712,14 @@ fn CalendarDay(day: Option<NaiveDate>) -> impl IntoView {
         attr:disabled=move || is_disabled.get()
         on:click=handle_click
       >
-        {day.day()}
-        {context.day_content.map(|content| content.run(day))}
+        // The column lives here rather than on the button itself: the button's
+        // own `gap` comes from the shared base classes, and a second `gap-*`
+        // beside it would only be another concatenated conflict. One child, no
+        // gap to argue about.
+        <span class="flex w-full flex-col items-center justify-center gap-1 leading-none">
+          <span>{day.day()}</span>
+          {context.day_content.map(|content| content.run(day))}
+        </span>
       </Button>
     </td>
   }

@@ -23,6 +23,17 @@ pub enum ButtonSize {
   Icon,
   IconSm,
   IconLg,
+  /// No height, no padding, no gap — for a call site that sizes the button
+  /// itself.
+  ///
+  /// Worth having as a variant rather than something to override in `class`:
+  /// [`cn`] concatenates, it does not merge, so a `h-full` of your own lands
+  /// *beside* a size's `h-8` and which of the two wins is left to the order the
+  /// stylesheet happens to emit them in. A button whose height is decided that
+  /// way looks right until its content grows past the height it was given, and
+  /// then the background stops covering the content — which is exactly what a
+  /// calendar cell with something drawn under the day's number does.
+  None,
 }
 
 impl ButtonVariant {
@@ -51,6 +62,7 @@ impl ButtonSize {
       Self::Icon => "size-9",
       Self::IconSm => "size-8",
       Self::IconLg => "size-10",
+      Self::None => "",
     }
   }
 }
