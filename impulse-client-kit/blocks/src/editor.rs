@@ -644,7 +644,7 @@ fn draw(ctx: Ctx, root: &Element, content: &Element, caret: Option<Pos>) {
     measure(st, content);
     pad(st, content);
     if let Some(gutter) = &gutter {
-      paint_gutter(st, gutter);
+      paint_gutter(st, gutter, content);
     }
     if let Some(caret) = caret {
       set_dom_caret(content, st.first, caret);
@@ -725,7 +725,7 @@ fn sync(ctx: Ctx) {
       measure(st, &content);
       pad(st, &content);
       if let Some(gutter) = &gutter {
-        paint_gutter(st, gutter);
+        paint_gutter(st, gutter, &content);
       }
     });
     if ctx.highlight.is_some() {
@@ -951,35 +951,45 @@ fn probe_metrics(st: &mut State, content: &Element) {
   }
 }
 
-/// Draws the line numbers beside the lines they belong to. Positioned rather
-/// than laid out: a soft-wrapped line is two rows tall, and its number belongs
-/// against the first of them.
-fn paint_gutter(st: &State, gutter: &Element) {
+/// Draws the line numbers beside the lines they belong to.
+///
+/// Each number is placed at the line's own `offsetTop` rather than at a position
+/// worked out from the model. `offsetTop` is measured from the same edge an
+/// absolutely positioned cell's `top` is — the scroll box's padding edge — so
+/// the two agree by construction, whatever padding stands between them and
+/// however wrong an estimated height further up may be.
+///
+/// Arithmetic is what this used to do, and it was wrong in a way that took a
+/// while to see: the padding standing in for the lines above does not move an
+/// absolutely positioned child, so every number came out a window's worth of
+/// document too high — line 980 wearing the number 1920.
+fn paint_gutter(st: &State, gutter: &Element, content: &Element) {
   let Some(doc) = gutter.owner_document() else {
     return;
   };
   let fragment = doc.create_document_fragment();
-  let top = st.offset_of(st.first);
-  for line in st.first..st.last.min(st.lines.len()) {
+  let children = content.children();
+  for i in 0..children.length() {
+    let Some(child) = children.item(i) else {
+      continue;
+    };
+    let line = st.first + i as usize;
+    if line >= st.lines.len() {
+      break;
+    }
     let Ok(cell) = doc.create_element("div") else {
       continue;
     };
     cell.set_class_name("absolute right-2");
+    let top = child.dyn_ref::<HtmlElement>().map_or(0, HtmlElement::offset_top);
     if let Some(cell_el) = cell.dyn_ref::<HtmlElement>() {
-      let _ = cell_el
-        .style()
-        .set_property("top", &format!("{}px", (st.offset_of(line) - top).round()));
+      let _ = cell_el.style().set_property("top", &format!("{top}px"));
     }
     cell.set_text_content(Some(&(line + 1).to_string()));
     let _ = fragment.append_child(&cell);
   }
   gutter.set_inner_html("");
   let _ = gutter.append_child(&fragment);
-  if let Some(gutter_el) = gutter.dyn_ref::<HtmlElement>() {
-    let _ = gutter_el
-      .style()
-      .set_property("padding-top", &format!("{}px", top.round()));
-  }
 }
 
 /// Puts the whole document in the DOM and leaves it there until the selection
