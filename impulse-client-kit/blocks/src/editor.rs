@@ -37,12 +37,13 @@
 //! find-and-replace, and the highlighter sees one line at a time (a Markdown
 //! fence marks its own line; it does not colour everything between two of them).
 //!
-//! A selection can only span what the DOM holds, so dragging past the window's
-//! edge stops there. The whole-document keys people actually use — `Ctrl+A`,
-//! `Ctrl+Home`, `Ctrl+End` and their `Shift` forms — put the whole document in
-//! the DOM first and hand over to the browser, so they work at any size, at the
-//! cost of one hitch of a few tens of milliseconds on a very long document. The
-//! window returns on the next scroll or edit.
+//! A selection can only span what the DOM holds — so while one is being dragged
+//! the window grows with it rather than moving, and shrinks back to the viewport
+//! when the mouse comes up. The whole-document keys people actually use —
+//! `Ctrl+A`, `Ctrl+Home`, `Ctrl+End` and their `Shift` forms — put the whole
+//! document in the DOM first and hand over to the browser, so they work at any
+//! size, at the cost of one hitch of a few tens of milliseconds on a very long
+//! document. The window returns on the next scroll or edit.
 
 use impulse_client_kit::utils::cn;
 use leptos::prelude::*;
@@ -154,9 +155,9 @@ struct State {
   /// An IME is composing: until it says otherwise, the DOM is the browser's and
   /// touching it destroys the composition.
   composing: bool,
-  /// A pointer is down. Re-rendering under a drag throws away the selection
-  /// being dragged, so the window holds still until the pointer comes up.
-  frozen: bool,
+  /// The range of lines the DOM actually holds. Kept apart from the window
+  /// itself so a render can tell what is already there from what it has to make.
+  painted: (usize, usize),
   /// The last string this editor put into `value`, so its own writes can be told
   /// from somebody else setting the document.
   emitted: String,
@@ -182,7 +183,7 @@ impl Default for State {
       first: 0,
       last: 0,
       composing: false,
-      frozen: false,
+      painted: (0, 0),
       emitted: String::new(),
       undo: Vec::new(),
       redo: Vec::new(),
@@ -284,6 +285,7 @@ impl State {
     }
     self.heights = self.lines.iter().map(|line| self.estimate(line)).collect();
     self.measured = vec![false; self.lines.len()];
+    self.painted = (0, 0);
     self.undo.clear();
     self.redo.clear();
     self.first = 0;
@@ -536,11 +538,9 @@ pub fn SourceEditor(
       class=cn(&[ROOT_CLASSES, class.as_str()])
       aria-disabled=disabled.then_some("true")
       on:scroll=move |_| render(ctx, false)
-      on:pointerdown=move |_| ctx.state.update_value(|st| st.frozen = true)
-      on:pointerup=move |_| {
-        ctx.state.update_value(|st| st.frozen = false);
-        request_animation_frame(move || render(ctx, false));
-      }
+      // A drag that ends is a selection that stops growing: the window is free
+      // to shrink back to the viewport again.
+      on:pointerup=move |_| request_animation_frame(move || render(ctx, false))
     >
       {line_numbers
         .then(|| {
@@ -600,14 +600,20 @@ fn render(ctx: Ctx, force: bool) {
     return;
   }
   let caret = ctx.state.with_value(|st| dom_caret(&content, st.first));
-  // A selection that is not a bare caret is a selection somebody is using: it
-  // only exists in the nodes currently rendered, and re-rendering under it
-  // throws it away. The window stops moving until the selection collapses.
-  let held = ctx.state.with_value(|st| st.frozen) || selection_is_ranged(&content);
+  // A selection that is not a bare caret is one somebody is using, and it lives
+  // in the nodes on screen: the rows it is anchored in have to stay. The window
+  // may still *grow* under it — that is what lets a drag run past the edge of
+  // what was rendered instead of stopping at it — it just may not let go of
+  // anything.
+  let held = selection_is_ranged(&content);
   let moved = ctx.state.try_update_value(|st| {
     let view_h = f64::from(root.client_height());
     let scroll_top = f64::from(root.scroll_top());
-    let (first, last) = window_for(st, scroll_top, view_h, caret, held);
+    let (mut first, mut last) = window_for(st, scroll_top, view_h, caret);
+    if held && st.last > st.first {
+      first = first.min(st.first);
+      last = last.max(st.last);
+    }
     if !force && first == st.first && last == st.last {
       return false;
     }
@@ -618,7 +624,10 @@ fn render(ctx: Ctx, force: bool) {
   if moved != Some(true) {
     return;
   }
-  draw(ctx, &root, &content, caret);
+  // Only a bare caret is worth putting back. A live selection is already in the
+  // rows that were kept — and "putting the caret back" would collapse it, which
+  // is how a drag used to die the moment the mouse came up.
+  draw(ctx, &root, &content, (!held).then_some(caret).flatten());
 }
 
 /// Paints the window, measures it, and keeps the line the reader is looking at
@@ -697,6 +706,11 @@ fn sync(ctx: Ctx) {
     st.measured.splice(first..last, std::iter::repeat_n(false, read.len()));
     st.first = first;
     st.last = first + read.len();
+    if restructured {
+      // The rows in the DOM no longer stand one to a line — Enter leaves two
+      // lines inside one of them — so none of them can be reused.
+      st.painted = (0, 0);
+    }
     st.emitted = st.text();
     Some(restructured)
   });
@@ -743,17 +757,8 @@ fn sync(ctx: Ctx) {
 /// Which lines belong in the DOM at a given scroll position: what shows,
 /// [`OVERSCAN`] screens either side of it, and — always — the caret's line, so
 /// an arrow key never walks off the end of what exists.
-fn window_for(
-  st: &State,
-  scroll_top: f64,
-  view_h: f64,
-  caret: Option<Pos>,
-  held: bool,
-) -> (usize, usize) {
+fn window_for(st: &State, scroll_top: f64, view_h: f64, caret: Option<Pos>) -> (usize, usize) {
   let count = st.lines.len();
-  if held && st.last > st.first {
-    return (st.first, st.last);
-  }
   let margin = view_h * OVERSCAN;
   let mut first = st.line_at((scroll_top - margin).max(0.0));
   let mut last = (st.line_at(scroll_top + view_h + margin) + 1).min(count);
@@ -765,19 +770,64 @@ fn window_for(
   (first, last.clamp(first + 1, count))
 }
 
-/// Puts the window's lines in the DOM, one `<div>` each.
-fn paint(st: &State, content: &Element, highlight: Option<Highlighter>) {
+/// Brings the DOM in line with the window, keeping every row that is staying.
+///
+/// Rebuilding the lot on each scroll is about a millisecond, which would be
+/// affordable — but it also throws away the nodes a live selection is anchored
+/// in, and a reader dragging a selection past the edge of the window would watch
+/// it collapse. Adding and dropping rows at the ends instead is what lets the
+/// window grow under a selection rather than freeze until the mouse comes up.
+///
+/// A rebuild is still the answer when the new window shares nothing with the old
+/// one, or when the browser has been editing and the rows no longer stand one to
+/// a line — which [`sync`] says by clearing `painted`.
+fn paint(st: &mut State, content: &Element, highlight: Option<Highlighter>) {
   let Some(doc) = content.owner_document() else {
     return;
   };
-  let fragment = doc.create_document_fragment();
-  for line in &st.lines[st.first.min(st.lines.len())..st.last.min(st.lines.len())] {
-    if let Some(div) = make_line(&doc, line, highlight) {
-      let _ = fragment.append_child(&div);
+  let (first, last) = (st.first, st.last.min(st.lines.len()));
+  let (was_first, was_last) = st.painted;
+  let intact = was_last > was_first
+    && first < was_last
+    && last > was_first
+    && content.children().length() as usize == was_last - was_first;
+
+  if !intact {
+    let fragment = doc.create_document_fragment();
+    for line in &st.lines[first.min(st.lines.len())..last] {
+      if let Some(div) = make_line(&doc, line, highlight) {
+        let _ = fragment.append_child(&div);
+      }
+    }
+    content.set_inner_html("");
+    let _ = content.append_child(&fragment);
+    st.painted = (first, last);
+    return;
+  }
+
+  // Off the front, off the back, then on at the front and on at the back. Doing
+  // the removals first keeps the arithmetic in document order.
+  for _ in was_first..first.min(was_last) {
+    if let Some(row) = content.first_element_child() {
+      let _ = content.remove_child(&row);
     }
   }
-  content.set_inner_html("");
-  let _ = content.append_child(&fragment);
+  for _ in last.max(was_first)..was_last {
+    if let Some(row) = content.last_element_child() {
+      let _ = content.remove_child(&row);
+    }
+  }
+  for line in (first..was_first.min(last)).rev() {
+    if let Some(div) = make_line(&doc, &st.lines[line], highlight) {
+      let _ = content.insert_before(&div, content.first_child().as_ref());
+    }
+  }
+  for line in was_last.max(first)..last {
+    if let Some(div) = make_line(&doc, &st.lines[line], highlight) {
+      let _ = content.append_child(&div);
+    }
+  }
+  st.painted = (first, last);
 }
 
 /// One line's worth of DOM.
@@ -1360,7 +1410,7 @@ fn history(ctx: Ctx, undo: bool) {
   ctx.state.update_value(|st| {
     let view_h = f64::from(root.client_height());
     let scroll_top = f64::from(root.scroll_top());
-    let (first, last) = window_for(st, scroll_top, view_h, Some(caret), false);
+    let (first, last) = window_for(st, scroll_top, view_h, Some(caret));
     st.first = first;
     st.last = last;
   });
