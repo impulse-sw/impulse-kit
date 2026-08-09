@@ -91,6 +91,19 @@ const FIT_DECAY: f64 = 0.995;
 /// What the font probe is worth in the fit, in characters — about a line.
 const PROBE_WEIGHT: f64 = 120.0;
 
+/// How long pricing may spend laying lines out in any one frame.
+///
+/// A budget rather than a line count, because what a line costs to lay out is
+/// the one thing this cannot know in advance: a heading is free and a paragraph
+/// that wraps into twenty rows is not, and a document is usually made of both.
+/// Fixed at three hundred lines a frame this took sixty milliseconds a frame on
+/// an article and half a millisecond on a changelog.
+const PRICE_BUDGET_MS: f64 = 10.0;
+
+/// How many lines pricing tries on its first frame, before it has any idea what
+/// they cost.
+const PRICE_BATCH: usize = 64;
+
 /// How long after the last scroll the window is drawn back in to the viewport.
 const SETTLE_AFTER: std::time::Duration = std::time::Duration::from_millis(220);
 
@@ -165,6 +178,14 @@ struct State {
   /// The cost of a character the current estimates were computed with. When the
   /// fit moves away from it, the estimates are worth redoing.
   applied_slope: f64,
+  /// How far down the document pricing has got. Every line above it has been
+  /// laid out for real, so its height is a fact rather than a guess.
+  priced: usize,
+  /// A pricing frame is already booked, so nothing books a second one.
+  pricing: bool,
+  /// How many lines pricing took last frame, retuned each time to whatever fits
+  /// in [`PRICE_BUDGET_MS`] of this document, on this machine.
+  price_batch: usize,
   /// The half-open range of lines currently in the DOM.
   first: usize,
   last: usize,
@@ -212,6 +233,9 @@ impl Default for State {
       fit_chars: 0.0,
       fit_extra: 0.0,
       applied_slope: f64::NAN,
+      priced: 0,
+      pricing: false,
+      price_batch: PRICE_BATCH,
       first: 0,
       last: 0,
       composing: false,
@@ -302,6 +326,16 @@ impl State {
     self.last_moved_ms > 0.0 && now_ms() - self.last_moved_ms <= SETTLE_AFTER.as_millis() as f64
   }
 
+  /// Whether the reader is doing anything at all — scrolling, or typing. Work
+  /// that can wait waits for this: laying lines out invalidates the layout of
+  /// the page they are on, and a keystroke that has to pay for a re-layout is a
+  /// keystroke they can feel.
+  fn is_busy(&self) -> bool {
+    self.is_moving()
+      || (self.last_edit_ms > 0.0
+        && now_ms() - self.last_edit_ms <= SETTLE_AFTER.as_millis() as f64)
+  }
+
   /// Whether the fit has moved far enough from the estimates on the books to be
   /// worth redoing them.
   ///
@@ -374,6 +408,7 @@ impl State {
     }
     self.heights = self.lines.iter().map(|line| self.estimate(line)).collect();
     self.measured = vec![false; self.lines.len()];
+    self.priced = 0;
     self.painted = (0, 0);
     self.undo.clear();
     self.redo.clear();
@@ -506,6 +541,8 @@ pub fn SourceEditor(
     // that means.
     root.set_scroll_top(0);
     render(ctx, true);
+    // Everything below the first window is still a guess. Go and find out.
+    schedule_pricing(ctx);
   });
 
   // The same text wraps into more rows in a narrower editor, so a width change
@@ -528,9 +565,11 @@ pub fn SourceEditor(
         // them is worth keeping. The window is re-measured on the way out.
         probe_metrics(st, &content);
         st.measured.iter_mut().for_each(|measured| *measured = false);
+        st.priced = 0;
         st.reprice(0);
       });
       render(ctx, true);
+      schedule_pricing(ctx);
     });
   }
 
@@ -822,6 +861,193 @@ fn draw(ctx: Ctx, root: &Element, content: &Element, caret: Option<Pos>, going: 
   follow_end(ctx, root, going);
 }
 
+// -- Pricing the document ----------------------------------------------------
+
+/// Books the next frame of the walk down the document, if one is due.
+///
+/// Idempotent: everything that can invalidate a height calls it, and only the
+/// first call in flight books anything.
+fn schedule_pricing(ctx: Ctx) {
+  let due = ctx.state.try_update_value(|st| {
+    if st.pricing || st.priced >= st.lines.len() {
+      return false;
+    }
+    st.pricing = true;
+    true
+  });
+  if due != Some(true) {
+    return;
+  }
+  request_animation_frame(move || price_chunk(ctx));
+}
+
+/// Lays the next batch of unmeasured lines out and writes down what they are
+/// really worth.
+///
+/// This is what stops the document's height from moving under a reader who is
+/// already in it. The alternative — pricing lines from a fitted average and
+/// correcting each one as it is scrolled into view — is right on average and
+/// wrong everywhere in particular, and the error does not stay put: every
+/// window that gets measured shifts the end of the document by the difference.
+/// A browser dragging a scrollbar thumb maps the pointer against the height it
+/// saw when the drag began, so a document that grows a few percent under the
+/// drag is a drag that runs out of travel a few percent short of the end — the
+/// invisible wall, felt as "let go and grab it again and it works".
+///
+/// So the guess is only ever a stand-in for the second or two before the real
+/// answer arrives. Laying a few dozen paragraphs out is a couple of
+/// milliseconds, and it is spread over frames so nothing stutters. Once the
+/// walk is done every height is a measurement, the end of the document stops
+/// moving for good, and none of the machinery that exists to paper over a
+/// moving end has anything left to do.
+///
+/// The lines are laid out **in the editable itself**, appended past the last
+/// row and taken out again before anything can be painted. A twin element off
+/// to one side was the obvious way to do it and it was quietly wrong: a browser
+/// does not lay out two boxes the same way just because they carry the same
+/// classes. Chromium's mobile text autosizer boosts the font in a tall block of
+/// prose and leaves a short hidden one alone, and the twin came back with rows
+/// a third the height of the real ones — a document mispriced threefold, with
+/// nothing on screen to show for it. Measured where the text actually lives,
+/// there is no second box to disagree.
+fn price_chunk(ctx: Ctx) {
+  ctx.state.update_value(|st| st.pricing = false);
+  let Some((root, content)) = ctx.elements() else {
+    return;
+  };
+  // Never mid-gesture and never mid-composition: this moves the ground the
+  // reader is standing on, and putting them back means writing the scroll
+  // position, which on a phone cancels the fling the platform is animating.
+  // Never mid-keystroke either — for a duller reason, that laying lines out
+  // dirties the layout the next keystroke has to measure against.
+  if ctx.state.with_value(|st| st.composing || st.is_busy()) {
+    // Stays booked across the wait, so a scroll event cannot queue a second
+    // walk down the same document.
+    ctx.state.update_value(|st| st.pricing = true);
+    let _ = set_timeout_with_handle(
+      move || {
+        ctx.state.update_value(|st| st.pricing = false);
+        schedule_pricing(ctx);
+      },
+      SETTLE_AFTER,
+    );
+    return;
+  }
+  let Some(doc) = content.owner_document() else {
+    return;
+  };
+
+  // Skip past everything already measured — a line rendered on screen has
+  // already told us the truth — and collect the next chunk that has not.
+  let started = now_ms();
+  let mut todo: Vec<usize> = Vec::new();
+  let fragment = doc.create_document_fragment();
+  let batch = ctx.state.with_value(|st| st.price_batch);
+  ctx.state.update_value(|st| {
+    while st.priced < st.lines.len() && todo.len() < batch {
+      let line = st.priced;
+      st.priced += 1;
+      if st.measured[line] {
+        continue;
+      }
+      // No highlighting: spans are inline and wrap exactly as the bare text
+      // does, so colouring a line the reader will never see is work for
+      // nothing.
+      if let Some(div) = make_line(&doc, &st.lines[line], None) {
+        let _ = fragment.append_child(&div);
+        todo.push(line);
+      }
+    }
+  });
+
+  // Appended past the last row, measured, and taken out again — all in this one
+  // turn, with no chance for the browser to paint in between, so nothing of it
+  // is ever on screen. The document is only ever *longer* while they are there,
+  // and a scroll position that was valid before a block grows is still valid
+  // after, so nothing is clamped and the reader does not move.
+  let rows = content.children().length();
+  let _ = content.append_child(&fragment);
+  let children = content.children();
+  let heights: Vec<f64> = (0..todo.len() as u32)
+    .map(|i| {
+      children
+        .item(rows + i)
+        .map_or(0.0, |child| child.get_bounding_client_rect().height())
+    })
+    .collect();
+  while content.children().length() > rows {
+    if let Some(extra) = content.last_element_child() {
+      let _ = content.remove_child(&extra);
+    } else {
+      break;
+    }
+  }
+  // What that chunk actually cost decides the size of the next one. A document
+  // of headings gets thousands of lines a frame; one of long paragraphs gets
+  // tens; and a slow phone gets fewer of either, without being told which it is.
+  let spent = now_ms() - started;
+  ctx.state.update_value(|st| {
+    let done = todo.len() as f64;
+    st.price_batch = if done < 1.0 {
+      st.price_batch
+    } else if spent < 0.5 {
+      (st.price_batch * 4).min(4096)
+    } else {
+      ((PRICE_BUDGET_MS * done / spent) as usize).clamp(8, 4096)
+    };
+  });
+
+  let scroll_top = f64::from(root.scroll_top());
+  let gutter = ctx.gutter_element();
+  let drift = ctx.state.try_update_value(|st| {
+    let anchor = st.line_at(scroll_top);
+    let was = st.offset_of(anchor);
+    for (&line, &height) in todo.iter().zip(heights.iter()) {
+      if height <= 0.0 || line >= st.heights.len() {
+        continue;
+      }
+      st.heights[line] = height;
+      st.measured[line] = true;
+      let text = st.lines[line].clone();
+      st.observe(&text, height);
+    }
+    // The lines just priced are the best evidence there is about the ones below
+    // them, so the stand-in the rest of the document is still carrying is
+    // redone on it. Only below where pricing has reached: above that nothing is
+    // a guess any more.
+    if st.estimates_are_stale() {
+      let from = st.priced;
+      st.reprice(from);
+    }
+    pad(st, &content);
+    st.offset_of(anchor) - was
+  });
+  // Pricing lines *above* the reader moves every line below them, including the
+  // one they are looking at. Nothing is being dragged or flung — that was
+  // checked above — so the scroll position is free to move, and moving it is
+  // what keeps their place.
+  //
+  // The numbers in the gutter move with it, and only with it: the lines in the
+  // window were measured for real as they were painted and are never re-priced
+  // here, so the padding above them is the only thing that can put a number
+  // beside the wrong line. No drift, no repaint.
+  if let Some(drift) = drift
+    && drift.abs() > 0.5
+  {
+    set_scroll(ctx, &root, scroll_top + drift);
+    if let Some(gutter) = &gutter {
+      ctx.state.with_value(|st| paint_gutter(st, gutter, &content));
+    }
+  }
+  // The end of the document has just moved on purpose. That is not the end
+  // running away from a reader who was standing on it, so it is not something
+  // to chase.
+  ctx.state.update_value(|st| {
+    st.last_max = f64::from(root.scroll_height() - root.client_height());
+  });
+  schedule_pricing(ctx);
+}
+
 /// Carries a reader who is at the end of the document along when the end moves.
 ///
 /// The end moves for one reason: measuring the last window replaces guesses with
@@ -901,6 +1127,11 @@ fn sync(ctx: Ctx) {
     st.lines.splice(first..last, read.iter().cloned());
     st.heights.splice(first..last, heights);
     st.measured.splice(first..last, std::iter::repeat_n(false, read.len()));
+    // A splice moves every line after it along, so pricing's place in the
+    // document is no longer where it thinks it is — and a paste can drop a
+    // thousand unpriced lines in at once. It goes back to the edit and walks
+    // down again; the lines it already knows cost it a bounds check each.
+    st.priced = st.priced.min(first);
     st.first = first;
     st.last = first + read.len();
     if restructured {
@@ -919,6 +1150,7 @@ fn sync(ctx: Ctx) {
     ctx.blank.set(st.is_blank());
     ctx.value.set(st.emitted.clone());
   });
+  schedule_pricing(ctx);
 
   if restructured {
     draw(
@@ -1670,6 +1902,7 @@ fn history(ctx: Ctx, undo: bool) {
       st.lines.splice(at..end, to.iter().cloned());
       st.heights.splice(at..end, heights);
       st.measured.splice(at..end, std::iter::repeat_n(false, to.len()));
+      st.priced = st.priced.min(at);
       if st.lines.is_empty() {
         st.lines.push(String::new());
         st.heights.push(st.row_h);
@@ -1710,6 +1943,7 @@ fn history(ctx: Ctx, undo: bool) {
     ctx.value.set(st.emitted.clone());
   });
   scroll_caret_into_view(&root, &content);
+  schedule_pricing(ctx);
 }
 
 /// Brings the caret's line into view after a jump the reader did not scroll to

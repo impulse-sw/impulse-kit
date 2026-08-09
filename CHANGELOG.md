@@ -180,6 +180,42 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
 
 ### Fixed
 
+- **`<SourceEditor>` now measures the document it is given instead of guessing at
+  it.** Every line nobody had scrolled to yet was priced from a fitted average —
+  one row, plus what the measured lines said a character costs — and a fitted
+  average is right about a document and wrong about each of its lines. The error
+  did not stay still, either: every window that got rendered replaced a guess
+  with the truth, so the end of the document moved a little further off with each
+  screenful read. Reading an article of wrapped paragraphs end to end moved it by
+  several percent.
+
+  Which is only a twitching scrollbar until somebody drags it. A browser maps a
+  thumb drag against the height it saw when the drag began, so a document that
+  grows seven percent under the drag is a drag that runs out of travel seven
+  percent short of the end: the thumb is at the bottom of the track, the document
+  is not at its end, and the pointer pushes against nothing. Letting go and
+  grabbing again worked, because the second drag was measured against a height
+  that had by then been corrected.
+
+  So the guess is now only a stand-in for the second or so it takes to replace
+  it. The lines are laid out for real, a batch per frame, until every height in
+  the document is a measurement — the batch sized to a ten-millisecond budget, so
+  a document of headings gets thousands of lines a frame and one of long
+  paragraphs gets tens, and neither drops one. It pauses while the reader is
+  scrolling or typing and picks up a fifth of a second after they stop. A
+  four-thousand-line article is priced within a second of appearing, and from
+  then on its height does not move: measured over a full descent of the same
+  document, a swing of 949 px became 2 px.
+
+  The lines are laid out **in the editable itself**, appended past the last row
+  and taken out again before anything can be painted. Measuring them in a hidden
+  twin was the obvious way and it was quietly wrong — a browser does not lay two
+  boxes out the same way just because they carry the same classes. Chromium's
+  mobile text autosizer boosts the font in a tall block of prose and leaves a
+  short hidden one alone, and the twin came back with rows a third the height of
+  the real ones: a document mispriced threefold, with nothing on screen to say
+  so.
+
 - **An auto-sizing `<Textarea>` no longer throws away the scroll position of the
   page it sits on.** Measuring the text meant giving the field a height of `auto`
   for an instant — the only way to tell the content apart from the box it is
