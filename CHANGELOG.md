@@ -176,6 +176,15 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   for an app's own commands, so a frontend no longer re-declares the `invoke`
   binding to ask the native side something that isn't an HTTP request.
 
+- **`use_click_outside`** — closes a panel when a click lands outside it, for a
+  menu or popover an app builds out of plain markup rather than out of the kit's
+  overlays (which have always done this themselves). Takes the wrapper that holds
+  *both* the trigger and the panel, so the click that opens it isn't read as one
+  that lands outside; installs one listener for the life of the call site rather
+  than one per opening. A panel that only closes through its own controls is a
+  trap on a touch screen — there is no Escape to reach for, the panel covers what
+  you were aiming at, and tapping beside it does nothing.
+
 - **Signing out can now take the offline copy with it.**
   `Engine::clear_local_data` (and its `WsEngine` twin) empties the app's local
   store through the new `LocalBackend::clear_local` / `WsBackend::clear_local`
