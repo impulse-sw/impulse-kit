@@ -7,6 +7,7 @@ pub mod alert;
 pub mod alert_dialog;
 pub mod aspect_ratio;
 pub mod avatar;
+pub mod back;
 pub mod badge;
 pub mod breadcrumb;
 pub mod button;

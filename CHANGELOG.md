@@ -176,6 +176,24 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   for an app's own commands, so a frontend no longer re-declares the `invoke`
   binding to ask the native side something that isn't an HTTP request.
 
+- **`<BackGuard>`: going back, on a phone where that is a system button.** An
+  app made of panels, sheets, editors and drill-down pages has a "back" in it
+  whether or not anything on screen says so — but inside a Tauri window on
+  Android the only back the user has is the system button, and left unhandled it
+  does not close the panel, it closes the app. `<BackGuard when=… on_back=… />`
+  renders nothing and declares what back means while a layer is open; guards
+  stack, so one press closes exactly the innermost. Also available as
+  `use_back_guard` for a call site that isn't a view.
+
+  There is no Android API involved, which is the point: an open guard pushes a
+  history entry, and Tauri's activity already routes the system button to the
+  webview's history before it considers finishing the activity. So a press
+  arrives as an ordinary `popstate`, the top guard closes, and pressing it with
+  nothing open still closes the app — which is what the button is for. The
+  browser's Back and the Escape key land in the same place, so the web gets it
+  too. A layer closed by its own controls unwinds its entry as it goes, so a
+  later press is never spent on something already closed.
+
 - **`use_click_outside`** — closes a panel when a click lands outside it, for a
   menu or popover an app builds out of plain markup rather than out of the kit's
   overlays (which have always done this themselves). Takes the wrapper that holds

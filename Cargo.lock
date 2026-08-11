@@ -2510,6 +2510,7 @@ dependencies = [
  "icondata",
  "impulse-client-kit",
  "impulse-tailwind-sources",
+ "js-sys",
  "leptos",
  "leptos-use",
  "uuid",

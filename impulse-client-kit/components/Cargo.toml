@@ -37,6 +37,10 @@ chrono = "0.4.42"
 codee = "0.3.3"
 icondata = { workspace = true }
 impulse-client-kit = { workspace = true }
+# `back` reads and writes the history entry's state object, which is a bare
+# `JsValue` — `Object`/`Reflect` are what put a namespaced key on it and read it
+# back without clobbering whatever else lives there.
+js-sys = "0.3"
 leptos = { version = "0.8", default-features = false }
 # `use_resize_observer` keeps an auto-sizing `Textarea` honest when the field's
 # width changes: the same text wraps into more lines in a narrower box, and
@@ -57,11 +61,16 @@ web-sys = { version = "0.3.82", features = [
   "DataTransfer",
   "DomRect",
   "Element",
+  # `back` listens for `popstate`/`keydown` on the window and pushes an entry per
+  # open layer, which is how the Android back button reaches a Leptos signal.
+  "EventTarget",
+  "History",
   "HtmlButtonElement",
   "HtmlDivElement",
   "HtmlDocument",
   "HtmlElement",
   "HtmlTextAreaElement",
+  "KeyboardEvent",
   "NodeList",
   "Window",
   "Clipboard",
