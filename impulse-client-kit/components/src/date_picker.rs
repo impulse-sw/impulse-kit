@@ -18,7 +18,7 @@ use impulse_client_kit::utils::cn;
 use leptos::prelude::*;
 
 use super::button::{Button, ButtonSize, ButtonVariant};
-use super::calendar::{Calendar, CalendarMode, CalendarSelection};
+use super::calendar::{Calendar, CalendarLabels, CalendarMode, CalendarSelection};
 use super::dialog::{Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle};
 
 /// What the picker asks for.
@@ -84,6 +84,12 @@ impl DateTimeMode {
 /// * `clearable` — offer *Clear* in the dialog; `true` by default.
 /// * `format` — `strftime` pattern for the trigger label; per-mode default otherwise.
 /// * `title`, `clear_label`, `cancel_label`, `confirm_label` — dialog wording.
+/// * `labels` — month and weekday names for the calendar in the dialog. The
+///   dialog's *wording* is already the call site's to write, but the calendar
+///   inside it used to be English whatever the rest of the picker said, because
+///   the call site had no way to reach it. Left unset it takes a
+///   [`CalendarLabels`] from context, so an app that provides one at its root
+///   gets every picker's calendar in its own language without saying so here.
 ///
 /// ```rust,ignore
 /// use chrono::NaiveDateTime;
@@ -114,6 +120,7 @@ pub fn DateTimePicker(
   #[prop(optional, into)] clear_label: String,
   #[prop(optional, into)] cancel_label: String,
   #[prop(optional, into)] confirm_label: String,
+  #[prop(optional, into)] labels: Option<CalendarLabels>,
   #[prop(optional, into)] class: String,
 ) -> impl IntoView {
   picker(PickerConfig {
@@ -132,6 +139,7 @@ pub fn DateTimePicker(
     clear_label,
     cancel_label,
     confirm_label,
+    labels,
     class,
   })
 }
@@ -155,6 +163,7 @@ struct PickerConfig {
   clear_label: String,
   cancel_label: String,
   confirm_label: String,
+  labels: Option<CalendarLabels>,
   class: String,
 }
 
@@ -175,8 +184,16 @@ fn picker(config: PickerConfig) -> AnyView {
     clear_label,
     cancel_label,
     confirm_label,
+    labels,
     class,
   } = config;
+
+  // The dialog's calendar is built here rather than by the call site, so a
+  // `labels` given to the picker reaches it the same way an app-wide one does:
+  // as context, shadowing the app's for this picker's subtree only.
+  if let Some(labels) = labels {
+    provide_context(labels);
+  }
 
   let value = value.unwrap_or_else(|| RwSignal::new(default_value));
   let clearable = clearable.unwrap_or(true);
@@ -354,6 +371,7 @@ pub fn DatePicker(
   #[prop(optional, into)] placeholder: String,
   #[prop(optional, into)] format: String,
   #[prop(optional, into)] title: String,
+  #[prop(optional, into)] labels: Option<CalendarLabels>,
   #[prop(optional, into)] class: String,
 ) -> impl IntoView {
   picker(PickerConfig {
@@ -368,6 +386,7 @@ pub fn DatePicker(
     placeholder,
     format,
     title,
+    labels,
     class,
     ..Default::default()
   })

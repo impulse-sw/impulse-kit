@@ -44,6 +44,18 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   exactly the English the calendar rendered before, and both props are optional,
   so no existing call site changes.
 
+  A prop only reaches the calendars an app mounts itself, though, and the one
+  inside a `<DateTimePicker>`'s dialog is mounted by the picker: a call site
+  could translate every word of that dialog and still get "August 2026" over
+  "Mo Tu We", with no way to reach the grid between them. So `labels` also falls
+  back to a `CalendarLabels` taken from **context** — provide one at an app's
+  root and every calendar under it follows, the pickers' included — and
+  `<DateTimePicker>` / `<DatePicker>` now take a `labels` of their own for the
+  odd one out, which they hand down the same way. The order is the prop, then
+  the context, then English, so nothing that already passes labels changes and
+  an app that says it once no longer has to remember which calendars it said it
+  to.
+
 - **`<SourceEditor>`: a writing surface for documents a `<textarea>` cannot
   carry.** A textarea is one layout box holding the whole document, and a browser
   re-lays out that box's text on every edit — measured in Chromium, a keystroke

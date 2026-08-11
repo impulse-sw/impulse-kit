@@ -47,8 +47,15 @@ pub fn Calendar(
   day_content: Option<Callback<NaiveDate, AnyView>>,
   /// Month and weekday names. Defaults to English; pass your own to render the
   /// calendar in the app's language.
-  #[prop(optional)]
-  labels: CalendarLabels,
+  ///
+  /// Not every calendar has a call site to pass this at — the one inside a
+  /// [`DateTimePicker`](super::date_picker::DateTimePicker)'s dialog is built by
+  /// the picker, not by the app — so this also falls back to a
+  /// [`CalendarLabels`] in **context**. An app that speaks one language provides
+  /// it once at its root and every calendar under it follows; a prop passed here
+  /// still wins over it, and English remains the answer when there is neither.
+  #[prop(optional, into)]
+  labels: Option<CalendarLabels>,
   /// The size of a day's square, as a CSS length. Defaults to `2rem`, which is
   /// right for a bare date picker and too small the moment
   /// [`day_content`](Calendar) puts anything under the number.
@@ -75,6 +82,9 @@ pub fn Calendar(
   let focused_day = RwSignal::new(None::<NaiveDate>);
 
   let disabled_dates = disabled.unwrap_or_else(|| Signal::derive(Vec::new));
+  // The prop, then whatever the app provided for every calendar in it, then
+  // English. See the prop's own documentation for why the middle one exists.
+  let labels = labels.or_else(use_context::<CalendarLabels>).unwrap_or_default();
 
   view! {
     <Provider value=CalendarContext {
