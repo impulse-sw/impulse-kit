@@ -365,6 +365,18 @@ pub trait LocalBackend {
   fn rewrite_ids(&self, req: &HttpRequest, _id_map: &HashMap<i64, i64>) -> HttpRequest {
     req.clone()
   }
+
+  /// Empties the local store, on sign-out. Defaults to a no-op.
+  ///
+  /// The offline copy is one user's data sitting on the device, and nothing in
+  /// the engine knows whose — that is exactly what a [`LocalBackend`] keeps
+  /// track of. Left in place across a sign-out it does not merely linger: the
+  /// next person to sign in on this device is served that copy while their own
+  /// data is still on its way, so they are shown a stranger's boards, documents
+  /// or messages as if they were their own. Implement this to drop the mirror
+  /// and the remembered identity; [`Engine::clear_local_data`] calls it and
+  /// clears the replay queue alongside.
+  async fn clear_local(&self) {}
 }
 
 /// The offline-capable request engine backing a Tauri app.
@@ -520,6 +532,20 @@ impl<R: Remote, L: LocalBackend> Engine<R, L> {
       }
     }
     Ok(())
+  }
+
+  /// Forgets everything this device holds for the session that just ended: the
+  /// backend's local store ([`LocalBackend::clear_local`]) and every write still
+  /// waiting to be replayed.
+  ///
+  /// Call it on sign-out, from the same place the credentials are dropped. The
+  /// queue goes with the store because the two only make sense together — a
+  /// replay carries the *current* credentials ([`LocalBackend::prepare_outgoing`]),
+  /// so writes kept across a sign-out would land on the server as whoever signs
+  /// in next.
+  pub async fn clear_local_data(&self) {
+    self.queue.clear();
+    self.backend.clear_local().await;
   }
 
   /// Fills the local store ahead of time, so what the user hasn't opened yet is

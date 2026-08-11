@@ -176,6 +176,26 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   for an app's own commands, so a frontend no longer re-declares the `invoke`
   binding to ask the native side something that isn't an HTTP request.
 
+- **Signing out can now take the offline copy with it.**
+  `Engine::clear_local_data` (and its `WsEngine` twin) empties the app's local
+  store through the new `LocalBackend::clear_local` / `WsBackend::clear_local`
+  hook — a no-op by default — clears the replay queue (`Queue::clear`,
+  `WsQueue::clear`), and on the socket side drops the live connection
+  (`WsEngine::drop_socket`) so the old session's broadcasts stop arriving. The
+  webview asks for it through `impulse_client_kit::client::clear_local_data`,
+  which invokes `ik_clear_local_data` under Tauri and does nothing on the web.
+
+  This closes a gap that no app could close on its own: the mirror is what makes
+  an app work without a network, so it deliberately outlives the page — and a
+  sign-out only reloads the page. Nothing stored in it says whose data it is, so
+  the next person to sign in on the device was served the previous one's data
+  while their own was still on its way, and their first offline writes were
+  attributed to whoever the identity file still named. Queued writes are the
+  sharper end of the same thing: a replay stamps the *current* credentials
+  (`prepare_outgoing`), so one person's unsent work would land in another
+  person's account. A session merely expiring still keeps everything, as before
+  — this is only for a user saying they are done here.
+
 ### Changed
 
 - **Selects are button-sized.** `SelectTriggerSize` now mirrors `ButtonSize` one

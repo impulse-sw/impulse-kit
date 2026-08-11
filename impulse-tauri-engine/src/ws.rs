@@ -197,6 +197,16 @@ pub trait WsBackend: Send + Sync {
   fn rewrite_ids(&self, frame: &str, _id_map: &HashMap<i64, i64>) -> String {
     frame.to_string()
   }
+
+  /// Empties the local store, on sign-out. Defaults to a no-op.
+  ///
+  /// The mirror is one user's data sitting on the device, and nothing in the
+  /// engine knows whose. Left in place across a sign-out it is what the *next*
+  /// person to sign in on this device is served while their own data is still on
+  /// its way — a stranger's boards shown as their own. Implement it to drop the
+  /// mirror and the remembered identity; [`WsEngine::clear_local_data`] calls it
+  /// and clears the replay queue alongside.
+  async fn clear_local(&self) {}
 }
 
 /// Pushes a frame to the webview. The app shell wires this to
@@ -285,6 +295,18 @@ impl WsQueue {
   pub fn ack(&self, id: u64) {
     let mut state = self.state.lock().expect("ws queue mutex");
     state.entries.retain(|e| e.id != id);
+    self.persist(&state);
+  }
+
+  /// Drops every pending frame without replaying it.
+  ///
+  /// For sign-out, and only for sign-out: a queued frame belongs to the session
+  /// that made it, and the socket it would replay over authenticates as whoever
+  /// is signed in *now*. The counters are deliberately not reset, so ids stay
+  /// monotonic across the wipe.
+  pub fn clear(&self) {
+    let mut state = self.state.lock().expect("ws queue mutex");
+    state.entries.clear();
     self.persist(&state);
   }
 
@@ -413,6 +435,12 @@ pub struct WsEngine<R: WsRemote, B: WsBackend> {
   queue: WsQueue,
   id_map: Mutex<HashMap<i64, i64>>,
   waiters: Mutex<HashMap<i64, Arc<Notify>>>,
+  /// Raised to end the current connection from outside the receive loop — see
+  /// [`WsEngine::drop_socket`].
+  reset: Notify,
+  /// Bumped by [`WsEngine::drop_socket`]; a connection that no longer matches it
+  /// stops applying what it receives.
+  epoch: std::sync::atomic::AtomicU64,
   policy: ReconnectPolicy,
 }
 
@@ -437,6 +465,8 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
       queue: WsQueue::open(queue_path.into())?,
       id_map: Mutex::new(HashMap::new()),
       waiters: Mutex::new(HashMap::new()),
+      reset: Notify::new(),
+      epoch: std::sync::atomic::AtomicU64::new(0),
       policy: ReconnectPolicy::default(),
     })
   }
@@ -462,6 +492,39 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
   /// Number of frames waiting to be replayed to the server.
   pub fn pending_sync(&self) -> usize {
     self.queue.len()
+  }
+
+  /// Ends the current connection, so the next one is opened under whatever
+  /// credentials are current. Frames still in flight on the old socket are
+  /// discarded rather than applied.
+  ///
+  /// The socket is the one thing in a Tauri app that outlives the page: signing
+  /// out reloads the webview, but the shell's connection — opened with a ticket
+  /// minted for the session that just ended — carries on receiving that user's
+  /// broadcasts. [`run_reconnecting`](Self::run_reconnecting) picks it up from
+  /// here and reconnects, which succeeds again once somebody has signed in.
+  pub fn drop_socket(&self) {
+    self.epoch.fetch_add(1, Ordering::Relaxed);
+    self.go_offline();
+    self.reset.notify_waiters();
+  }
+
+  /// Forgets everything this device holds for the session that just ended: the
+  /// backend's mirror ([`WsBackend::clear_local`]), every frame still waiting to
+  /// be replayed, the id reconciliation learned along the way, and the socket
+  /// that was carrying it all.
+  ///
+  /// Call it on sign-out, from the same place the credentials are dropped. All
+  /// four go together: a mirror kept across a sign-out is what the next person
+  /// on this device is shown while their own data loads, and a queued frame
+  /// kept alongside it would replay over the *next* session's socket — one
+  /// person's work sent as another.
+  pub async fn clear_local_data(&self) {
+    self.drop_socket();
+    self.queue.clear();
+    self.id_map.lock().expect("id map").clear();
+    self.waiters.lock().expect("waiters").clear();
+    self.backend.clear_local().await;
   }
 
   /// Handles one frame from the UI (`ik_ws_send`). Online, it writes to the server
@@ -573,18 +636,37 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
     }
     self.online.store(true, Ordering::Relaxed);
 
+    // Which session this socket belongs to. A sign-out bumps it, and every frame
+    // is checked against it before being applied: a broadcast already in flight
+    // when the local store was wiped must not be folded back into it, or the
+    // wipe is undone by the very data it was meant to forget.
+    let epoch = self.epoch.load(Ordering::Relaxed);
+
     // The receive loop and the replay run concurrently, on purpose: a replayed
     // create is reconciled by the server's broadcast, which only arrives on the
     // receive loop — so `sync`'s wait for a real id would deadlock (until timeout)
     // if the loop weren't already draining the socket alongside it.
     let receive = async {
-      while let Some(item) = stream.recv().await {
+      // Registered before the first frame is awaited, so a `drop_socket` landing
+      // mid-frame still wakes this loop rather than being announced to nobody.
+      let reset = self.reset.notified();
+      tokio::pin!(reset);
+      loop {
+        let item = tokio::select! {
+          biased;
+          _ = &mut reset => break,
+          item = stream.recv() => item,
+        };
+        if self.epoch.load(Ordering::Relaxed) != epoch {
+          break;
+        }
         match item {
-          Ok(frame) => self.receive(frame).await,
-          Err(e) => {
+          Some(Ok(frame)) => self.receive(frame).await,
+          Some(Err(e)) => {
             tracing::warn!("ws stream error: {e}");
             break;
           }
+          None => break,
         }
       }
     };

@@ -97,6 +97,19 @@ impl Queue {
     self.persist(&state);
   }
 
+  /// Drops every pending entry without replaying it.
+  ///
+  /// For sign-out, and only for sign-out: a queued write belongs to the session
+  /// that made it, so replaying it after somebody else signs in on this device
+  /// would send one person's work under another person's credentials. The two
+  /// counters are deliberately *not* reset — ids stay monotonic, so an entry
+  /// enqueued after this can never be confused with one acked before it.
+  pub fn clear(&self) {
+    let mut state = self.state.lock().expect("queue mutex");
+    state.entries.clear();
+    self.persist(&state);
+  }
+
   /// Number of pending entries.
   pub fn len(&self) -> usize {
     self.state.lock().expect("queue mutex").entries.len()

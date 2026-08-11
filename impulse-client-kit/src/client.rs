@@ -186,6 +186,48 @@ pub fn head(url: impl Into<String>) -> RequestBuilder {
   RequestBuilder::new(Method::Head, url)
 }
 
+// ---------- Signing out of a native shell ----------
+
+/// The command a Tauri shell exposes to wipe what it holds for the session that
+/// just ended — see [`clear_local_data`].
+pub const CLEAR_LOCAL_DATA_COMMAND: &str = "ik_clear_local_data";
+
+/// Asks the native shell to forget everything it holds for the session that just
+/// ended: its offline mirror, the identity it attributes local work to, and any
+/// writes still queued for replay. A no-op outside Tauri, where the page has no
+/// shell behind it and holds nothing of its own past a reload.
+///
+/// **Call this from every sign-out**, next to whatever drops the credentials.
+/// The mirror is what makes the app work without a network, which is the same
+/// reason it outlives the page: reloading the webview does not touch it, and the
+/// next person to sign in on this device is served *that* copy while their own
+/// data is still on its way — someone else's boards, documents and messages,
+/// shown as their own for as long as the first sync takes. Dropping the
+/// credentials alone does not help; nothing about the stored data says whose it
+/// is.
+///
+/// The shell side is [`impulse_tauri_engine::Engine::clear_local_data`] (or its
+/// `WsEngine` twin), wired to a command by this name:
+///
+/// ```rust,ignore
+/// #[tauri::command]
+/// async fn ik_clear_local_data(state: State<'_, AppState>) -> Result<(), ()> {
+///   state.engine.clear_local_data().await;
+///   Ok(())
+/// }
+/// ```
+#[cfg(tauri)]
+pub async fn clear_local_data() -> CResult<()> {
+  ipc::command::<()>(CLEAR_LOCAL_DATA_COMMAND, ()).await
+}
+
+/// See the `cfg(tauri)` [`clear_local_data`] — with no shell to ask, this
+/// succeeds having done nothing.
+#[cfg(not(tauri))]
+pub async fn clear_local_data() -> CResult<()> {
+  Ok(())
+}
+
 // ---------- Request interceptor (auth is layered here) ----------
 
 type Interceptor = Box<dyn Fn(&mut HttpRequest) + Send + Sync + 'static>;
