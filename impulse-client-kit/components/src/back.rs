@@ -37,6 +37,32 @@
 //! unwinds its entry as it goes, so a later back press is never spent on
 //! something already closed.
 //!
+//! ## Why the history is reconciled rather than driven
+//!
+//! The stack is the truth, and the history is made to match it once per task —
+//! never a push here and a `go()` there as each guard opens and closes. That
+//! indirection is the whole design, because the two halves of the browser API
+//! run on different clocks: `pushState` takes effect immediately, while `go()`
+//! is a *queued traversal* whose delta is resolved against the entry that was
+//! current when it was called, not the one current when it lands.
+//!
+//! One gesture routinely closes one layer and opens another in the same tick —
+//! leaving a document for another tab closes the document's guard and opens the
+//! tab's — and driving the history directly meant that tick issued a `go(-1)`
+//! and a `pushState` together. The traversal then landed one entry *below* the
+//! entry just pushed, the `popstate` read a depth shallower than the stack, and
+//! the guard that had only just opened was closed as though the user had asked
+//! for it: the new tab appeared and snapped straight back. Which of the two
+//! orders a tick happened to take decided whether it broke, and engines differ
+//! on how several queued traversals coalesce, so the same build misbehaved on
+//! one platform and looked fine on another.
+//!
+//! Reconciling removes the question. Guards only add and remove slots;
+//! [`sync`](imp) then compares the depth recorded on the current entry with the
+//! stack's and closes the gap with pushes or with a single `go()` — and never
+//! while a traversal of its own is still in flight. A tick that closes one layer
+//! and opens another therefore nets out to no history traffic at all.
+//!
 //! One constraint follows from using history state: the entries pushed here
 //! carry `{ ikBackDepth: n }` as their state and keep the current URL. That is
 //! invisible to an app that navigates by signals — every app in this workspace —
@@ -72,6 +98,17 @@ mod imp {
     /// history entry records, which is what lets a `popstate` say how many
     /// layers the user just asked to close.
     slots: Vec<Slot>,
+    /// A traversal [`sync`] asked for and has not seen land yet. While one is in
+    /// flight the current entry is not the one the history will settle on, so
+    /// there is nothing useful to reconcile against — and pushing now is exactly
+    /// the mistake the module docs describe.
+    traversing: bool,
+    /// Lets a traversal that never reports back stop wedging the flag; see
+    /// [`begin_traversal`].
+    traversal_timeout: Option<TimeoutHandle>,
+    /// Whether a [`sync`] is already queued for the end of this task, so a tick
+    /// touching several guards still reconciles once.
+    syncing: bool,
   }
 
   thread_local! {
@@ -107,11 +144,13 @@ mod imp {
       .unwrap_or(0)
   }
 
-  /// Adds a layer and gives it a history entry to be popped off. Returns the
-  /// registration to hand back to [`unregister`].
+  /// Adds a layer. Returns the registration to hand back to [`unregister`].
+  ///
+  /// The history entry it needs is not pushed here — [`sync`] gives it one at
+  /// the end of the task, together with whatever else the same tick changed.
   fn register(close: Callback<()>, escape: bool) -> u64 {
     listen_once();
-    STACK.with_borrow_mut(|stack| {
+    let id = STACK.with_borrow_mut(|stack| {
       stack.next_id += 1;
       let id = stack.next_id;
       stack.slots.push(Slot {
@@ -119,50 +158,127 @@ mod imp {
         close: Some(close),
         escape,
       });
-      if let Some(history) = history() {
-        // No URL: the address bar has nothing to say about a panel being open,
-        // and rewriting it would make a reload land somewhere that doesn't
-        // exist. Only the entry itself matters.
-        let _ = history.push_state_with_url(&depth_state(stack.slots.len()), "", None);
-      }
       id
-    })
+    });
+    schedule_sync();
+    id
   }
 
-  /// Drops a layer that closed on its own, and gives back the history entries
-  /// that are now spent.
+  /// Drops a layer that closed on its own.
   ///
-  /// The entries are only unwound from the top: a layer closing out of order
-  /// (an inner one still open above it) leaves its entry in place as a dead
-  /// slot, to be swept together with the ones above it when they go. Every
-  /// press of Back then still closes something, which is the property worth
-  /// preserving.
+  /// Slots are only dropped from the top: a layer closing out of order (an
+  /// inner one still open above it) stays as a dead slot, to be swept together
+  /// with the ones above it when they go. Every press of Back then still closes
+  /// something, which is the property worth preserving. The entries the swept
+  /// slots held are given back by [`sync`], not here.
   fn unregister(id: u64) {
-    let spent = STACK.with_borrow_mut(|stack| {
+    STACK.with_borrow_mut(|stack| {
       let Some(index) = stack.slots.iter().position(|slot| slot.id == id) else {
-        return 0;
+        return;
       };
       stack.slots[index].close = None;
-      let mut spent = 0;
       while stack.slots.last().is_some_and(|slot| slot.close.is_none()) {
         stack.slots.pop();
-        spent += 1;
       }
-      spent
     });
-    if spent > 0
-      && let Some(history) = history()
-    {
-      // Asynchronous, like every history navigation: the `popstate` it causes
-      // finds the stack already trimmed to this depth and closes nothing.
-      let _ = history.go_with_delta(-spent);
+    schedule_sync();
+  }
+
+  /// Queues the reconcile that follows a batch of stack changes, once per task.
+  ///
+  /// A microtask, so it runs after the whole of the effect flush that opened and
+  /// closed the layers — the point of coalescing is that a tab switch, which
+  /// closes one guard and opens another, is reconciled as the single net change
+  /// it is rather than as two opposed history operations racing each other.
+  fn schedule_sync() {
+    let queued = STACK.with_borrow_mut(|stack| std::mem::replace(&mut stack.syncing, true));
+    if queued {
+      return;
     }
+    queue_microtask(|| {
+      STACK.with_borrow_mut(|stack| stack.syncing = false);
+      sync();
+    });
+  }
+
+  /// Makes the history match the stack: one entry per slot, and the current
+  /// entry recording exactly as many as there are.
+  ///
+  /// This is the only place that pushes or traverses.
+  fn sync() {
+    let Some(history) = history() else {
+      return;
+    };
+    // A traversal of ours in flight means the current entry is about to change
+    // anyway. Its `popstate` runs this again, against the entry it lands on.
+    let Some(target) = STACK.with_borrow(|stack| (!stack.traversing).then_some(stack.slots.len())) else {
+      return;
+    };
+    let current = current_depth();
+    if current < target {
+      // No URL: the address bar has nothing to say about a panel being open, and
+      // rewriting it would make a reload land somewhere that doesn't exist. Only
+      // the entries themselves matter.
+      for depth in (current + 1)..=target {
+        let _ = history.push_state_with_url(&depth_state(depth), "", None);
+      }
+    } else if current > target {
+      // One traversal for the whole distance, rather than a step per layer: two
+      // queued `go()`s are two chances for the history to move somewhere neither
+      // of them meant, and engines disagree about where that is.
+      begin_traversal();
+      let _ = history.go_with_delta(-((current - target) as i32));
+    }
+  }
+
+  /// Marks a traversal of ours as in flight and arms a fallback in case its
+  /// `popstate` never arrives.
+  ///
+  /// Nothing should be able to swallow it — the entries we traverse to are ones
+  /// we pushed, and back entries are never dropped from under us — but a flag
+  /// stuck on would leave [`sync`] refusing to push for the rest of the session,
+  /// and a layer with no entry behind it is one the Android button closes the
+  /// app instead of. The fallback is generous: a same-document traversal takes
+  /// milliseconds, so a second of silence means it is not coming.
+  fn begin_traversal() {
+    let handle = set_timeout_with_handle(
+      || {
+        STACK.with_borrow_mut(|stack| {
+          stack.traversing = false;
+          stack.traversal_timeout = None;
+        });
+        sync();
+      },
+      std::time::Duration::from_secs(1),
+    )
+    .ok();
+    STACK.with_borrow_mut(|stack| {
+      stack.traversing = true;
+      stack.traversal_timeout = handle;
+    });
+  }
+
+  /// The traversal landed; stand the fallback down.
+  fn end_traversal() {
+    STACK.with_borrow_mut(|stack| {
+      stack.traversing = false;
+      if let Some(handle) = stack.traversal_timeout.take() {
+        handle.clear();
+      }
+    });
   }
 
   /// A back gesture: close every layer the entry we landed on is below.
   fn on_popstate() {
+    if STACK.with_borrow(|stack| stack.traversing) {
+      // Our own reconcile arriving, not the user asking for anything. The stack
+      // was trimmed before the traversal was issued; there is nothing to close.
+      end_traversal();
+      schedule_sync();
+      return;
+    }
     let depth = current_depth();
-    let (closing, stale) = STACK.with_borrow_mut(|stack| {
+    let closing = STACK.with_borrow_mut(|stack| {
       let mut closing = Vec::new();
       while stack.slots.len() > depth {
         if let Some(slot) = stack.slots.pop()
@@ -171,35 +287,33 @@ mod imp {
           closing.push(close);
         }
       }
-      (closing, depth > stack.slots.len())
+      closing
     });
     // Innermost first, and outside the borrow: closing a layer runs app code,
     // which may well open or close another one.
     for close in closing {
       close.run(());
     }
-    if stale {
-      // An entry this app pushed in an earlier life — before a reload, or ahead
-      // of us because the user pressed Forward. There is no layer left for it to
-      // close, and stopping on it would leave Back doing nothing at all, so keep
-      // going. This terminates: each step lands on a shallower entry, and the
-      // oldest one has nowhere to go (which on Android is what closes the app).
-      if let Some(history) = history() {
-        let _ = history.back();
-      }
-    }
+    // Landing deeper than the stack reaches — on an entry this app pushed in an
+    // earlier life, before a reload, or one the user came back to with Forward —
+    // closes nothing, and stopping there would leave Back doing nothing at all.
+    // The reconcile walks the rest of the way in one traversal; the oldest entry
+    // has nowhere to go, which on Android is what closes the app.
+    schedule_sync();
   }
 
-  /// Escape, on a desktop where there is no back button to press. Routed through
-  /// history rather than closing the layer directly, so the entry it pushed is
-  /// spent by the same gesture.
+  /// Escape, on a desktop where there is no back button to press. Closes the top
+  /// layer directly, the way its own ✕ would; the entry it was holding is given
+  /// back by the reconcile that follows. Going through `history.back()` instead
+  /// would be one more caller racing [`sync`] for the same entry, and there is
+  /// nothing left for it to buy.
   fn on_keydown(ev: web_sys::KeyboardEvent) {
     if ev.key() != "Escape" || ev.default_prevented() {
       return;
     }
-    let wanted = STACK.with_borrow(|stack| stack.slots.last().is_some_and(|slot| slot.escape));
-    if wanted && let Some(history) = history() {
-      let _ = history.back();
+    let close = STACK.with_borrow(|stack| stack.slots.last().filter(|slot| slot.escape).and_then(|slot| slot.close));
+    if let Some(close) = close {
+      close.run(());
     }
   }
 
@@ -222,6 +336,13 @@ mod imp {
   fn listen(event: &str, handler: impl Fn(web_sys::Event) + 'static) {
     let handler = Closure::<dyn Fn(web_sys::Event)>::new(handler).into_js_value();
     let _ = window().add_event_listener_with_callback(event, handler.unchecked_ref());
+  }
+
+  /// Runs `f` once the current task is done — after the effect flush that
+  /// scheduled it, and before the browser gets to render or to deliver events.
+  fn queue_microtask(f: impl FnOnce() + 'static) {
+    let f = Closure::once_into_js(f);
+    window().queue_microtask(f.unchecked_ref());
   }
 
   /// The hook behind [`BackGuard`](super::BackGuard), for a call site that

@@ -252,7 +252,32 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
 
 ### Fixed
 
-- **A `<Calendar>` day's highlight covers the whole day.** With `day_content`
+- **Leaving a guarded page for somewhere else no longer snaps straight back.**
+  Open a document or a board, then pick another tab: the new tab appeared for a
+  frame and the app bounced back to where it had been. Pressing Back after that
+  left the app entirely instead of returning to the list — on Android, it closed
+  the app.
+
+  `<BackGuard>` drove the history directly, pushing an entry as a layer opened
+  and calling `history.go(-n)` as one closed. The two halves run on different
+  clocks: `pushState` takes effect at once, while `go()` is a queued traversal
+  whose delta is resolved against the entry that was current when it was *called*.
+  Leaving a document for another tab does both in one tick — the document's guard
+  closes, the tab's guard opens — so a `go(-1)` and a `pushState` went out
+  together, the traversal landed one entry below the entry just pushed, and the
+  `popstate` read a depth shallower than the stack. The guard that had only just
+  opened was closed as though the user had asked for it, and the history was left
+  an entry short. Which of the two orders a tick happened to take decided whether
+  it broke, and engines disagree about where several queued traversals leave you,
+  so the same build misbehaved in a Tauri window and looked fine in a browser.
+
+  The stack is now the only truth, and the history is reconciled to it once per
+  task: guards add and remove slots, and a single coalesced pass then closes the
+  gap with pushes or with one `go()` — never while a traversal of its own is
+  still in flight. A tick that closes one layer and opens another nets out to no
+  history traffic at all, so there is no longer a race to lose. Escape closes the
+  top layer directly for the same reason, rather than being one more caller
+  reaching for the same entry. With `day_content`
   drawing anything under the number, the selected (or today's) colour stopped at
   the number and the content sat below it, outside the coloured square — and the
   square itself was the wrong shape, since the cell was trying to be two heights
