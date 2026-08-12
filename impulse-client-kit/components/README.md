@@ -23,8 +23,8 @@ Add the crate as a normal Cargo dependency — no copying components into your t
 
 ```toml
 [dependencies]
-impulse-client-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.5.0" }
-impulse-client-kit-components = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.5.0" }
+impulse-client-kit = { git = "https://github.com/impulse-sw/impulse-kit.git", branch = "release/1.8.x" }
+impulse-client-kit-components = { git = "https://github.com/impulse-sw/impulse-kit.git", branch = "release/1.8.x" }
 leptos = "0.8"
 ```
 
@@ -44,7 +44,7 @@ into a `@source` partial for you. Add it as a build-dependency:
 
 ```toml
 [build-dependencies]
-impulse-tailwind-sources = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.5.0" }
+impulse-tailwind-sources = { git = "https://github.com/impulse-sw/impulse-kit.git", branch = "release/1.8.x" }
 ```
 
 …and call it from a tiny `build.rs`:
@@ -93,7 +93,7 @@ links = "my-ui-lib"
 build = "build.rs"
 
 [build-dependencies]
-impulse-tailwind-sources = { git = "https://github.com/impulse-sw/impulse-kit.git", tag = "1.5.0" }
+impulse-tailwind-sources = { git = "https://github.com/impulse-sw/impulse-kit.git", branch = "release/1.8.x" }
 ```
 
 ```rust
