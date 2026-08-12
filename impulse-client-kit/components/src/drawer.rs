@@ -5,6 +5,8 @@ use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 use web_sys::{HtmlElement, PointerEvent};
 
+use crate::back::use_back_guard;
+
 const CLOSE_THRESHOLD: f64 = 0.25;
 const VELOCITY_THRESHOLD: f64 = 0.4;
 const TRANSITION_DURATION: f64 = 0.3;
@@ -328,6 +330,27 @@ pub fn DrawerContent(#[prop(optional, into)] class: String, children: ChildrenFn
       context.drag_offset.set(0.0);
     }
   };
+
+  // Back — the Android system button, the browser's Back — dismisses a drawer
+  // that can be dismissed at all, exactly as Escape does below. On a phone this
+  // *is* the gesture: a drawer is dragged up from the bottom edge, and the
+  // system button sits right beside where the thumb already is. `escape: false`
+  // because the listener below already covers that key.
+  use_back_guard(
+    context.is_open.into(),
+    Callback::new(move |_| {
+      if !context.dismissible {
+        return;
+      }
+      context.is_closing_via_drag.set(false);
+      context.drag_offset.set(0.0);
+      context.is_open.set(false);
+      if let Some(callback) = context.on_open_change {
+        callback.run(false);
+      }
+    }),
+    false,
+  );
 
   Effect::new(move |_| {
     if context.is_open.get() {

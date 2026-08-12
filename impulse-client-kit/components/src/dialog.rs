@@ -3,6 +3,8 @@
 use impulse_client_kit::utils::cn;
 use leptos::prelude::*;
 
+use crate::back::use_back_guard;
+
 #[derive(Clone, Copy)]
 struct DialogContext {
   is_open: RwSignal<bool>,
@@ -108,6 +110,21 @@ pub fn DialogContent(#[prop(optional)] class: String, children: ChildrenFn) -> i
       });
     }
   });
+
+  // And the same dismissal for a device with no Escape key to press: the
+  // Android system back button, and the browser's Back. `escape: false` — the
+  // listener above already has that key, and two handlers on one gesture would
+  // close a dialog *and* whatever it opened over.
+  use_back_guard(
+    context.is_open.into(),
+    Callback::new(move |_| {
+      context.is_open.set(false);
+      if let Some(callback) = context.on_open_change {
+        callback.run(false);
+      }
+    }),
+    false,
+  );
 
   Effect::new(move |_| {
     if context.is_open.get() {

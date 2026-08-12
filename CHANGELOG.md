@@ -194,6 +194,12 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   too. A layer closed by its own controls unwinds its entry as it goes, so a
   later press is never spent on something already closed.
 
+  **`<Dialog>`, `<Sheet>` and `<Drawer>` honour it without being asked**, since
+  each already closes on Escape and back is the same dismissal on a device with
+  no Escape key to press — a sheet or drawer being precisely what a phone shows.
+  `<AlertDialog>` deliberately does not: it dismisses on neither Escape nor its
+  overlay, because a confirmation is there to be answered.
+
 - **`use_click_outside`** — closes a panel when a click lands outside it, for a
   menu or popover an app builds out of plain markup rather than out of the kit's
   overlays (which have always done this themselves). Takes the wrapper that holds

@@ -3,6 +3,8 @@
 use impulse_client_kit::utils::cn;
 use leptos::prelude::*;
 
+use crate::back::use_back_guard;
+
 #[derive(Clone, Copy, PartialEq, Default)]
 pub enum SheetSide {
   Top,
@@ -133,6 +135,21 @@ pub fn SheetContent(#[prop(optional, into)] class: String, children: ChildrenFn)
       });
     }
   });
+
+  // The same dismissal where there is no Escape key: the Android system back
+  // button, and the browser's Back. A sheet is the shape that needs it most —
+  // it slides in over the page on exactly the devices that have no keyboard.
+  // `escape: false` since the listener above already has that key.
+  use_back_guard(
+    context.is_open.into(),
+    Callback::new(move |_| {
+      context.is_open.set(false);
+      if let Some(callback) = context.on_open_change {
+        callback.run(false);
+      }
+    }),
+    false,
+  );
 
   Effect::new(move |_| {
     if context.is_open.get() {
