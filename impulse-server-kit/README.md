@@ -691,6 +691,41 @@ it whole, so split across several `Sitemap:` lines. `lastmod` is the one field
 they act on — a file where everything changed today teaches them to ignore it —
 and `changefreq`/`priority` are advisory (Google ignores both).
 
+### Several hostnames, one site
+
+A proxy that points a product domain and a vanity domain at the same socket
+gives you an application serving every page at two addresses — which a crawler
+reads as two copies of one article, picking a winner itself and splitting the
+signals. Nothing in the request tells the app which host it should be *found*
+under, so that part is configuration:
+
+```rust
+let canonical = CanonicalOrigin::from_env("MY_APP_CANONICAL_ORIGIN");   // unset => follow the request
+
+let robots = RobotsTxt::new()
+  .disallow("/private/")
+  .sitemap("/sitemap.xml")
+  .canonical_origin(canonical.clone());
+```
+
+`canonical.resolve(req)` then returns the same origin whatever host asked, and
+every published URL should be built from it: the page's
+`<link rel="canonical">`, the sitemap's `<loc>`s, and the `Sitemap:` line —
+which `RobotsTxt` emits **only** on the canonical host, because a sitemap
+listing another host's URLs is cross-submission and is ignored unless the owner
+has verified both.
+
+The other hosts keep the same crawl rules on purpose. They serve the same pages,
+and the way a crawler learns that two addresses are one page is by fetching both
+and finding the same canonical; `Disallow: /` would leave it unable to see that
+and free to list the alias as a bare URL anyway. Redirecting the alias at the
+proxy is the other valid answer, and the better one when nobody is meant to read
+the site under that name.
+
+Worth setting even on one domain: it pins the *scheme*. A proxy that terminates
+TLS without adding `X-Forwarded-Proto` leaves the server no way to know it is an
+HTTPS site, and `request_origin` then honestly reports `http://`.
+
 ### Keeping something *out* of an index
 
 `robots.txt` and `noindex` are not interchangeable, and most sites want both:

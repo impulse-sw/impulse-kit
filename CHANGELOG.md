@@ -29,6 +29,25 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   line, so `Disallow: /private#draft` bans `/private` and permits everything the
   author believed they had just closed off.
 
+- **`CanonicalOrigin`, for an application a proxy hands more than one hostname.**
+  A product domain and a vanity domain pointed at the same socket produce an app
+  that serves every page at two addresses, which a crawler reads as two copies of
+  one article — it picks a winner itself and splits the signals between them.
+  Nothing in a request distinguishes the host you were *asked* on from the host
+  you should be *found* under, so this is configuration: `CanonicalOrigin::fixed`
+  or `::from_env`, unset meaning "follow the request" (right for one hostname,
+  and for a laptop). `resolve(req)` then answers the same origin however the
+  request arrived — build the page's `<link rel="canonical">`, the sitemap's
+  `<loc>`s and the `Sitemap:` line from it — and `RobotsTxt::canonical_origin`
+  emits that `Sitemap:` line only on the canonical host, because a sitemap
+  listing another host's URLs is cross-submission and ignored unless both are
+  verified. The alias keeps the same crawl rules deliberately: a crawler learns
+  two addresses are one page by fetching both and finding the same canonical, and
+  `Disallow: /` would leave it unable to see that while still free to list the
+  alias bare. It also pins the scheme, which matters on one domain too — a proxy
+  that terminates TLS without sending `X-Forwarded-Proto` leaves the server
+  honestly reporting `http://`.
+
 - **`set_x_robots_tag` and the `RobotsTag` constants**, the other half of keeping
   something out of an index — and not a substitute for the first half.
   `Disallow` is the only one that stops the *fetch*, which is what matters when

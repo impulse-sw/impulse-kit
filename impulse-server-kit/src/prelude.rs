@@ -4,8 +4,8 @@ pub use impulse_utils::{self, prelude::*};
 
 pub use crate::security_headers::{SecurityHeaders, SecurityHeadersOptions};
 pub use crate::seo::{
-  ChangeFreq, MAX_SITEMAP_URLS, ROBOTS_TXT_PATH, RobotsGroup, RobotsTag, RobotsTxt, RobotsTxtHandler, SITEMAP_XML_PATH,
-  Sitemap, SitemapHandler, SitemapUrl, request_origin, set_x_robots_tag,
+  CanonicalOrigin, ChangeFreq, MAX_SITEMAP_URLS, ROBOTS_TXT_PATH, RobotsGroup, RobotsTag, RobotsTxt, RobotsTxtHandler,
+  SITEMAP_XML_PATH, Sitemap, SitemapHandler, SitemapUrl, request_origin, set_x_robots_tag,
 };
 pub use crate::setup::{GenericSetup, GenericValues, load_generic_config, load_generic_state};
 pub use crate::startup::{get_root_router, get_root_router_autoinject, start};

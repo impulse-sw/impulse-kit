@@ -51,7 +51,7 @@ use salvo::prelude::*;
 use salvo::writing::Text;
 use serde::Deserialize;
 
-use super::request_origin;
+use super::CanonicalOrigin;
 
 /// Where `robots.txt` has to live: the root of the origin, and nowhere else.
 /// Crawlers do not look anywhere else, and a `robots.txt` under a sub-path
@@ -215,9 +215,14 @@ pub struct RobotsTxt {
   pub groups: Vec<RobotsGroup>,
   /// Sitemap URLs to advertise. An absolute URL is used as given; a value
   /// starting with `/` is resolved against the origin each request arrives on
-  /// (see [`request_origin`]), which is what lets an application that has never
-  /// been told its own domain still advertise its sitemap correctly.
+  /// (see [`request_origin`](super::request_origin)), which is what lets an
+  /// application that has never been told its own domain still advertise its
+  /// sitemap correctly.
   pub sitemaps: Vec<String>,
+  /// The host this site is published under, when it answers on several. Left
+  /// unset the file simply follows whichever host asked for it, which is right
+  /// for a site with one hostname; see [`RobotsTxt::canonical_origin`].
+  pub canonical: CanonicalOrigin,
 }
 
 impl RobotsTxt {
@@ -264,13 +269,45 @@ impl RobotsTxt {
     self
   }
 
+  /// Pins the host this site is published under, for an application that a
+  /// reverse proxy hands more than one.
+  ///
+  /// Two things follow. Rooted sitemap paths resolve against *this* origin
+  /// rather than the one asked, so both hosts advertise the same file; and the
+  /// `Sitemap:` line is emitted **only** on the canonical host, because a
+  /// sitemap describes the host it is served from — one that lists another
+  /// host's URLs is cross-submission, which a crawler ignores unless the owner
+  /// has proved ownership of both.
+  ///
+  /// The rules themselves are unchanged on the other hosts, deliberately: they
+  /// serve the same pages, and the way a crawler learns that two addresses are
+  /// one page is by fetching both and finding the same `<link rel="canonical">`.
+  /// Slamming the door with `Disallow: /` instead would leave it unable to see
+  /// that, and able to list the alias as a bare URL anyway.
+  pub fn canonical_origin(mut self, canonical: CanonicalOrigin) -> Self {
+    self.canonical = canonical;
+    self
+  }
+
+  /// Renders the file as the request in front of it should see it: sitemap
+  /// paths resolved against the canonical origin, and the `Sitemap:` line left
+  /// off when this is not the canonical host.
+  pub fn render_for(&self, req: &Request) -> String {
+    self.render_inner(&self.canonical.resolve(req), self.canonical.is_canonical(req))
+  }
+
   /// Renders the file.
   ///
   /// `origin` is the `scheme://host` that rooted sitemap paths resolve against
-  /// — [`request_origin`] inside a handler, the site's own URL anywhere else.
-  /// It is unused when every sitemap URL is already absolute, and irrelevant
-  /// when there are none, so `""` is a fine argument in both cases.
+  /// — [`request_origin`](super::request_origin) in a handler, the site's own
+  /// URL anywhere else. It is unused when every sitemap URL is already
+  /// absolute, and irrelevant when there are none, so `""` is a fine argument
+  /// in both cases.
   pub fn render(&self, origin: &str) -> String {
+    self.render_inner(origin, true)
+  }
+
+  fn render_inner(&self, origin: &str, advertise_sitemaps: bool) -> String {
     let mut out = String::new();
     if let Some(comment) = &self.comment {
       for line in comment.lines() {
@@ -297,11 +334,15 @@ impl RobotsTxt {
       }
       group.render_into(&mut out);
     }
-    let sitemaps = self
-      .sitemaps
-      .iter()
-      .filter_map(|url| resolve_sitemap(url, origin))
-      .collect::<Vec<_>>();
+    let sitemaps: Vec<String> = if advertise_sitemaps {
+      self
+        .sitemaps
+        .iter()
+        .filter_map(|url| resolve_sitemap(url, origin))
+        .collect()
+    } else {
+      Vec::new()
+    };
     if !sitemaps.is_empty() {
       out.push('\n');
       for url in sitemaps {
@@ -411,12 +452,12 @@ pub struct RobotsTxtHandler {
 #[salvo::async_trait]
 impl Handler for RobotsTxtHandler {
   async fn handle(&self, req: &mut Request, _depot: &mut Depot, res: &mut Response, _ctrl: &mut FlowCtrl) {
-    // Rendered per request rather than once at startup, because a rooted sitemap
-    // path can only be resolved against the origin the request came in on — and
-    // an application reachable on more than one hostname would otherwise
-    // advertise the first one it happened to be asked about to everybody. The
-    // file is a few hundred bytes and is fetched about once a day per crawler.
-    res.render(Text::Plain(self.robots.render(&request_origin(req))));
+    // Rendered per request rather than once at startup, because both halves of
+    // the answer depend on the request: a rooted sitemap path resolves against
+    // an origin, and which host asked decides whether the sitemap is this host's
+    // to advertise. The file is a few hundred bytes and is fetched about once a
+    // day per crawler.
+    res.render(Text::Plain(self.robots.render_for(req)));
   }
 }
 
@@ -527,6 +568,42 @@ mod tests {
         .sitemap("sitemap.xml")
         .render("https://example.com")
         .contains("Sitemap:")
+    );
+  }
+
+  /// A site on two hostnames publishes one set of URLs, so both hosts point at
+  /// the canonical sitemap — and only the canonical host advertises it, because
+  /// a sitemap listing another host's URLs is cross-submission and is ignored
+  /// unless the owner has proved ownership of both.
+  #[test]
+  fn advertises_the_sitemap_only_where_it_belongs() {
+    let robots = RobotsTxt::new()
+      .disallow("/s/")
+      .sitemap("/sitemap.xml")
+      .canonical_origin(CanonicalOrigin::fixed("https://blog.example.com"));
+
+    let mut on_canonical = Request::default();
+    on_canonical
+      .headers_mut()
+      .insert("host", "blog.example.com".parse().unwrap());
+    let mut on_alias = Request::default();
+    on_alias
+      .headers_mut()
+      .insert("host", "app.example.com".parse().unwrap());
+
+    assert!(
+      robots
+        .render_for(&on_canonical)
+        .contains("Sitemap: https://blog.example.com/sitemap.xml"),
+      "the canonical host advertises it"
+    );
+    assert!(
+      !robots.render_for(&on_alias).contains("Sitemap:"),
+      "the alias does not — the file would not be its own to hand over"
+    );
+    assert!(
+      robots.render_for(&on_alias).contains("Disallow: /s/"),
+      "but the rules are the same on both: the alias serves the same pages, and a        crawler learns they are one page by fetching them and finding the same canonical"
     );
   }
 

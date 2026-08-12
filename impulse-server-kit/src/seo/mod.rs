@@ -35,6 +35,11 @@
 //! }
 //! ```
 //!
+//! An application answering on more than one hostname — a product domain and a
+//! vanity one, an apex and its `www` — needs [`CanonicalOrigin`], which is the
+//! difference between publishing one set of URLs and publishing the same article
+//! twice for a crawler to choose between.
+//!
 //! The two halves of keeping something *out* of an index live here too, and
 //! they are not interchangeable: [`RobotsTxt`] is the only one that stops a
 //! crawler from *fetching* a URL, and [`set_x_robots_tag`] is the only one that
@@ -53,6 +58,98 @@ pub use sitemap::{ChangeFreq, MAX_SITEMAP_URLS, SITEMAP_XML_PATH, Sitemap, Sitem
 
 use salvo::Request;
 use salvo::http::header::HOST;
+use serde::Deserialize;
+
+/// The one origin a site publishes itself under, when it answers on more than
+/// one.
+///
+/// A reverse proxy can point several hostnames at the same socket — a product
+/// domain and a vanity one, an apex and its `www`, an old name kept alive. The
+/// application behind it then serves every page at two addresses, and a crawler
+/// that finds both has found two copies of one article: it picks a winner on its
+/// own, splits the signals between them, and may index whichever one you did not
+/// mean. Nothing in the request distinguishes "the host you were asked on" from
+/// "the host you should be found under" — only configuration can.
+///
+/// Setting one makes every *published* URL name the same host regardless of
+/// which one was asked: the `<link rel="canonical">` on a page, the `<loc>`s in
+/// [`Sitemap`], and the `Sitemap:` line in [`RobotsTxt`] — which is emitted only
+/// on the canonical host, because a sitemap belongs to the host it lists.
+/// Crawling the other host is still fine and, in fact, the point: it serves the
+/// same pages with a canonical pointing here, which is what tells a crawler the
+/// two are one page rather than two.
+///
+/// Unset (the default) means "follow the request", which is right for a site on
+/// exactly one hostname — and is also the setting to leave alone in development,
+/// where the host is `localhost:8801` and no crawler is watching.
+///
+/// It is worth setting for a second reason, one that bites single-domain
+/// deployments too: it pins the *scheme*. A proxy that terminates TLS without
+/// adding `X-Forwarded-Proto` leaves this server with no way to know it is an
+/// HTTPS site, and [`request_origin`] then honestly reports `http://`.
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(transparent)]
+pub struct CanonicalOrigin(Option<String>);
+
+impl CanonicalOrigin {
+  /// Follow whatever host each request arrived on.
+  pub fn from_request() -> Self {
+    Self(None)
+  }
+
+  /// Publish under `origin` (`https://example.com`), whatever host the request
+  /// arrived on. A value without a scheme is taken as `https://`, and a trailing
+  /// slash is trimmed; an empty one is the same as [`CanonicalOrigin::from_request`].
+  pub fn fixed(origin: impl Into<String>) -> Self {
+    let origin = origin.into();
+    let origin = origin.trim().trim_end_matches('/');
+    if origin.is_empty() {
+      return Self(None);
+    }
+    Self(Some(if origin.contains("://") {
+      origin.to_string()
+    } else {
+      format!("https://{origin}")
+    }))
+  }
+
+  /// Reads the origin from an environment variable, falling back to following
+  /// the request when it is unset or empty — so one deployment can pin its
+  /// domain and another (or a developer's laptop) needs no configuration at all.
+  pub fn from_env(var: &str) -> Self {
+    std::env::var(var).map(Self::fixed).unwrap_or_default()
+  }
+
+  /// The origin to build published URLs with.
+  pub fn resolve(&self, req: &Request) -> String {
+    self.0.clone().unwrap_or_else(|| request_origin(req))
+  }
+
+  /// Whether this request arrived on the canonical host — always true when no
+  /// canonical origin is configured, because then there is only one host as far
+  /// as this server knows.
+  ///
+  /// Compared by host, not by whole origin: the scheme is exactly the part a
+  /// proxy may have failed to forward, and a canonical host would otherwise stop
+  /// recognising itself over a missing `X-Forwarded-Proto`.
+  pub fn is_canonical(&self, req: &Request) -> bool {
+    match &self.0 {
+      None => true,
+      Some(origin) => host_of(origin).eq_ignore_ascii_case(host_of(&request_origin(req))),
+    }
+  }
+
+  /// The configured origin, if there is one.
+  pub fn configured(&self) -> Option<&str> {
+    self.0.as_deref()
+  }
+}
+
+/// The host of an origin: what is left after the scheme and before any path.
+fn host_of(origin: &str) -> &str {
+  let after_scheme = origin.split_once("://").map(|(_, rest)| rest).unwrap_or(origin);
+  after_scheme.split('/').next().unwrap_or(after_scheme)
+}
 
 /// The origin — `scheme://host` — the request arrived on.
 ///
@@ -167,6 +264,42 @@ mod tests {
   fn ignores_a_forwarded_value_that_is_not_a_host() {
     let req = req_with(&[("host", "example.com"), ("x-forwarded-host", "evil.example/../")]);
     assert_eq!(request_origin(&req), "http://example.com");
+  }
+
+  /// The whole point of configuring one: an application answering on two
+  /// hostnames must publish one set of URLs, or a crawler files the same article
+  /// twice and picks a winner itself.
+  #[test]
+  fn publishes_one_origin_however_it_was_asked() {
+    let canonical = CanonicalOrigin::fixed("https://blog.example.com");
+    let asked_on_alias = req_with(&[("host", "app.example.com"), ("x-forwarded-proto", "https")]);
+    let asked_on_canonical = req_with(&[("host", "blog.example.com"), ("x-forwarded-proto", "https")]);
+
+    assert_eq!(canonical.resolve(&asked_on_alias), "https://blog.example.com");
+    assert_eq!(canonical.resolve(&asked_on_canonical), "https://blog.example.com");
+    assert!(!canonical.is_canonical(&asked_on_alias));
+    assert!(canonical.is_canonical(&asked_on_canonical));
+  }
+
+  /// Unset is the single-domain deployment, and a developer's laptop: follow the
+  /// request, and never decide a request is on the "wrong" host.
+  #[test]
+  fn follows_the_request_when_no_origin_is_configured() {
+    let req = req_with(&[("host", "localhost:8801")]);
+    assert_eq!(CanonicalOrigin::default().resolve(&req), "http://localhost:8801");
+    assert!(CanonicalOrigin::default().is_canonical(&req));
+    assert_eq!(CanonicalOrigin::fixed("  ").resolve(&req), "http://localhost:8801");
+  }
+
+  /// The scheme is exactly what a proxy forgets to forward, so recognising the
+  /// canonical host must not depend on it — otherwise the canonical host stops
+  /// admitting to being itself and stops advertising its own sitemap.
+  #[test]
+  fn recognises_its_host_without_the_scheme() {
+    let canonical = CanonicalOrigin::fixed("blog.example.com");
+    assert_eq!(canonical.configured(), Some("https://blog.example.com"));
+    assert!(canonical.is_canonical(&req_with(&[("host", "blog.example.com")])));
+    assert!(canonical.is_canonical(&req_with(&[("host", "BLOG.example.com")])));
   }
 
   #[test]
