@@ -911,7 +911,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "client-kit-showcase"
-version = "1.8.7"
+version = "1.8.8"
 dependencies = [
  "chrono",
  "codee",
@@ -2178,9 +2178,9 @@ dependencies = [
 
 [[package]]
 name = "http-body-util"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9f41fd6a08e4d4ec69df65976da761afd5ad5e58a9d4acb46bd1c953a9e3ff2"
+checksum = "23169fe34a5fbcdd3f3862e78fb9b6fccd5f02a6dc6f732547005d45631ce71c"
 dependencies = [
  "bytes",
  "futures-core",
@@ -2463,7 +2463,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit"
-version = "1.8.7"
+version = "1.8.8"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -2488,7 +2488,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-blocks"
-version = "1.8.7"
+version = "1.8.8"
 dependencies = [
  "gloo-net",
  "impulse-client-kit",
@@ -2503,7 +2503,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-kit-components"
-version = "1.8.7"
+version = "1.8.8"
 dependencies = [
  "chrono",
  "codee",
@@ -2519,7 +2519,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-native-themes"
-version = "1.8.7"
+version = "1.8.8"
 dependencies = [
  "jni 0.21.1",
  "js-sys",
@@ -2533,7 +2533,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-ring"
-version = "1.8.7"
+version = "1.8.8"
 dependencies = [
  "bytes",
  "clap",
@@ -2553,7 +2553,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-client-store"
-version = "1.8.7"
+version = "1.8.8"
 dependencies = [
  "leptos",
  "log",
@@ -2565,7 +2565,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-endpoint"
-version = "1.8.7"
+version = "1.8.8"
 dependencies = [
  "impulse-utils",
  "reqwest",
@@ -2577,7 +2577,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-error-pages"
-version = "1.8.7"
+version = "1.8.8"
 dependencies = [
  "icondata",
  "impulse-client-kit",
@@ -2626,7 +2626,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-server-kit"
-version = "1.8.7"
+version = "1.8.8"
 dependencies = [
  "any_spawner",
  "axum",
@@ -2678,7 +2678,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-skdsl"
-version = "1.8.7"
+version = "1.8.8"
 dependencies = [
  "clap",
  "impulse-server-kit",
@@ -2694,7 +2694,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-static-server"
-version = "1.8.7"
+version = "1.8.8"
 dependencies = [
  "impulse-server-kit",
  "serde",
@@ -2703,11 +2703,11 @@ dependencies = [
 
 [[package]]
 name = "impulse-tailwind-sources"
-version = "1.8.7"
+version = "1.8.8"
 
 [[package]]
 name = "impulse-tauri-engine"
-version = "1.8.7"
+version = "1.8.8"
 dependencies = [
  "futures-util",
  "impulse-endpoint",
@@ -2724,7 +2724,7 @@ dependencies = [
 
 [[package]]
 name = "impulse-utils"
-version = "1.8.7"
+version = "1.8.8"
 dependencies = [
  "anyhow",
  "http",
@@ -5880,7 +5880,7 @@ dependencies = [
 
 [[package]]
 name = "ssr-showcase"
-version = "1.8.7"
+version = "1.8.8"
 dependencies = [
  "console_error_panic_hook",
  "impulse-client-kit",
