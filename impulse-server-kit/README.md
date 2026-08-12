@@ -726,6 +726,15 @@ Worth setting even on one domain: it pins the *scheme*. A proxy that terminates
 TLS without adding `X-Forwarded-Proto` leaves the server no way to know it is an
 HTTPS site, and `request_origin` then honestly reports `http://`.
 
+**Or let the proxy say it.** `request_origin` reads `X-Forwarded-Origin` — one
+header carrying `scheme://host` whole — ahead of the `X-Forwarded-Proto`/`-Host`
+pair, and ahead of `Host`. The LBRP gateway sends it for a service configured
+with `provide_origin_as_header: true`, filling it from the service's own domain
+list, so an app behind it needs no configuration of its own to publish the right
+URLs. It is parsed strictly (scheme, host, nothing else) because it goes into
+every URL the app publishes. A `CanonicalOrigin` set in the app still wins:
+local configuration outranks what the network claims.
+
 ### Keeping something *out* of an index
 
 `robots.txt` and `noindex` are not interchangeable, and most sites want both:

@@ -157,12 +157,24 @@ fn host_of(origin: &str) -> &str {
 /// application that is not told its own address in configuration has exactly one
 /// place to learn it: the request in front of it.
 ///
-/// Behind a reverse proxy that terminates TLS, the scheme is knowable *only*
-/// from `X-Forwarded-Proto` — the connection this server accepted is plain HTTP,
-/// and taking that as the truth publishes `http://` URLs for an `https://` site,
-/// which a crawler files away as a second, duplicate host. `X-Forwarded-Host` is
-/// read for the same reason, falling back to `Host`. Both headers list proxies
-/// left to right, so the first value is the one the client actually spoke to.
+/// Three sources, in order:
+///
+/// 1. **`X-Forwarded-Origin`** — a proxy stating outright what this service is
+///    published as. It is the only one that can be *right* about an application
+///    reachable on several hostnames, because it comes from the side that knows
+///    which of them is the site's own name; the LBRP gateway sends it when a
+///    service sets `provide_origin_as_header`. Taken whole, so the scheme and
+///    the host cannot arrive from different hops and disagree.
+/// 2. **`X-Forwarded-Proto` + `X-Forwarded-Host`** — the conventional pair. The
+///    scheme matters most: behind a proxy that terminates TLS the connection
+///    this server accepted is plain HTTP, and taking that as the truth publishes
+///    `http://` URLs for an `https://` site, which a crawler files away as a
+///    second, duplicate host. Both headers list proxies left to right, so the
+///    first value is the one the client actually spoke to.
+/// 3. The request's own `Host`.
+///
+/// An application with its own [`CanonicalOrigin`] configured overrides all
+/// three: local configuration outranks anything the network claims.
 ///
 /// **Trust:** these headers are whatever the client sent unless a proxy
 /// overwrites them, so a server exposed directly to the internet can be told any
@@ -171,6 +183,9 @@ fn host_of(origin: &str) -> &str {
 /// else — but do not reach for this to build anything a *different* user will
 /// follow, such as a link in an e-mail.
 pub fn request_origin(req: &Request) -> String {
+  if let Some(origin) = forwarded_origin(req) {
+    return origin;
+  }
   let scheme = req
     .uri()
     .scheme_str()
@@ -185,6 +200,24 @@ pub fn request_origin(req: &Request) -> String {
     .or_else(|| forwarded(req, HOST.as_str()))
     .unwrap_or_default();
   format!("{scheme}://{host}")
+}
+
+/// `X-Forwarded-Origin`, if it is an origin and nothing else.
+///
+/// Parsed strictly rather than trusted: this value is pasted into every URL the
+/// application publishes, so a path, a stray space or a credential-looking
+/// `user@host` is dropped rather than carried into a sitemap. What survives is
+/// `http(s)://host[:port]`, normalised without a trailing slash.
+fn forwarded_origin(req: &Request) -> Option<String> {
+  let raw = req.headers().get("x-forwarded-origin")?.to_str().ok()?;
+  let first = raw.split(',').next().unwrap_or(raw).trim().trim_end_matches('/');
+  let (scheme, host) = first.split_once("://")?;
+  let usable = matches!(scheme, "http" | "https")
+    && !host.is_empty()
+    && !host
+      .chars()
+      .any(|c| c.is_whitespace() || c.is_control() || matches!(c, '/' | '@' | '?' | '#' | '"' | '\'' | '<' | '>'));
+  usable.then(|| format!("{scheme}://{host}"))
 }
 
 /// The first entry of a comma-separated forwarding header, if it looks like one
@@ -264,6 +297,52 @@ mod tests {
   fn ignores_a_forwarded_value_that_is_not_a_host() {
     let req = req_with(&[("host", "example.com"), ("x-forwarded-host", "evil.example/../")]);
     assert_eq!(request_origin(&req), "http://example.com");
+  }
+
+  /// The header the LBRP gateway sends when a service asks it to: the one
+  /// source that can be right about which of several hostnames is the site's
+  /// own name, because it is the only one that knows.
+  #[test]
+  fn prefers_the_origin_a_proxy_states_outright() {
+    let req = req_with(&[
+      ("host", "blog.example.com"),
+      ("x-forwarded-proto", "https"),
+      ("x-forwarded-origin", "https://app.example.com"),
+    ]);
+    assert_eq!(request_origin(&req), "https://app.example.com");
+  }
+
+  /// It goes straight into every published URL, so anything that is not plainly
+  /// an origin is dropped back to the headers that are — better a right answer
+  /// from a lesser source than a wrong one from a better.
+  #[test]
+  fn refuses_a_forwarded_origin_that_is_not_one() {
+    for claim in [
+      "https://app.example.com/../evil",
+      "https://user@evil.example",
+      "javascript:alert(1)",
+      "app.example.com",
+      "https://",
+    ] {
+      let req = req_with(&[("host", "blog.example.com"), ("x-forwarded-origin", claim)]);
+      assert_eq!(request_origin(&req), "http://blog.example.com", "for {claim:?}");
+    }
+  }
+
+  /// A trailing slash is how a proxy or an operator writes an origin half the
+  /// time, and `https://x.example//p/a` is a different URL from `…/p/a`.
+  #[test]
+  fn normalises_the_forwarded_origin() {
+    let req = req_with(&[("x-forwarded-origin", "https://app.example.com/")]);
+    assert_eq!(request_origin(&req), "https://app.example.com");
+  }
+
+  /// Local configuration outranks anything the network says it is.
+  #[test]
+  fn configuration_outranks_the_forwarded_origin() {
+    let req = req_with(&[("x-forwarded-origin", "https://app.example.com")]);
+    let canonical = CanonicalOrigin::fixed("https://blog.example.com");
+    assert_eq!(canonical.resolve(&req), "https://blog.example.com");
   }
 
   /// The whole point of configuring one: an application answering on two

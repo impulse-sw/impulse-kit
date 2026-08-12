@@ -48,6 +48,17 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   that terminates TLS without sending `X-Forwarded-Proto` leaves the server
   honestly reporting `http://`.
 
+- **`request_origin` reads `X-Forwarded-Origin`** — one header carrying
+  `scheme://host` whole — ahead of the `X-Forwarded-Proto`/`-Host` pair and
+  `Host`. It is the only source that can be *right* for an app reachable on
+  several hostnames, because it comes from the side that knows which of them is
+  the site's own name; LBRP sends it for a service with
+  `provide_origin_as_header`, so an app behind it publishes the right URLs with
+  no configuration of its own. Taken whole so the scheme and the host cannot
+  arrive from different hops and disagree, and parsed strictly — scheme, host,
+  nothing else — because the value goes into every URL the app publishes. A
+  `CanonicalOrigin` configured locally still wins.
+
 - **`set_x_robots_tag` and the `RobotsTag` constants**, the other half of keeping
   something out of an index — and not a substitute for the first half.
   `Disallow` is the only one that stops the *fetch*, which is what matters when
