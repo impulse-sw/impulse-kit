@@ -99,6 +99,9 @@
 
 pub mod prelude;
 pub mod security_headers;
+/// What crawlers are told about the site: `robots.txt`, `sitemap.xml` and the
+/// `X-Robots-Tag` header.
+pub mod seo;
 pub mod setup;
 pub mod startup;
 

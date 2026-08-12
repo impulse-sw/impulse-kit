@@ -11,7 +11,8 @@ Table of contents:
 - [Common Salvo documentation](#5)
 - [Code API Overview](#6)
 - [Configuration Overview](#7)
-- [Leptos SSR & SEO](#8)
+- [Crawlers: robots.txt & sitemap.xml](#8)
+- [Leptos SSR & SEO](#9)
 
 <a name="1"></a>
 ## How's it work
@@ -618,6 +619,104 @@ Router::new()
 ```
 
 <a name="8"></a>
+## Crawlers: robots.txt & sitemap.xml
+
+Both files are *built*, not kept on disk, because both have to know things a
+static file does not: which routes are meant to be public, what the app has
+published since it started, and — the one that trips up every hand-written
+`robots.txt` — the origin it is being served on. No feature flag; the whole
+module is in the prelude.
+
+```rust
+let router = get_root_router(&state)
+  .push(
+    RobotsTxt::new()
+      .comment("Only /p/ — published documents — is meant to be crawled.")
+      .disallow("/s/")
+      .disallow("/api/")
+      .group(RobotsGroup::for_agents(["GPTBot", "CCBot"]).disallow("/"))
+      .sitemap("/sitemap.xml")   // resolved against each request's origin
+      .into_router(),
+  )
+  .push(app_router());
+```
+
+Mount it **ahead of any catch-all**: a fallback route that answers every
+unmatched path with an app shell will answer this one too, and an HTML body
+where a crawler expects rules reads as no rules at all.
+
+`RobotsTxt` and `RobotsGroup` are `Deserialize`, so the same document can come
+out of the app's own YAML:
+
+```yaml
+robots:
+  comment: Staging. Nothing here is meant to be found.
+  groups:
+    - agents: ["*"]
+      disallow: ["/"]
+      crawl_delay: 10
+```
+
+Rules that cannot appear in a valid file — a path starting with neither `/` nor
+`*`, anything carrying a `#` (which would comment out the rest of its own line,
+turning `Disallow: /private#draft` into a ban on `/private` and a licence for
+everything the author thought they had closed off) — are dropped with a warning
+when the handler is built.
+
+### Sitemaps
+
+A fixed list mounts directly; a list that changes is written per request, since
+`Sitemap` is a salvo `Writer`:
+
+```rust
+#[handler]
+async fn sitemap(depot: &mut Depot, req: &mut Request) -> MResult<Sitemap> {
+  let origin = request_origin(req);      // scheme://host, honouring X-Forwarded-*
+  let mut map = Sitemap::new();
+  for doc in published(depot).await? {
+    map.push(SitemapUrl::new(format!("{origin}/p/{}", doc.slug)).lastmod(doc.updated_at.to_rfc3339()));
+  }
+  Ok(map)
+}
+
+let router = router.push(Router::with_path(SITEMAP_XML_PATH).get(sitemap));
+```
+
+Every `<loc>` must be absolute — hence `request_origin`, which reads
+`X-Forwarded-Proto`/`X-Forwarded-Host` before falling back to `Host`, because
+behind a TLS-terminating proxy the connection this server accepted is plain
+HTTP and believing it publishes `http://` URLs for an `https://` site. One file
+carries at most `MAX_SITEMAP_URLS` (50 000) entries; past that crawlers reject
+it whole, so split across several `Sitemap:` lines. `lastmod` is the one field
+they act on — a file where everything changed today teaches them to ignore it —
+and `changefreq`/`priority` are advisory (Google ignores both).
+
+### Keeping something *out* of an index
+
+`robots.txt` and `noindex` are not interchangeable, and most sites want both:
+
+| | stops the fetch | binds a crawler that fetched anyway |
+| --- | --- | --- |
+| `robots.txt` `Disallow` | yes | no — it never saw the page |
+| `X-Robots-Tag` / `<meta name="robots">` | no | yes |
+
+```rust
+set_x_robots_tag(res, RobotsTag::NOINDEX_NOFOLLOW);
+```
+
+Only `Disallow` prevents the request from happening at all, which matters
+whenever *being fetched* is itself the damage — a single-use link that a
+crawler spends before its recipient arrives, an expensive export endpoint. Only
+the header binds a crawler that ignored `robots.txt` or was handed the URL
+directly. Pairing them has one documented cost: a disallowed URL that something
+links to can still be listed bare, without a snippet, precisely because the
+crawler never fetched it and so never saw the `noindex`.
+
+`RobotsTag` exists so that a page's header and its `<meta name="robots">` can be
+given the same constant — they must agree, and the way they stop agreeing is
+somebody spelling one of them out again by hand.
+
+<a name="9"></a>
 ## Leptos SSR & SEO
 
 > [!NOTE]

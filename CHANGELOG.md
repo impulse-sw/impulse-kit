@@ -8,6 +8,38 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
 
 ### Added
 
+- **`robots.txt` and `sitemap.xml` are built, not kept on disk** — a new
+  `impulse_server_kit::seo` module (no feature flag, everything in the prelude).
+  `RobotsTxt::new().disallow("/s/").sitemap("/sitemap.xml").into_router()` mounts
+  a router at `/robots.txt`; `Sitemap` is a salvo `Writer`, so a list that
+  changes is a handler returning one. Both are built rather than served from the
+  static directory because both need what a file on disk cannot know: which
+  routes are meant to be public, what the application has published since it
+  started, and the origin it is being asked on. That last one is why
+  `RobotsTxt::sitemap` accepts a rooted path and resolves it per request through
+  the new `request_origin`, which reads `X-Forwarded-Proto`/`X-Forwarded-Host`
+  before `Host` — behind a TLS-terminating proxy the connection the server
+  accepted is plain HTTP, and believing it publishes `http://` URLs for an
+  `https://` site, which a crawler files away as a separate, duplicate host.
+
+  `RobotsTxt` and `RobotsGroup` derive `Deserialize`, so a policy can live in the
+  application's YAML instead of its code. Rules that cannot mean what they say
+  are dropped with a warning when the handler is built rather than rendered: the
+  one worth naming is `#`, which starts a comment that runs to the end of its
+  line, so `Disallow: /private#draft` bans `/private` and permits everything the
+  author believed they had just closed off.
+
+- **`set_x_robots_tag` and the `RobotsTag` constants**, the other half of keeping
+  something out of an index — and not a substitute for the first half.
+  `Disallow` is the only one that stops the *fetch*, which is what matters when
+  being fetched is itself the damage (a single-use link a crawler spends before
+  its recipient opens it); the header is the only one that binds a crawler that
+  fetched anyway, having ignored `robots.txt` or been handed the URL directly. It
+  also reaches bodies nobody parses as HTML — a JSON read, a PDF, plain Markdown
+  — which have nowhere else to carry the rule. The constants exist so a page's
+  header and its `<meta name="robots">` can be given the same value instead of
+  being spelled out twice and drifting apart.
+
 - **`ButtonSize::None`** — a size that emits no height, no padding and no gap,
   for a button whose call site sizes it itself. Until now such a call site passed
   its geometry in `class` and got it *beside* a size's own, with the stylesheet's
