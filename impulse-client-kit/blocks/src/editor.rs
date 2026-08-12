@@ -1111,22 +1111,41 @@ fn sync(ctx: Ctx) {
     // for ordinary typing is exactly one.
     let (head, tail) = diff(&st.lines[first..last], &read);
     let removed = st.lines[first + head..last - tail].to_vec();
-    let inserted = read[head..read.len() - tail].to_vec();
+    let inserted = &read[head..read.len() - tail];
     let touched = first + head;
-    record(st, touched, removed, inserted, caret);
+    record(st, touched, removed, inserted.to_vec(), caret);
     // A changed line count means the browser merged or split our line divs —
     // Enter drops a bare `\n` into one of them — so the DOM has to be rebuilt
     // into one div per line before anything measures it again.
     let restructured = read.len() != last - first;
-    let heights: Vec<f64> = read.iter().map(|line| st.estimate(line)).collect();
-    st.lines.splice(first..last, read.iter().cloned());
-    st.heights.splice(first..last, heights);
-    st.measured.splice(first..last, std::iter::repeat_n(false, read.len()));
+    // Only the lines the edit touched lose their heights, and that "only" is the
+    // whole of it. The rows either side of it still hold the same text, at the
+    // same width, in the same DOM nodes, so what they were measured at is a fact
+    // — and replacing a measurement with a guess is not a neutral thing to do
+    // here, because the guesses are what the scroll position gets corrected
+    // against.
+    //
+    // Splicing the whole window is what this used to do, and it is what a
+    // keystroke in a long document was felt as. Every line on screen went back to
+    // an estimate; every estimate is a pixel or two out; a fifth of a second
+    // later the walk down the document laid them all out again and put the real
+    // heights back — and the part of that correction landing *above* the
+    // viewport is taken out of the scroll position, because a line that changes
+    // height above the reader has moved the reader. So a writer at the end of the
+    // piece typed a character, arrived at the bottom, and a moment later was
+    // pulled a couple of pixels back up; the next character put them at the
+    // bottom again, and the one after that pulled them up again. Nothing was
+    // wrong with the correction. There was nothing to correct.
+    let changed = touched..last - tail;
+    let heights: Vec<f64> = inserted.iter().map(|line| st.estimate(line)).collect();
+    st.lines.splice(changed.clone(), inserted.iter().cloned());
+    st.heights.splice(changed.clone(), heights);
+    st.measured.splice(changed, std::iter::repeat_n(false, inserted.len()));
     // A splice moves every line after it along, so pricing's place in the
     // document is no longer where it thinks it is — and a paste can drop a
     // thousand unpriced lines in at once. It goes back to the edit and walks
     // down again; the lines it already knows cost it a bounds check each.
-    st.priced = st.priced.min(first);
+    st.priced = st.priced.min(touched);
     st.first = first;
     st.last = first + read.len();
     if restructured {
