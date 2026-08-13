@@ -314,6 +314,34 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
 
 ### Fixed
 
+- **An OTP code can be corrected on a phone.** `InputOTP` and
+  `InputOTPWithSeparator` were a row of `<input maxlength="1">` boxes that moved
+  the focus along per keystroke, and on a phone that field could be filled but
+  never emptied: Backspace in an already-empty box deletes nothing, so the
+  browser fires no `input` event, and the `keydown` a software keyboard *does*
+  send carries `key` = `"Unidentified"` (`keyCode` 229) rather than the key
+  pressed — an input method reports its characters only through the `input`
+  event that follows. The rule the field was built on ("Backspace in an empty box
+  clears the previous one and steps back") therefore asked a question the browser
+  refuses to answer there. A mistyped digit was permanent until the page was
+  reloaded.
+
+  The boxes are now painted `<div>`s with one transparent `<input>` holding the
+  whole code stretched across them. Nothing needs detecting: Backspace deletes
+  the character before the caret because there is one, and selection, autorepeat,
+  paste and undo are the browser's own. Two things follow for free — the OS's
+  SMS-code autofill, which a per-digit field cannot offer at all
+  (`autocomplete="one-time-code"`), and no more iOS zooming in on the field when
+  it is tapped.
+
+  Both components take an optional `value: RwSignal<String>` for the code, so a
+  rejected attempt can be cleared from the outside (`value.set(String::new())`);
+  writing to it does not fire `on_change` or `on_complete`. Digits outside ASCII
+  are no longer accepted — `char::is_numeric` also matches the digits of other
+  scripts, which look like a code and are not the one the server issued. The two
+  groups either side of the separator are each rounded on their outer edge now,
+  rather than the row as a whole.
+
 - **Leaving a guarded page for somewhere else no longer snaps straight back.**
   Open a document or a board, then pick another tab: the new tab appeared for a
   frame and the app bounced back to where it had been. Pressing Back after that

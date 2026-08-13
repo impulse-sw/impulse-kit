@@ -765,7 +765,10 @@ let slider_value = RwSignal::new(50.0);
 
 ### Input OTP
 
-One-time password input.
+One-time password input. The digit boxes are painted; the field itself is a
+single input stretched across them, so backspace, selection, paste and the
+platform's SMS autofill (`autocomplete="one-time-code"`) are the browser's own
+behaviour and work the same on a phone as on a desktop.
 
 #### Import
 
@@ -778,14 +781,19 @@ use components::input_otp::{InputOTP, InputOTPWithSeparator};
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `length` | `usize` | required | Number of digits |
-| `on_complete` | `Callback<String>` | required | Called when all digits entered |
+| `value` | `RwSignal<String>` | new signal | The code; set it to read or clear the field from outside |
+| `on_complete` | `Callback<String>` | — | Called once the last digit lands |
+| `on_change` | `Callback<String>` | — | Called on every edit |
+| `class` | `String` | `""` | Extra classes for each digit box |
+| `container_class` | `String` | `""` | Extra classes for the row |
 
 #### Props (InputOTPWithSeparator)
 
+Same as `InputOTP`, plus:
+
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `length` | `usize` | required | Number of digits |
-| `separator_at` | `usize` | required | Position of separator |
+| `separator_at` | `usize` | required | Index the dash is drawn at |
 
 #### Examples
 
@@ -803,6 +811,26 @@ let otp_code = RwSignal::new(String::new());
 
 // With separator (e.g., 123-456)
 <InputOTPWithSeparator length=6usize separator_at=3usize />
+```
+
+Pass `value` when the code has to be cleared after a rejected attempt — writing
+to the signal re-renders the field, and does *not* call `on_change` /
+`on_complete`:
+
+```rust
+let code = RwSignal::new(String::new());
+
+<InputOTP
+    length=6usize
+    value=code
+    on_complete=Callback::new(move |entered| {
+        spawn_local(async move {
+            if verify(entered).await.is_err() {
+                code.set(String::new());
+            }
+        });
+    })
+/>
 ```
 
 ---
