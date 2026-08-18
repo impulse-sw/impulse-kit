@@ -16,6 +16,11 @@ pub fn HoverCard(
   #[prop(optional)] open: Option<RwSignal<bool>>,
   #[prop(optional)] open_delay: Option<u32>,
   #[prop(optional)] close_delay: Option<u32>,
+  /// Classes for the wrapper. It is the element a surrounding layout actually
+  /// sees — the trigger is a level below it — so a hover card placed in a flex
+  /// row needs `min-w-0` *here* or the row can never shrink its text.
+  #[prop(optional, into)]
+  class: String,
   children: Children,
 ) -> impl IntoView {
   let is_open = open.unwrap_or_else(|| RwSignal::new(false));
@@ -28,7 +33,11 @@ pub fn HoverCard(
     close_delay,
   });
 
-  view! { <div data-slot="hover-card">{children()}</div> }
+  view! {
+    <div data-slot="hover-card" class=class>
+      {children()}
+    </div>
+  }
 }
 
 #[component]
