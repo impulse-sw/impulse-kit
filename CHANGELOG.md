@@ -8,6 +8,36 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
 
 ### Added
 
+- **`components::dnd` — drag-and-drop that works in WebKitGTK (and on touch).**
+  `draggable="true"` with `dragstart`/`dragover`/`drop` is the obvious way to
+  move something with the mouse and the one thing in the platform that cannot be
+  relied on: WebKitGTK, the engine behind every Tauri window on Linux, never
+  starts a drag for a plain element, so a Trello-style board built on it is
+  simply immovable there. No mobile engine synthesises those events at all, so
+  the same code is dead on a phone too.
+
+  `DndProvider` / `Draggable` / `DropZone` rebuild the gesture on pointer
+  events, which fire identically for mouse, pen and touch everywhere. Because a
+  captured pointer stops firing `pointerover` on anything else, drop targets are
+  found by hit-testing `Document::element_from_point` on each move and walking up
+  from what it returns — which is also what makes nesting work: the walk yields
+  the whole chain, so a row inside a column marks both as hovered
+  (`data-dnd-over`) and `DropZone::on_drop` is offered the drop innermost-first,
+  answering `false` to pass a kind it doesn't handle out to the zone around it.
+
+  Activation is deliberately delayed: a mouse must travel `DRAG_SLOP` pixels, so
+  a click on a button inside a draggable stays a click, and a finger must rest
+  for `LONG_PRESS_MS` before it moves, so a swipe down a list still scrolls it.
+  Nothing calls `preventDefault` until a drag has actually begun, which is what
+  keeps both of those true.
+
+- **`components::stepper::NumberStepper` — a number field with minus/plus
+  buttons.** `<input type="number">` has spinners, but they are a few pixels
+  tall, absent on touch, and always move by one; a value with a meaningful step
+  (a priority that goes ±1, an estimate that goes ±10 minutes) wants buttons of
+  its own. The value stays a `String` so a half-typed `-` or an empty box
+  survives a keystroke, exactly as with a plain input.
+
 - **`robots.txt` and `sitemap.xml` are built, not kept on disk** — a new
   `impulse_server_kit::seo` module (no feature flag, everything in the prelude).
   `RobotsTxt::new().disallow("/s/").sitemap("/sitemap.xml").into_router()` mounts

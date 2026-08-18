@@ -28,8 +28,12 @@ use components::input_otp::{InputOTP, InputOTPWithSeparator};
 use components::radio_group::*;
 use components::select::*;
 use components::slider::Slider;
+use components::stepper::NumberStepper;
 use components::switch::Switch;
 use components::textarea::{Textarea, TextareaSizing};
+
+// Interaction Components
+use components::dnd::{DndProvider, DragId, Draggable, DropZone};
 
 // Layout Components
 use components::accordion::*;
@@ -271,6 +275,74 @@ fn BasicComponentsSection() -> impl IntoView {
   }
 }
 
+/// Two lists you can move cards between. The columns are drop zones and the
+/// cards are both draggable *and* drop zones of their own, so a card dropped on
+/// another one lands in its place rather than at the end — the nesting the
+/// hit-test walk exists for.
+#[component]
+fn DndDemo() -> impl IntoView {
+  let left = RwSignal::new(vec![1i64, 2, 3]);
+  let right = RwSignal::new(vec![4i64, 5]);
+  let label = move |id: i64| format!("Card {id}");
+
+  // Move `id` into `column`, before `before` (or at the end when `None`).
+  let move_card = move |id: i64, into_left: bool, before: Option<i64>| {
+    left.update(|v| v.retain(|x| *x != id));
+    right.update(|v| v.retain(|x| *x != id));
+    let target = if into_left { left } else { right };
+    target.update(|v| match before.and_then(|b| v.iter().position(|x| *x == b)) {
+      Some(at) => v.insert(at, id),
+      None => v.push(id),
+    });
+  };
+
+  let column = move |into_left: bool, items: RwSignal<Vec<i64>>, title: &'static str| {
+    view! {
+      <DropZone
+        kind="column"
+        id=i64::from(into_left)
+        on_drop=Callback::new(move |item: DragId| {
+          if item.kind != "card" {
+            return false;
+          }
+          move_card(item.id, into_left, None);
+          true
+        })
+        class="min-h-40 flex-1 space-y-2 rounded-lg border border-dashed border-border p-3 transition-colors data-[dnd-over=true]:border-primary data-[dnd-over=true]:bg-accent/40"
+      >
+        <p class="text-xs text-muted-foreground">{title}</p>
+        <For each=move || items.get() key=|id| *id let:id>
+          <DropZone
+            kind="card"
+            id=id
+            on_drop=Callback::new(move |item: DragId| {
+              if item.kind != "card" || item.id == id {
+                return false;
+              }
+              move_card(item.id, into_left, Some(id));
+              true
+            })
+          >
+            <Draggable
+              kind="card"
+              id=id
+              class="rounded-md border border-border bg-card px-3 py-2 text-sm shadow-xs data-[dnd-dragging=true]:opacity-50"
+            >
+              {label(id)}
+            </Draggable>
+          </DropZone>
+        </For>
+      </DropZone>
+    }
+  };
+
+  view! {
+    <DndProvider>
+      <div class="flex gap-3">{column(true, left, "To do")} {column(false, right, "Done")}</div>
+    </DndProvider>
+  }
+}
+
 #[component]
 fn FormComponentsSection() -> impl IntoView {
   let email = RwSignal::new(String::new());
@@ -280,6 +352,8 @@ fn FormComponentsSection() -> impl IntoView {
   let is_enabled = RwSignal::new(true);
   let selected_option = RwSignal::new(String::new());
   let slider_value = RwSignal::new(50.0);
+  let priority = RwSignal::new("0".to_string());
+  let minutes = RwSignal::new("30".to_string());
   let otp_code = RwSignal::new(String::new());
 
   view! {
@@ -395,6 +469,31 @@ fn FormComponentsSection() -> impl IntoView {
             "Value: " {move || format!("{:.0}", slider_value.get())}
           </p>
         </div>
+      </ComponentCard>
+
+      // Number stepper
+      <ComponentCard
+        title="Number Stepper"
+        description="Number field with minus/plus buttons, stepping by whatever the value means"
+      >
+        <div class="flex flex-wrap items-end gap-4">
+          <div class="space-y-1">
+            <p class="text-xs text-muted-foreground">"Priority (±1)"</p>
+            <NumberStepper value=priority step=1 min=-9 max=9 class="w-32" />
+          </div>
+          <div class="space-y-1">
+            <p class="text-xs text-muted-foreground">"Estimate, minutes (±10)"</p>
+            <NumberStepper value=minutes step=10 min=0 class="w-40" />
+          </div>
+        </div>
+      </ComponentCard>
+
+      // Drag and drop
+      <ComponentCard
+        title="Drag and Drop"
+        description="Pointer-driven drag and drop — works in WebKitGTK and under a finger, where the HTML5 drag API does not"
+      >
+        <DndDemo />
       </ComponentCard>
 
       // Input OTP

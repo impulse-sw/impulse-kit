@@ -59,6 +59,11 @@ web-sys = { version = "0.3.82", features = [
   # reaching this crate through some dependent's feature list until now.
   "CssStyleDeclaration",
   "DataTransfer",
+  "DragEvent",
+  # `dnd` hit-tests the pointer against the drop zones under it on every move —
+  # a captured pointer stops firing `pointerover` on anything else, so
+  # `Document::element_from_point` is how a drop target is found at all.
+  "Document",
   "DomRect",
   "Element",
   # `back` listens for `popstate`/`keydown` on the window and pushes an entry per
@@ -72,6 +77,9 @@ web-sys = { version = "0.3.82", features = [
   "HtmlTextAreaElement",
   "KeyboardEvent",
   "NodeList",
+  # `dnd` times the press that turns into a touch drag on the monotonic clock.
+  "Performance",
+  "PointerEvent",
   "Window",
   "Clipboard",
 ] }
