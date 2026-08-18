@@ -243,10 +243,14 @@ impl DndContext {
   }
 }
 
-/// Milliseconds on the monotonic clock, falling back to 0 where `performance`
-/// is unavailable (the hold then simply arms immediately).
+/// Milliseconds on the monotonic clock, falling back to the wall clock where
+/// `performance` is unavailable. Only differences over a few hundred
+/// milliseconds are read from it, which either clock measures well enough.
 fn now_ms() -> f64 {
-  window().performance().map(|p| p.now()).unwrap_or(0.0)
+  window()
+    .performance()
+    .map(|p| p.now())
+    .unwrap_or_else(js_sys::Date::now)
 }
 
 /// Provides the drag state and owns the window-level pointer listeners. Mount
@@ -266,6 +270,12 @@ pub fn DndProvider(children: Children) -> impl IntoView {
   // A drag interrupted by anything the page didn't see (a context menu, the
   // window losing focus) must not leave the board stuck in "dragging".
   window_event_listener(ev::blur, move |_| ctx.reset());
+  // Escape is how every other drag on the platform is called off.
+  window_event_listener(ev::keydown, move |ev| {
+    if ev.key() == "Escape" {
+      ctx.reset();
+    }
+  });
 
   view! {
     <div
@@ -292,6 +302,15 @@ pub fn use_dnd() -> DndContext {
 /// Sets `data-dnd-dragging="true"` on itself while it is the item being
 /// dragged, so the lifted look is a class (`data-[dnd-dragging=true]:opacity-50`)
 /// rather than a signal the caller has to thread through.
+///
+/// Where the press has to land depends on what is inside. By default anywhere
+/// but a control (`button`, `a`, `input`, …) starts the drag — a press on a
+/// control belongs to that control, or a stray pixel of movement while clicking
+/// a row's delete button would turn the click into a drag and the button would
+/// never fire. Put a [`DragHandle`] inside and that flips: only the handle
+/// starts a drag. That is the answer for a draggable that *is* a control — a
+/// whole card rendered as a button — where the default rule would exclude
+/// everything.
 #[component]
 pub fn Draggable(
   #[prop(into)] kind: String,
@@ -302,22 +321,36 @@ pub fn Draggable(
 ) -> impl IntoView {
   let ctx = use_dnd();
   let kind_for_state = kind.clone();
+  let root = NodeRef::<leptos::html::Div>::new();
 
   let on_pointer_down = move |ev: PointerEvent| {
     // Secondary buttons open menus; they never start a drag.
     if disabled || ev.button() != 0 {
       return;
     }
-    // A press that lands on a control belongs to that control. Without this a
-    // stray pixel of movement while clicking a row's delete button turns the
-    // click into a drag and the button never fires.
-    if let Some(target) = ev.target().and_then(|t| t.dyn_into::<Element>().ok())
-      && target
+    let Some(target) = ev.target().and_then(|t| t.dyn_into::<Element>().ok()) else {
+      return;
+    };
+    let root: Option<Element> = root.get_untracked().map(|el| el.into());
+    let has_handle = root
+      .as_ref()
+      .and_then(|el| el.query_selector("[data-dnd-handle]").ok().flatten())
+      .is_some();
+    let starts_drag = if has_handle {
+      // The handle must be one of *ours*: a nested draggable's handle drags that
+      // one, not this.
+      match target.closest("[data-dnd-handle]").ok().flatten() {
+        Some(handle) => root.as_ref().is_some_and(|el| el.contains(Some(&handle))),
+        None => false,
+      }
+    } else {
+      target
         .closest("button, a, input, textarea, select, [contenteditable=true], [data-dnd-no-drag]")
         .ok()
         .flatten()
-        .is_some()
-    {
+        .is_none()
+    };
+    if !starts_drag {
       return;
     }
     ctx.start(Pending {
@@ -331,6 +364,7 @@ pub fn Draggable(
 
   view! {
     <div
+      node_ref=root
       data-slot="draggable"
       data-dnd-dragging=move || ctx.is_dragging(&kind_for_state, id).then_some("true")
       // The native drag API is what this component exists to avoid: left on, it
@@ -341,13 +375,32 @@ pub fn Draggable(
       on:pointerdown=on_pointer_down
       class=cn(
         &[
-          if disabled { "" } else { "cursor-grab touch-pan-y select-none active:cursor-grabbing" },
+          if disabled { "" } else { "touch-pan-y select-none" },
           class.as_str(),
         ],
       )
     >
       {children()}
     </div>
+  }
+}
+
+/// The grab area of a [`Draggable`] that contains one.
+///
+/// Wrap the grip icon (or whatever the user is meant to pull on); everything
+/// else in the draggable then behaves normally, which is what makes a clickable
+/// card movable without its click becoming ambiguous.
+#[component]
+pub fn DragHandle(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
+  view! {
+    <span
+      data-slot="drag-handle"
+      data-dnd-handle="true"
+      aria-hidden="true"
+      class=cn(&["inline-flex cursor-grab touch-none select-none active:cursor-grabbing", class.as_str()])
+    >
+      {children()}
+    </span>
   }
 }
 
