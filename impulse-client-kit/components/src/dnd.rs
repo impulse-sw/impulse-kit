@@ -67,10 +67,7 @@ pub struct DragId {
 
 impl DragId {
   pub fn new(kind: impl Into<String>, id: i64) -> Self {
-    Self {
-      kind: kind.into(),
-      id,
-    }
+    Self { kind: kind.into(), id }
   }
 
   /// Whether this is exactly `(kind, id)`.
@@ -165,8 +162,10 @@ impl DndContext {
     let mut out = Vec::new();
     let mut node = document().element_from_point(x as f32, y as f32);
     while let Some(el) = node {
-      if let (Some(kind), Some(id)) = (el.get_attribute("data-dnd-zone-kind"), el.get_attribute("data-dnd-zone-id"))
-        && let Ok(id) = id.parse::<i64>()
+      if let (Some(kind), Some(id)) = (
+        el.get_attribute("data-dnd-zone-kind"),
+        el.get_attribute("data-dnd-zone-id"),
+      ) && let Ok(id) = id.parse::<i64>()
       {
         out.push(DragId { kind, id });
       }
@@ -222,7 +221,9 @@ impl DndContext {
     let Some(item) = item else { return };
     // Innermost zone first; a zone that declines the kind passes it outwards.
     for zone in path {
-      let handler = self.zones.with_value(|z| z.iter().find(|x| x.id == zone).map(|x| x.on_drop));
+      let handler = self
+        .zones
+        .with_value(|z| z.iter().find(|x| x.id == zone).map(|x| x.on_drop));
       if let Some(handler) = handler
         && handler.run(item.clone())
       {

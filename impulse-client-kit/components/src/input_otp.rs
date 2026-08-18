@@ -194,7 +194,9 @@ fn otp_field(
     // `w-fit`, or the invisible input — which is sized to this row — reaches
     // across the full width of whatever contains it and catches taps in the
     // empty space beside the boxes.
-    <div class=cn(&["relative flex w-fit items-center gap-2", container_class.as_str()])>
+    <div class=cn(
+      &["relative flex w-fit items-center gap-2", container_class.as_str()],
+    )>
       {slots}
       <input
         node_ref=input_ref

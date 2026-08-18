@@ -122,11 +122,7 @@ mod imp {
   /// The state object marking an entry as ours, at `depth`.
   fn depth_state(depth: usize) -> JsValue {
     let state = js_sys::Object::new();
-    let _ = js_sys::Reflect::set(
-      &state,
-      &JsValue::from_str(DEPTH_KEY),
-      &JsValue::from_f64(depth as f64),
-    );
+    let _ = js_sys::Reflect::set(&state, &JsValue::from_str(DEPTH_KEY), &JsValue::from_f64(depth as f64));
     state.into()
   }
 
@@ -311,7 +307,13 @@ mod imp {
     if ev.key() != "Escape" || ev.default_prevented() {
       return;
     }
-    let close = STACK.with_borrow(|stack| stack.slots.last().filter(|slot| slot.escape).and_then(|slot| slot.close));
+    let close = STACK.with_borrow(|stack| {
+      stack
+        .slots
+        .last()
+        .filter(|slot| slot.escape)
+        .and_then(|slot| slot.close)
+    });
     if let Some(close) = close {
       close.run(());
     }
