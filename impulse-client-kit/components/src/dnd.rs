@@ -373,12 +373,7 @@ pub fn Draggable(
       draggable="false"
       on:dragstart=|ev: web_sys::DragEvent| ev.prevent_default()
       on:pointerdown=on_pointer_down
-      class=cn(
-        &[
-          if disabled { "" } else { "touch-pan-y select-none" },
-          class.as_str(),
-        ],
-      )
+      class=cn(&[if disabled { "" } else { "touch-pan-y select-none" }, class.as_str()])
     >
       {children()}
     </div>
@@ -397,7 +392,9 @@ pub fn DragHandle(#[prop(optional, into)] class: String, children: Children) -> 
       data-slot="drag-handle"
       data-dnd-handle="true"
       aria-hidden="true"
-      class=cn(&["inline-flex cursor-grab touch-none select-none active:cursor-grabbing", class.as_str()])
+      class=cn(
+        &["inline-flex cursor-grab touch-none select-none active:cursor-grabbing", class.as_str()],
+      )
     >
       {children()}
     </span>
