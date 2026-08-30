@@ -54,7 +54,21 @@ use web_sys::{Document, Element, HtmlElement, Node, Range, Selection};
 /// caller (`class="h-full"` in a flex column, `class="h-[60vh]"` otherwise):
 /// unlike a textarea, something that renders a window has to be told how big the
 /// window is.
-const ROOT_CLASSES: &str = "relative w-full overflow-auto rounded-md border border-input bg-transparent text-base shadow-xs transition-[color,box-shadow] outline-none dark:bg-input/30 focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive md:text-sm";
+const ROOT_CLASSES: &str = "relative w-full overflow-auto bg-transparent text-base outline-none md:text-sm";
+
+/// What makes the scroll box look like a *field*: the border, the rounding, the
+/// shadow and the focus ring.
+///
+/// Kept apart from [`ROOT_CLASSES`] because an editor is not always a field. One
+/// that owns the screen — the whole area under a header, which is what a
+/// document is opened into — has nothing to be bounded against, and a frame
+/// drawn around the edge of the viewport reads as a box that ran out of room
+/// rather than as a page. `bare` drops these; see [`SourceEditor`].
+///
+/// `dark:bg-input/30` belongs here rather than above for the same reason: it is
+/// the tint that separates an input from the surface behind it, and a full-page
+/// editor *is* the surface.
+const ROOT_FIELD_CLASSES: &str = "rounded-md border border-input shadow-xs transition-[color,box-shadow] dark:bg-input/30 focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive";
 
 /// Classes on the editable itself. `overflow-anchor: none` keeps the browser's
 /// own scroll anchoring from fighting the padding that stands in for the lines
@@ -485,6 +499,11 @@ pub fn SourceEditor(
   #[prop(optional)] disabled: bool,
   #[prop(optional)] readonly: bool,
   #[prop(optional)] line_numbers: bool,
+  /// Drop the field chrome — border, rounding, shadow, focus ring — and render
+  /// only the text. For an editor that *is* the page rather than a control on
+  /// it; see [`ROOT_FIELD_CLASSES`].
+  #[prop(optional)]
+  bare: bool,
   #[prop(optional)] spellcheck: bool,
   #[prop(optional)] tab_size: Option<usize>,
   #[prop(optional)] highlight: Option<Highlighter>,
@@ -664,7 +683,7 @@ pub fn SourceEditor(
     <div
       node_ref=ctx.root
       data-slot="source-editor"
-      class=cn(&[ROOT_CLASSES, class.as_str()])
+      class=cn(&[ROOT_CLASSES, if bare { "" } else { ROOT_FIELD_CLASSES }, class.as_str()])
       aria-disabled=disabled.then_some("true")
       on:scroll=move |_| {
         render(ctx, false);

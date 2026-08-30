@@ -8,6 +8,19 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
 
 ### Added
 
+- **`blocks::editor::SourceEditor` takes a `bare` flag** — the border, rounding,
+  shadow and focus ring come off, leaving only the text. An editor that owns the
+  screen (a document opened into the whole area under a header) has nothing to be
+  bounded against, and a frame drawn along the edge of the viewport reads as a
+  box that ran out of room rather than as a page. `dark:bg-input/30` goes with
+  them: it is the tint that lifts an input off the surface behind it, and a
+  full-page editor *is* that surface.
+
+  It is a flag rather than something to override through `class`, because
+  [`cn`](impulse_client_kit::utils::cn) concatenates and does not merge — a
+  `border-0` passed by the caller lands *beside* the `border` it meant to cancel,
+  and which one wins is left to the order the stylesheet happens to emit them in.
+
 - **`components::dnd` — drag-and-drop that works in WebKitGTK (and on touch).**
   `draggable="true"` with `dragstart`/`dragover`/`drop` is the obvious way to
   move something with the mouse and the one thing in the platform that cannot be
