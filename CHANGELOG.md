@@ -8,6 +8,30 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
 
 ### Added
 
+- **`blocks::syntax` — languages as data, and one scanner that reads all of
+  them.** A `LangDef` is a language's keywords, its comments, its strings and
+  whether it has numbers; `register_lang` adds one, replacing any built-in of
+  the same name, and a fence naming it is coloured from then on. Twenty-odd ship
+  here (Rust, C/C++, Python, JS/TS, Go, Java, Kotlin, shell, SQL,
+  JSON/YAML/TOML/INI, XML/HTML, CSS, Lua, Ruby, PHP, C#, Dockerfile, Typst) —
+  chosen by what turns up between fences in an article rather than by any
+  attempt at coverage.
+
+  It covers the useful part of what a syntax file in an editor like Kate
+  describes, and deliberately not the rest: context stacks, regular expressions
+  and per-region embedded rules are what cost such a scanner its speed, and this
+  one runs over every visible line on every keystroke.
+
+  A rule picks a `Token`, not a colour. Tailwind emits CSS only for classes it
+  can see while scanning the sources, so a class assembled at runtime — by an
+  application registering a language of its own — is a class with no CSS behind
+  it and no error to say so; and a palette every language shares is what keeps a
+  document that switches language mid-page from switching colour scheme with it.
+
+- **`blocks::editor::typx_syntax`**, beside `markdown_syntax`: headings on `=`,
+  `#`-code read as code, comments that nest, labels and references, and raw
+  blocks coloured as the language they name.
+
 - **`blocks::editor::SourceEditor` takes a `bare` flag** — the border, rounding,
   shadow and focus ring come off, leaving only the text. An editor that owns the
   screen (a document opened into the whole area under a header) has nothing to be
@@ -356,6 +380,30 @@ follows [Keep a Changelog](https://keepachangelog.com/); this project uses
   session and lands after the next sign-in.
 
 ### Fixed
+
+- **`SourceEditor`: the text starts where the placeholder says it will, and
+  fenced code is no longer read as prose.** What stands in for the lines above
+  the window is an inline `padding-top`, which overrules the `py-2` the content
+  wears — so the first line sat flush against the top edge, the last against the
+  bottom, and the placeholder (an ordinary element, wearing the class) sat a
+  couple of pixels below where the text it stands in for would appear. `PAD_Y`
+  is now added to the padding at both ends and taken back off wherever a scroll
+  position is turned into a line.
+
+  The colouring is block-aware: a line carries a `Block` to the next one, and a
+  `Syntax` is the pair of functions that reads it — `paint` for the hundred
+  lines on screen, an allocation-free `advance` for every line above them.
+  Inside a fence the prose rules are off and the block is coloured as the
+  language the fence named, so a `*` in a shell command is no longer the start
+  of a bold run and an underscore in a Python name no longer emphasises the rest
+  of the paragraph. *Breaking:* `Highlighter` is now that pair — pass
+  `markdown_syntax()` where `markdown_highlighter` used to go.
+
+- **`Escape` during an IME composition stays in the editor.** It means "cancel
+  what I am typing", and letting it travel on to the window handed it to
+  whatever back guard was listening, which closed the document a half-typed
+  Cyrillic or Japanese word was being typed into. The platform's own default is
+  untouched; only the trip onwards is stopped.
 
 - **An OTP code can be corrected on a phone.** `InputOTP` and
   `InputOTPWithSeparator` were a row of `<input maxlength="1">` boxes that moved
