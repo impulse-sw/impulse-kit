@@ -20,3 +20,4 @@ pub mod editor;
 pub mod graph;
 pub mod landings;
 pub mod markdown;
+pub mod syntax;

@@ -50,6 +50,8 @@ use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 use web_sys::{Document, Element, HtmlElement, Node, Range, Selection};
 
+use crate::syntax::{self, LangId, Token};
+
 /// Classes on the scroll box the editor lives in. It takes its height from the
 /// caller (`class="h-full"` in a flex column, `class="h-[60vh]"` otherwise):
 /// unlike a textarea, something that renders a window has to be told how big the
@@ -75,6 +77,23 @@ const ROOT_FIELD_CLASSES: &str = "rounded-md border border-input shadow-xs trans
 /// off screen — it would otherwise "correct" the scroll every time that padding
 /// changed, which is every time the window moves.
 const CONTENT_CLASSES: &str = "min-h-full whitespace-pre-wrap break-words outline-none [overflow-anchor:none]";
+
+/// The breathing room above the first line and below the last, in pixels —
+/// `py-2`, the same as every other field in the kit.
+///
+/// A number as well as a class because the padding is written by hand: what
+/// stands in for the lines above the window is `padding-top`, and an inline
+/// style overrules the class it is written over. Left to the class alone the
+/// first line of a document sat flush against the top edge while the
+/// placeholder — an ordinary element, wearing the class — sat two millimetres
+/// below it, which is the same bug seen twice: text that starts at the very
+/// edge, and a placeholder that does not sit where the text it stands in for
+/// will appear.
+///
+/// Everything that converts a scroll position into a line therefore takes it
+/// off first: the document's own coordinates start at the first line, and the
+/// scroll box's start a little above it.
+const PAD_Y: f64 = 8.0;
 
 /// How much beyond the viewport is kept in the DOM, in viewports.
 const OVERSCAN: f64 = 1.0;
@@ -143,13 +162,53 @@ impl HighlightSpan {
   }
 }
 
-/// Turns one line into the runs to colour in it.
+/// What a line inherits from the one above it.
 ///
-/// It sees a single line and nothing else, which is what makes it affordable: it
-/// runs on the lines in the window and on no others. Spans must be sorted, must
-/// not overlap and must fall on character boundaries — anything else is dropped
-/// rather than trusted.
-pub type Highlighter = fn(&str) -> Vec<HighlightSpan>;
+/// A line-at-a-time highlighter is what makes colouring a window affordable, and
+/// on its own it is also wrong: everything between two fences is code, and a
+/// `*` in it is a multiplication rather than the start of a bold run. The
+/// smallest thing that fixes it is for a line to be able to say what it *leaves
+/// behind* — which is this, a few bytes carried from one line to the next.
+///
+/// The editor works these out from the top of the document with
+/// [`Syntax::advance`], which never allocates, and keeps them so that an edit
+/// only re-derives them from the line it touched downwards. Their meaning is the
+/// syntax's own business; the editor only ever copies and compares them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Block {
+  /// The markup's own state — 0 is "ordinary text", and what else means what is
+  /// up to the syntax (a fence, a block comment, a front-matter header).
+  pub kind: u8,
+  /// How long the delimiter that opened it was, where a syntax needs to know: a
+  /// fence is closed by a run of backticks at least as long as its own, so a
+  /// shorter one inside it is content rather than the end.
+  pub len: u8,
+  /// The language the block is written in, when it is code — the word after the
+  /// fence, looked up in the [registry](crate::syntax).
+  pub lang: LangId,
+  /// That language's own state: the block comment or the multiline string the
+  /// line begins in the middle of.
+  pub inner: u8,
+}
+
+/// How a document's markup is coloured.
+///
+/// Two functions rather than one, because the editor asks two questions of very
+/// different sizes. `paint` is asked of the lines on screen — a hundred of them,
+/// on every keystroke — and hands back the runs to colour. `advance` is asked of
+/// *every* line above them, so that the window knows what it is in the middle
+/// of; it allocates nothing and does no work beyond deciding what the line
+/// leaves behind.
+///
+/// Spans must be sorted, must not overlap and must fall on character boundaries
+/// — anything else is dropped rather than trusted.
+#[derive(Clone, Copy)]
+pub struct Syntax {
+  /// The runs to colour in one line, given the state it starts in.
+  pub paint: fn(&str, Block) -> Vec<HighlightSpan>,
+  /// What that line leaves for the next one.
+  pub advance: fn(&str, Block) -> Block,
+}
 
 /// Where the caret is, in the document's terms: a line, and a byte offset into
 /// that line.
@@ -200,6 +259,15 @@ struct State {
   /// How many lines pricing took last frame, retuned each time to whatever fits
   /// in [`PRICE_BUDGET_MS`] of this document, on this machine.
   price_batch: usize,
+  /// What each line starts inside: `blocks[i]` is the state line `i` opens
+  /// with, so `blocks[0]` is always the empty one and the vector is at most one
+  /// longer than the document.
+  ///
+  /// Grown on demand down to the last line the window needs, and *truncated*
+  /// back to the line an edit touched rather than recomputed — everything above
+  /// an edit is unaffected by it, which is what keeps a keystroke from costing a
+  /// walk over the whole document.
+  blocks: Vec<Block>,
   /// The half-open range of lines currently in the DOM.
   first: usize,
   last: usize,
@@ -247,6 +315,7 @@ impl Default for State {
       fit_chars: 0.0,
       fit_extra: 0.0,
       applied_slope: f64::NAN,
+      blocks: vec![Block::default()],
       priced: 0,
       pricing: false,
       price_batch: PRICE_BATCH,
@@ -412,6 +481,31 @@ impl State {
     }
   }
 
+  /// Works the block states out down to and including line `upto`.
+  ///
+  /// Cheap by construction: `advance` allocates nothing, and the walk only ever
+  /// covers ground that has not been walked since the last edit above it.
+  fn ensure_blocks(&mut self, syntax: Option<Syntax>, upto: usize) {
+    let Some(syntax) = syntax else { return };
+    let upto = upto.min(self.lines.len());
+    while self.blocks.len() <= upto && self.blocks.len() <= self.lines.len() {
+      let line = self.blocks.len() - 1;
+      let next = (syntax.advance)(&self.lines[line], self.blocks[line]);
+      self.blocks.push(next);
+    }
+  }
+
+  /// What line `line` starts inside, as far as it has been worked out.
+  fn block_of(&self, line: usize) -> Block {
+    self.blocks.get(line).copied().unwrap_or_default()
+  }
+
+  /// Forgets what was worked out below an edit at `line`. The state *at* that
+  /// line is decided by everything above it, and survives.
+  fn forget_blocks(&mut self, line: usize) {
+    self.blocks.truncate(line + 1);
+  }
+
   /// Re-derives the document from `text`, keeping nothing.
   fn load(&mut self, text: &str) {
     self.lines = text.split('\n').map(str::to_string).collect();
@@ -420,6 +514,7 @@ impl State {
     }
     self.heights = self.lines.iter().map(|line| self.estimate(line)).collect();
     self.measured = vec![false; self.lines.len()];
+    self.blocks = vec![Block::default()];
     self.priced = 0;
     self.painted = (0, 0);
     self.undo.clear();
@@ -448,7 +543,7 @@ struct Ctx {
   root: NodeRef<leptos::html::Div>,
   content: NodeRef<leptos::html::Div>,
   gutter: NodeRef<leptos::html::Div>,
-  highlight: Option<Highlighter>,
+  highlight: Option<Syntax>,
   value: RwSignal<String>,
   blank: RwSignal<bool>,
   /// The pending "colour the line being typed in" timer, if any.
@@ -478,8 +573,9 @@ impl Ctx {
 /// * `class` — goes on the scroll box. **Give it a height** (`h-full` inside a
 ///   flex column, or `h-[60vh]`): something that renders only what fits has to be
 ///   told what fits.
-/// * `highlight` — a [`Highlighter`] run over each line as it is rendered;
-///   [`markdown_highlighter`] is one. Left out, the text stays plain.
+/// * `highlight` — a [`Syntax`] run over each line as it is rendered;
+///   [`markdown_syntax`] and [`typx_syntax`] are two. Left out, the text stays
+///   plain.
 /// * `line_numbers` — a gutter down the left, aligned to soft-wrapped lines.
 /// * `tab_size` — how many spaces `Tab` inserts (two by default). `Tab` types
 ///   indentation here rather than moving focus, as it does in every editor;
@@ -488,7 +584,7 @@ impl Ctx {
 /// ```ignore
 /// let content = RwSignal::new(String::new());
 /// view! {
-///   <SourceEditor value=content class="h-full font-mono" highlight=markdown_highlighter />
+///   <SourceEditor value=content class="h-full font-mono" highlight=markdown_syntax() />
 /// }
 /// ```
 #[component]
@@ -506,7 +602,7 @@ pub fn SourceEditor(
   bare: bool,
   #[prop(optional)] spellcheck: bool,
   #[prop(optional)] tab_size: Option<usize>,
-  #[prop(optional)] highlight: Option<Highlighter>,
+  #[prop(optional)] highlight: Option<Syntax>,
 ) -> impl IntoView {
   let ctx = Ctx {
     state: StoredValue::new(State::default()),
@@ -836,7 +932,7 @@ fn draw(ctx: Ctx, root: &Element, content: &Element, caret: Option<Pos>, going: 
   let moving = ctx.state.with_value(State::is_moving);
   hold_height(content, f64::from(root.scroll_height()));
   let corrected = ctx.state.try_update_value(|st| {
-    let anchor = st.line_at(scroll_top);
+    let anchor = st.line_at(scroll_top - PAD_Y);
     let was = st.offset_of(anchor);
     paint(st, content, ctx.highlight);
     measure(st, content);
@@ -967,7 +1063,7 @@ fn price_chunk(ctx: Ctx) {
       // No highlighting: spans are inline and wrap exactly as the bare text
       // does, so colouring a line the reader will never see is work for
       // nothing.
-      if let Some(div) = make_line(&doc, &st.lines[line], None) {
+      if let Some(div) = make_line(&doc, &st.lines[line], None, Block::default()) {
         let _ = fragment.append_child(&div);
         todo.push(line);
       }
@@ -1014,7 +1110,7 @@ fn price_chunk(ctx: Ctx) {
   let scroll_top = f64::from(root.scroll_top());
   let gutter = ctx.gutter_element();
   let drift = ctx.state.try_update_value(|st| {
-    let anchor = st.line_at(scroll_top);
+    let anchor = st.line_at(scroll_top - PAD_Y);
     let was = st.offset_of(anchor);
     for (&line, &height) in todo.iter().zip(heights.iter()) {
       if height <= 0.0 || line >= st.heights.len() {
@@ -1119,6 +1215,7 @@ fn sync(ctx: Ctx) {
     .state
     .with_value(|st| dom_caret(&content, st.first))
     .unwrap_or_default();
+  let highlight = ctx.highlight;
 
   let restructured = ctx.state.try_update_value(|st| {
     let first = st.first.min(st.lines.len());
@@ -1136,7 +1233,7 @@ fn sync(ctx: Ctx) {
     // A changed line count means the browser merged or split our line divs —
     // Enter drops a bare `\n` into one of them — so the DOM has to be rebuilt
     // into one div per line before anything measures it again.
-    let restructured = read.len() != last - first;
+    let mut restructured = read.len() != last - first;
     // Only the lines the edit touched lose their heights, and that "only" is the
     // whole of it. The rows either side of it still hold the same text, at the
     // same width, in the same DOM nodes, so what they were measured at is a fact
@@ -1167,6 +1264,20 @@ fn sync(ctx: Ctx) {
     st.priced = st.priced.min(touched);
     st.first = first;
     st.last = first + read.len();
+    // Typing the third backtick of a fence turns the rest of the document into
+    // code, and deleting it turns it back into prose: an edit changes what the
+    // lines *below* it are inside of, and when it does, colouring only the line
+    // that was typed in is colouring one line out of a page that all changed.
+    // Comparing what the touched line used to leave behind with what it leaves
+    // behind now is what tells the two apart — and for ordinary typing, which is
+    // every keystroke that is not a delimiter, the two are equal and nothing
+    // else is repainted.
+    let was = st.blocks.get(touched + 1).copied();
+    st.forget_blocks(touched);
+    st.ensure_blocks(highlight, touched + 1);
+    if was.is_some() && was != st.blocks.get(touched + 1).copied() {
+      restructured = true;
+    }
     if restructured {
       // The rows in the DOM no longer stand one to a line — Enter leaves two
       // lines inside one of them — so none of them can be reused.
@@ -1229,6 +1340,9 @@ fn sync(ctx: Ctx) {
 /// margin either side of it — wider in the direction of travel — and always the
 /// caret's line, so an arrow key never walks off the end of what exists.
 fn window_for(st: &State, scroll_top: f64, view_h: f64, caret: Option<Pos>, going: f64) -> (usize, usize) {
+  // Into the document's own coordinates, which start at the first line rather
+  // than at the top of the scroll box; see [`PAD_Y`].
+  let scroll_top = scroll_top - PAD_Y;
   let count = st.lines.len();
   let margin = view_h * OVERSCAN;
   let (above, below) = if going > 1.0 {
@@ -1267,11 +1381,13 @@ fn window_for(st: &State, scroll_top: f64, view_h: f64, caret: Option<Pos>, goin
 /// A rebuild is still the answer when the new window shares nothing with the old
 /// one, or when the browser has been editing and the rows no longer stand one to
 /// a line — which [`sync`] says by clearing `painted`.
-fn paint(st: &mut State, content: &Element, highlight: Option<Highlighter>) {
+fn paint(st: &mut State, content: &Element, highlight: Option<Syntax>) {
   let Some(doc) = content.owner_document() else {
     return;
   };
   let (first, last) = (st.first, st.last.min(st.lines.len()));
+  // Nothing can be coloured before it is known what it is inside of.
+  st.ensure_blocks(highlight, last);
   let (was_first, was_last) = st.painted;
   let intact = was_last > was_first
     && first < was_last
@@ -1280,8 +1396,8 @@ fn paint(st: &mut State, content: &Element, highlight: Option<Highlighter>) {
 
   if !intact {
     let fragment = doc.create_document_fragment();
-    for line in &st.lines[first.min(st.lines.len())..last] {
-      if let Some(div) = make_line(&doc, line, highlight) {
+    for line in first.min(st.lines.len())..last {
+      if let Some(div) = make_line(&doc, &st.lines[line], highlight, st.block_of(line)) {
         let _ = fragment.append_child(&div);
       }
     }
@@ -1304,12 +1420,12 @@ fn paint(st: &mut State, content: &Element, highlight: Option<Highlighter>) {
     }
   }
   for line in (first..was_first.min(last)).rev() {
-    if let Some(div) = make_line(&doc, &st.lines[line], highlight) {
+    if let Some(div) = make_line(&doc, &st.lines[line], highlight, st.block_of(line)) {
       let _ = content.insert_before(&div, content.first_child().as_ref());
     }
   }
   for line in was_last.max(first)..last {
-    if let Some(div) = make_line(&doc, &st.lines[line], highlight) {
+    if let Some(div) = make_line(&doc, &st.lines[line], highlight, st.block_of(line)) {
       let _ = content.append_child(&div);
     }
   }
@@ -1320,7 +1436,7 @@ fn paint(st: &mut State, content: &Element, highlight: Option<Highlighter>) {
 ///
 /// An empty line gets a `<br>`: an empty block is zero pixels tall, and a line
 /// nobody can see is a line nobody can click into.
-fn make_line(doc: &Document, text: &str, highlight: Option<Highlighter>) -> Option<Element> {
+fn make_line(doc: &Document, text: &str, highlight: Option<Syntax>, block: Block) -> Option<Element> {
   let div = doc.create_element("div").ok()?;
   if text.is_empty() {
     let br = doc.create_element("br").ok()?;
@@ -1332,7 +1448,7 @@ fn make_line(doc: &Document, text: &str, highlight: Option<Highlighter>) -> Opti
     return Some(div);
   };
   let mut at = 0usize;
-  for span in highlight(text) {
+  for span in (highlight.paint)(text, block) {
     // A highlighter handing back overlapping, unsorted or mid-character offsets
     // is ignored rather than allowed to corrupt the line.
     if span.from < at
@@ -1445,8 +1561,11 @@ fn pad(st: &State, content: &Element) {
   let Some(el) = content.dyn_ref::<HtmlElement>() else {
     return;
   };
-  let above = st.offset_of(st.first);
-  let below = st.total() - st.offset_of(st.last.min(st.lines.len()));
+  // Plus the field's own breathing room at either end — see [`PAD_Y`]. Written
+  // into the same property the lines off screen stand in, because a browser has
+  // only one `padding-top` and the inline one wins.
+  let above = st.offset_of(st.first) + PAD_Y;
+  let below = st.total() - st.offset_of(st.last.min(st.lines.len())) + PAD_Y;
   let style = el.style();
   let _ = style.set_property("padding-top", &format!("{}px", above.max(0.0).round()));
   let _ = style.set_property("padding-bottom", &format!("{}px", below.max(0.0).round()));
@@ -1647,15 +1766,16 @@ fn relight(ctx: Ctx) {
   let Some(doc) = content.owner_document() else {
     return;
   };
-  let replaced = ctx.state.with_value(|st| {
+  let replaced = ctx.state.try_update_value(|st| {
+    st.ensure_blocks(Some(highlight), caret.line);
     let index = caret.line.checked_sub(st.first)?;
     let old = content.children().item(index as u32)?;
     let text = st.lines.get(caret.line)?;
-    let new = make_line(&doc, text, Some(highlight))?;
+    let new = make_line(&doc, text, Some(highlight), st.block_of(caret.line))?;
     content.replace_child(&new, &old).ok()?;
     Some(())
   });
-  if replaced.is_some() {
+  if replaced.flatten().is_some() {
     ctx.state.with_value(|st| set_dom_caret(&content, st.first, caret));
   }
 }
@@ -1930,6 +2050,7 @@ fn history(ctx: Ctx, undo: bool) {
       st.heights.splice(at..end, heights);
       st.measured.splice(at..end, std::iter::repeat_n(false, to.len()));
       st.priced = st.priced.min(at);
+      st.forget_blocks(at);
       if st.lines.is_empty() {
         st.lines.push(String::new());
         st.heights.push(st.row_h);
@@ -2030,31 +2151,126 @@ fn utf16_len(s: &str) -> usize {
   s.chars().map(char::len_utf16).sum()
 }
 
-// -- A highlighter to start from --------------------------------------------
+// -- The syntaxes that ship here ---------------------------------------------
 
-/// Markdown, one line at a time: headings, list bullets and quote marks,
-/// emphasis, inline code, fence lines and links.
+/// Markup that is not content: a heading's `=`, a list's bullet, a fence.
+const MARK: &str = "text-muted-foreground";
+const HEADING: &str = "font-semibold text-foreground";
+const CODE: &str = "text-primary";
+const EMPHASIS: &str = "italic";
+const STRONG: &str = "font-semibold";
+const LINK: &str = "text-primary underline underline-offset-2";
+
+/// Inside a fence opened with backticks; `len` is how many of them opened it.
+const IN_FENCE: u8 = 1;
+/// The same, with tildes. Kept apart so a `~~~` block is not closed by a ```` ``` ````.
+const IN_TILDE: u8 = 2;
+/// Inside a `/* … */` comment; `len` is how deep the nesting is. typx only —
+/// Markdown has no such thing.
+const IN_COMMENT: u8 = 3;
+
+/// The fence a line opens, if it opens one.
 ///
-/// It sees a line and nothing around it, so a fence marks its own line but does
-/// not colour what lies between two of them. That is the price of colouring only
-/// what is on screen, and for a writing surface it is a fair one — the
-/// alternative costs more than the editing does.
-pub fn markdown_highlighter(line: &str) -> Vec<HighlightSpan> {
-  const MARK: &str = "text-muted-foreground";
-  const HEADING: &str = "font-semibold text-foreground";
-  const CODE: &str = "text-primary";
-  const EMPHASIS: &str = "italic";
-  const STRONG: &str = "font-semibold";
-  const LINK: &str = "text-primary underline underline-offset-2";
+/// The word after it names the language the block is written in, and that word
+/// is looked up in the [registry](crate::syntax) here — once, when the line is
+/// scanned — so that colouring a line inside the block is a lookup by number.
+/// A word nobody registered gives [`LangId::NONE`], and the block is left
+/// uncoloured rather than coloured as prose, which is the whole point: the text
+/// between two fences is code, and the `*` in it is a multiplication.
+fn opens_fence(line: &str) -> Option<Block> {
+  let trimmed = line.trim_start();
+  let mark = trimmed.chars().next().filter(|ch| *ch == '`' || *ch == '~')?;
+  let run = trimmed.chars().take_while(|ch| *ch == mark).count();
+  if run < 3 {
+    return None;
+  }
+  let info = trimmed[run..].trim();
+  // A backtick fence's info string cannot itself contain a backtick — that is
+  // what keeps `` `a` and `b` `` from reading as an opening fence.
+  if mark == '`' && info.contains('`') {
+    return None;
+  }
+  let word = info
+    .split(|ch: char| ch.is_whitespace() || ch == ',' || ch == ':' || ch == ';')
+    .next()
+    .unwrap_or_default()
+    .trim_matches(|ch: char| ch == '{' || ch == '}' || ch == '.');
+  Some(Block {
+    kind: if mark == '`' { IN_FENCE } else { IN_TILDE },
+    len: run.min(u8::MAX as usize) as u8,
+    lang: syntax::lang_id(word),
+    inner: 0,
+  })
+}
 
+/// Whether this line closes the fence `block` is inside: a run of the same
+/// character, at least as long as the one that opened it, and nothing after it.
+fn closes_fence(line: &str, block: Block) -> bool {
+  let mark = if block.kind == IN_TILDE { '~' } else { '`' };
+  let trimmed = line.trim_start();
+  let run = trimmed.chars().take_while(|ch| *ch == mark).count();
+  run >= usize::from(block.len) && trimmed[run..].trim().is_empty()
+}
+
+/// One line of a fenced block: the closing fence, or code in whatever language
+/// the fence named.
+fn fenced(line: &str, block: Block, out: Option<&mut Vec<HighlightSpan>>) -> Block {
+  if closes_fence(line, block) {
+    if let Some(out) = out {
+      out.push(HighlightSpan::new(0, line.len(), CODE));
+    }
+    return Block::default();
+  }
+  Block {
+    inner: syntax::scan(line, block.lang, block.inner, 0, out),
+    ..block
+  }
+}
+
+/// Markdown: headings, list bullets and quote marks, emphasis, inline code,
+/// links — and fenced blocks, coloured as the language they name.
+///
+/// Inside a fence the prose rules are off, which is the point of carrying a
+/// [`Block`] from line to line at all: a `*` in a shell command is not the start
+/// of a bold run, and an underscore in a Python name is not an emphasis that
+/// swallows the rest of the paragraph.
+pub fn markdown_syntax() -> Syntax {
+  Syntax {
+    paint: |line, block| {
+      let mut out = Vec::new();
+      markdown_scan(line, block, Some(&mut out));
+      out
+    },
+    advance: |line, block| markdown_scan(line, block, None),
+  }
+}
+
+/// The one walk both halves of [`markdown_syntax`] are made of: it colours the
+/// line when it is given somewhere to put the colours, and either way says what
+/// the line leaves behind.
+fn markdown_scan(line: &str, block: Block, out: Option<&mut Vec<HighlightSpan>>) -> Block {
+  if matches!(block.kind, IN_FENCE | IN_TILDE) {
+    return fenced(line, block, out);
+  }
+  if let Some(fence) = opens_fence(line) {
+    if let Some(out) = out {
+      out.push(HighlightSpan::new(0, line.len(), CODE));
+    }
+    return fence;
+  }
+  if let Some(out) = out {
+    out.extend(markdown_inline(line));
+  }
+  Block::default()
+}
+
+/// One line of Markdown prose, one line at a time — the part of the highlighter
+/// that never needed to know what came before it.
+fn markdown_inline(line: &str) -> Vec<HighlightSpan> {
   let mut spans = Vec::new();
   let trimmed = line.trim_start();
   let lead = line.len() - trimmed.len();
 
-  if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
-    spans.push(HighlightSpan::new(0, line.len(), CODE));
-    return spans;
-  }
   if trimmed.starts_with('#') {
     let hashes = trimmed.len() - trimmed.trim_start_matches('#').len();
     if (1..=6).contains(&hashes) && trimmed[hashes..].starts_with(' ') {
@@ -2118,7 +2334,332 @@ pub fn markdown_highlighter(line: &str) -> Vec<HighlightSpan> {
   spans
 }
 
+/// typx (Typst-flavoured markup): headings, lists, emphasis, inline raw and
+/// math, `#`-code, labels and references, comments — and raw blocks, coloured as
+/// the language they name.
+///
+/// The differences from Markdown are the ones that matter for a document being
+/// typed: a heading is `=` rather than `#`, `#` opens *code* rather than a
+/// heading, and comments (`//`, and `/* … */` nested to any depth) run through
+/// the markup rather than only inside code.
+pub fn typx_syntax() -> Syntax {
+  Syntax {
+    paint: |line, block| {
+      let mut out = Vec::new();
+      typx_scan(line, block, Some(&mut out));
+      out
+    },
+    advance: |line, block| typx_scan(line, block, None),
+  }
+}
+
+/// One walk over a line of typx: colours it when asked, and always says what it
+/// leaves behind — an open raw block, or a comment several levels deep.
+fn typx_scan(line: &str, block: Block, mut out: Option<&mut Vec<HighlightSpan>>) -> Block {
+  if matches!(block.kind, IN_FENCE | IN_TILDE) {
+    return fenced(line, block, out);
+  }
+  let mut push = |from: usize, to: usize, class: &'static str| {
+    if let Some(out) = out.as_deref_mut()
+      && to > from
+    {
+      out.push(HighlightSpan::new(from, to, class));
+    }
+  };
+
+  let mut i = 0usize;
+
+  // A comment carried in from the line above runs until it closes — and it may
+  // close into another one, which is why the depth is counted rather than
+  // flagged.
+  let carried = if block.kind == IN_COMMENT { usize::from(block.len) } else { 0 };
+  if carried > 0 {
+    let (at, left) = comment_run(line, 0, carried);
+    push(0, at, Token::Comment.class());
+    if left > 0 {
+      return in_comment(left);
+    }
+    i = at;
+  }
+
+  if i == 0 {
+    if let Some(fence) = opens_fence(line) {
+      push(0, line.len(), CODE);
+      return fence;
+    }
+    let trimmed = line.trim_start();
+    let lead = line.len() - trimmed.len();
+    // `= Заголовок`, `== Подзаголовок` — Typst's headings, and the one place
+    // where a leading run of a character is markup rather than an operator.
+    if trimmed.starts_with('=') {
+      let marks = trimmed.len() - trimmed.trim_start_matches('=').len();
+      if (1..=6).contains(&marks) && trimmed[marks..].starts_with(' ') {
+        push(lead, lead + marks, MARK);
+        push(lead + marks, line.len(), HEADING);
+        return Block::default();
+      }
+    }
+    // A list: `-`, `+`, and `/ term:` for a definition.
+    if trimmed.starts_with("- ") || trimmed.starts_with("+ ") || trimmed.starts_with("/ ") {
+      push(lead, lead + 1, MARK);
+      i = lead + 1;
+    } else if let Some(dot) = trimmed.find(". ")
+      && dot > 0
+      && dot <= 3
+      && trimmed[..dot].bytes().all(|b| b.is_ascii_digit())
+    {
+      push(lead, lead + dot + 1, MARK);
+      i = lead + dot + 1;
+    }
+  }
+
+  while i < line.len() {
+    let rest = &line[i..];
+
+    // `\*` is a literal asterisk, and neither half of it is markup.
+    if rest.starts_with('\\') {
+      i = step(line, step(line, i));
+      continue;
+    }
+    if rest.starts_with("/*") {
+      // Past the opener, already counted — `comment_run` counts the ones it
+      // finds, and counting this one twice is a comment that never closes.
+      let (at, left) = comment_run(line, i + 2, 1);
+      push(i, at, Token::Comment.class());
+      if left > 0 {
+        return in_comment(left);
+      }
+      i = at;
+      continue;
+    }
+    if rest.starts_with("//") {
+      push(i, line.len(), Token::Comment.class());
+      return Block::default();
+    }
+    // `#` opens code, and the rest of the line is read as code: `#let x = 2`,
+    // `#figure(image("plan.svg"))`. A heading it is not — that is `=` here.
+    if rest.starts_with('#') {
+      let word_end = ident_end(line, i + 1);
+      let word = &line[i + 1..word_end];
+      let class = if word.is_empty() {
+        MARK
+      } else if syntax::lang_def(syntax::lang_id("typst")).is_some_and(|def| def.keywords.iter().any(|k| k == word)) {
+        Token::Keyword.class()
+      } else {
+        Token::Function.class()
+      };
+      push(i, word_end.max(i + 1), class);
+      i = word_end.max(i + 1);
+      // Whatever follows on this line is code: strings, numbers and the
+      // language's own words, from the same scanner every fenced block uses.
+      let typst = syntax::lang_id("typst");
+      if let Some(out) = out.as_deref_mut() {
+        syntax::scan(&line[i..], typst, syntax::IN_NOTHING, i, Some(out));
+      }
+      return Block::default();
+    }
+    // Inline raw, and math — both are code set in the middle of prose, and both
+    // read better in the colour code is set in.
+    let inline = if rest.starts_with('`') {
+      Some(("`", CODE))
+    } else if rest.starts_with('$') {
+      Some(("$", CODE))
+    } else if rest.starts_with('*') {
+      Some(("*", STRONG))
+    } else if rest.starts_with('_') {
+      Some(("_", EMPHASIS))
+    } else {
+      None
+    };
+    if let Some((delim, class)) = inline {
+      let after = i + delim.len();
+      match line[after..].find(delim) {
+        Some(close) => {
+          let to = after + close + delim.len();
+          push(i, to, class);
+          i = to;
+        }
+        None => i = after,
+      }
+      continue;
+    }
+    // `<label>` and `@reference` — the two ways a typx document points at
+    // itself.
+    if rest.starts_with('<')
+      && let Some(close) = rest.find('>')
+      && rest[1..close].chars().all(|ch| ch.is_alphanumeric() || ch == '_' || ch == '-' || ch == ':')
+    {
+      push(i, i + close + 1, LINK);
+      i += close + 1;
+      continue;
+    }
+    if rest.starts_with('@') {
+      let to = ident_end(line, i + 1);
+      if to > i + 1 {
+        push(i, to, LINK);
+        i = to;
+        continue;
+      }
+    }
+    i = step(line, i);
+  }
+  Block::default()
+}
+
+/// Where a `/* … */` run ends on this line, and how deep it still is when the
+/// line runs out: comments nest in Typst, so `/* a /* b */ */` is one comment
+/// and not two thirds of one.
+fn comment_run(line: &str, from: usize, mut depth: usize) -> (usize, usize) {
+  let mut i = from;
+  while i < line.len() {
+    let rest = &line[i..];
+    if rest.starts_with("/*") {
+      depth += 1;
+      i += 2;
+      continue;
+    }
+    if rest.starts_with("*/") {
+      depth = depth.saturating_sub(1);
+      i += 2;
+      if depth == 0 {
+        return (i, 0);
+      }
+      continue;
+    }
+    i = step(line, i);
+  }
+  (line.len(), depth)
+}
+
+/// The state a line ends in when it is `depth` comments deep.
+fn in_comment(depth: usize) -> Block {
+  Block {
+    kind: IN_COMMENT,
+    len: depth.min(u8::MAX as usize) as u8,
+    ..Block::default()
+  }
+}
+
+/// Where the identifier starting at `from` ends — one past its last character,
+/// or `from` itself if there is no identifier there.
+fn ident_end(line: &str, from: usize) -> usize {
+  let mut i = from;
+  while i < line.len() {
+    let Some(ch) = line[i..].chars().next() else { break };
+    if !(ch.is_alphanumeric() || ch == '_' || ch == '-' || ch == '.') {
+      break;
+    }
+    i += ch.len_utf8();
+  }
+  i
+}
+
 /// One character on from `i`, never one byte into the middle of one.
 fn step(line: &str, i: usize) -> usize {
   i + line[i..].chars().next().map_or(1, char::len_utf8)
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  /// Walks a document the way the editor does — line by line, carrying the
+  /// block state — and hands back what each line was coloured with.
+  fn walk(syntax: Syntax, text: &str) -> Vec<Vec<(String, &'static str)>> {
+    let mut block = Block::default();
+    let mut out = Vec::new();
+    for line in text.lines() {
+      let spans = (syntax.paint)(line, block);
+      out.push(
+        spans
+          .iter()
+          .map(|span| (line[span.from..span.to].to_string(), span.class))
+          .collect(),
+      );
+      // The two halves must agree about what the line leaves behind, or the
+      // window would be coloured against a state nothing else has.
+      let after = (syntax.advance)(line, block);
+      block = after;
+    }
+    out
+  }
+
+  #[test]
+  fn markdown_does_not_read_prose_rules_inside_a_fence() {
+    let lines = walk(
+      markdown_syntax(),
+      "**bold**\n```rust\nlet a = b * c; // *not bold*\n```\n**bold again**\n",
+    );
+    assert_eq!(lines[0][0].1, STRONG);
+    assert_eq!(lines[1][0].1, CODE, "the opening fence");
+    let inside: Vec<&str> = lines[2].iter().map(|(_, class)| *class).collect();
+    assert!(inside.contains(&Token::Keyword.class()), "`let` is a keyword");
+    assert!(!inside.contains(&STRONG), "nothing inside a fence is bold");
+    assert_eq!(lines[3][0].1, CODE, "the closing fence");
+    assert_eq!(lines[4][0].1, STRONG, "and prose resumes after it");
+  }
+
+  #[test]
+  fn a_shorter_run_of_backticks_does_not_close_a_fence() {
+    let lines = walk(markdown_syntax(), "````text\n```\nstill inside\n````\n");
+    assert_eq!(lines[1].len(), 0, "the inner ``` is content");
+    assert_eq!(lines[3][0].1, CODE);
+  }
+
+  #[test]
+  fn an_unnamed_fence_is_left_alone() {
+    let lines = walk(markdown_syntax(), "```\n*not bold*\n```\n");
+    assert!(lines[1].is_empty());
+  }
+
+  #[test]
+  fn typx_headings_lists_and_code() {
+    let lines = walk(typx_syntax(), "= Заголовок\n- пункт\n#let x = 2\n");
+    assert_eq!(lines[0][0].0, "=");
+    assert_eq!(lines[0][1].1, HEADING);
+    assert_eq!(lines[1][0].0, "-");
+    assert_eq!(lines[2][0].0, "#let");
+    assert_eq!(lines[2][0].1, Token::Keyword.class());
+    assert!(lines[2].iter().any(|(text, class)| text == "2" && *class == Token::Number.class()));
+  }
+
+  #[test]
+  fn typx_comments_nest_and_span_lines() {
+    let lines = walk(typx_syntax(), "/* one /* two */\nstill\n*/ *bold*\n");
+    assert_eq!(lines[1][0].1, Token::Comment.class(), "still inside");
+    assert_eq!(lines[2][0].1, Token::Comment.class());
+    assert!(lines[2].iter().any(|(_, class)| *class == STRONG), "and out again");
+  }
+
+  #[test]
+  fn typx_raw_blocks_are_code() {
+    let lines = walk(typx_syntax(), "```python\ndef f(): return \"*x*\"\n```\n");
+    let inside: Vec<&str> = lines[1].iter().map(|(_, class)| *class).collect();
+    assert!(inside.contains(&Token::Keyword.class()));
+    assert!(inside.contains(&Token::Str.class()));
+    assert!(!inside.contains(&STRONG));
+  }
+
+  #[test]
+  fn spans_stay_sorted_and_on_character_boundaries() {
+    for text in [
+      "# Заголовок с *акцентом* и `кодом`\n> цитата\n1. пункт\n",
+      "= Заголовок\n#figure(image(\"схема.svg\"), caption: [Схема])\nтекст @ссылка <метка>\n",
+    ] {
+      for syntax in [markdown_syntax(), typx_syntax()] {
+        let mut block = Block::default();
+        for line in text.lines() {
+          let mut at = 0;
+          for span in (syntax.paint)(line, block) {
+            assert!(span.from >= at, "{line}: spans out of order");
+            assert!(span.to <= line.len(), "{line}: span past the end");
+            assert!(line.is_char_boundary(span.from) && line.is_char_boundary(span.to), "{line}: mid-character");
+            at = span.to;
+          }
+          block = (syntax.advance)(line, block);
+        }
+      }
+    }
+  }
+}
+

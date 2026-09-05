@@ -88,7 +88,7 @@ use impulse_client_kit_blocks::charts::{
   BarChart, BarChartData, BarChartOptions, BarSeries, LineChart, LineChartData, LineChartOptions, LineSeries, PieChart,
   PieChartData, PieChartOptions, PieSlice, Sparkline, SparklineKind, SparklineOptions,
 };
-use impulse_client_kit_blocks::editor::{SourceEditor, markdown_highlighter};
+use impulse_client_kit_blocks::editor::{SourceEditor, markdown_syntax};
 use impulse_client_kit_blocks::graph::{
   GraphCanvas, GraphCanvasOptions, GraphEdge, GraphLayout, GraphNode, GraphNodeBody, GraphNodeHeader, GraphPort,
   NodeVariant, PortSide,
@@ -1702,7 +1702,7 @@ fn BlocksSection() -> impl IntoView {
             <SourceEditor
               value=markdown
               class="h-[28rem] w-full font-mono text-sm"
-              highlight=markdown_highlighter
+              highlight=markdown_syntax()
             />
           </div>
           <div class="space-y-2">
@@ -1730,7 +1730,7 @@ fn BlocksSection() -> impl IntoView {
           <SourceEditor
             value=long_document
             class="h-[28rem] w-full font-mono text-sm"
-            highlight=markdown_highlighter
+            highlight=markdown_syntax()
             line_numbers=true
             placeholder="Пишите здесь…"
           />
