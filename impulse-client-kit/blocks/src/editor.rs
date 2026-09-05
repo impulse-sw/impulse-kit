@@ -723,7 +723,19 @@ pub fn SourceEditor(
     // is an editor a keyboard user cannot get out of. Any other key puts the
     // trap back.
     if key == "Escape" {
-      ctx.state.update_value(|st| st.tab_escapes = true);
+      let composing = ctx.state.try_update_value(|st| {
+        st.tab_escapes = true;
+        st.composing
+      });
+      // While an IME is composing, `Escape` means "cancel what I am typing" and
+      // nothing else — the platform's own default, which is left alone. What it
+      // must not also do is travel on to whatever is listening for it on the
+      // window and close the page out from under a half-typed word. Every
+      // Cyrillic, Chinese or Japanese keyboard puts a composition in front of
+      // the text, so this is not a corner case for the people it happens to.
+      if composing == Some(true) {
+        ev.stop_propagation();
+      }
       return;
     }
     let escaping = ctx
