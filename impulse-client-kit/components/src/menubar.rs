@@ -175,9 +175,21 @@ pub fn MenubarContent(
 
 #[component]
 pub fn MenubarItem(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
+  let context = use_context::<MenubarMenuContext>();
+
+  // Выбранный пункт закрывает своё меню — как у выпадающего и контекстного,
+  // где это уже так. Без этого панель остаётся раскрытой поверх того, что
+  // команда только что изменила, и человек закрывает её вторым щелчком мимо.
+  let handle_click = move |_| {
+    if let Some(context) = context {
+      context.is_open.set(false);
+    }
+  };
+
   view! {
     <div
       data-slot="menubar-item"
+      on:click=handle_click
       class=cn(
         &[
           "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0",
