@@ -10,6 +10,18 @@ pub fn Input(
   #[prop(into, optional)] class: String,
   #[prop(into, optional)] r#type: String,
   #[prop(optional)] value: RwSignal<String>,
+  /// What Enter means in this field.
+  ///
+  /// A single-line field has one obvious action behind it — create the thing,
+  /// save the name — and Enter is how it is reached without leaving the
+  /// keyboard. Left unhandled the key does nothing at all, which reads as the
+  /// form being stuck.
+  #[prop(optional)]
+  on_enter: Option<Callback<()>>,
+  /// What a committed value means: blur, or the OS picker closing on a
+  /// `type="color"` field. Fires only when the value actually changed.
+  #[prop(optional)]
+  on_change: Option<Callback<String>>,
 ) -> impl IntoView {
   view! {
     <input
@@ -18,6 +30,21 @@ pub fn Input(
       prop:value=value
       on:input:target=move |ev| {
         value.set(ev.target().value());
+      }
+      on:change:target=move |ev| {
+        let next = ev.target().value();
+        value.set(next.clone());
+        if let Some(on_change) = on_change {
+          on_change.run(next);
+        }
+      }
+      on:keydown=move |ev: web_sys::KeyboardEvent| {
+        if ev.key() == "Enter"
+          && let Some(on_enter) = on_enter
+        {
+          ev.prevent_default();
+          on_enter.run(());
+        }
       }
     />
   }

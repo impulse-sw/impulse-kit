@@ -98,23 +98,16 @@ pub fn DialogOverlay(#[prop(optional)] class: String) -> impl IntoView {
 pub fn DialogContent(#[prop(optional)] class: String, children: ChildrenFn) -> impl IntoView {
   let context = use_context::<DialogContext>().expect("DialogContent must be used within Dialog");
 
-  Effect::new(move |_| {
-    if context.is_open.get() {
-      window_event_listener(leptos::ev::keydown, move |ev: web_sys::KeyboardEvent| {
-        if ev.key() == "Escape" {
-          context.is_open.set(false);
-          if let Some(callback) = context.on_open_change {
-            callback.run(false);
-          }
-        }
-      });
-    }
-  });
-
-  // And the same dismissal for a device with no Escape key to press: the
-  // Android system back button, and the browser's Back. `escape: false` — the
-  // listener above already has that key, and two handlers on one gesture would
-  // close a dialog *and* whatever it opened over.
+  // Going back out of a dialog: Escape on a desktop, the Android system button
+  // and the browser's Back everywhere else. All three go through the guard
+  // stack, and Escape too — `escape: true`.
+  //
+  // It used to have a window listener of its own for that key, on the argument
+  // that two handlers on one press would close a dialog *and* whatever it
+  // opened over. The stack closes exactly the top layer, so that cannot happen
+  // — while a listener outside the stack could not be ordered against the
+  // layers under it, which is how Escape in a dialog reached the page behind
+  // it. One mechanism, and the top layer wins.
   use_back_guard(
     context.is_open.into(),
     Callback::new(move |_| {
@@ -123,7 +116,7 @@ pub fn DialogContent(#[prop(optional)] class: String, children: ChildrenFn) -> i
         callback.run(false);
       }
     }),
-    false,
+    true,
   );
 
   Effect::new(move |_| {
@@ -148,10 +141,19 @@ pub fn DialogContent(#[prop(optional)] class: String, children: ChildrenFn) -> i
   let children = StoredValue::new(children);
   let class = StoredValue::new(class);
 
-  // Capped and scrollable: the box is centred by a 50% translate, so content
-  // taller than the viewport hangs off *both* edges — the top of a long form
-  // goes out of reach above the screen, and no scrollbar appears because the
-  // page behind it is scroll-locked while a dialog is open.
+  // Centred by auto margins against `inset-0`, not by a 50% translate — and
+  // that is not a matter of taste. A transformed element is the containing
+  // block for every `position: fixed` descendant, and every overlay in this
+  // kit positions itself that way from viewport coordinates it measured: a
+  // select, a popover, a date picker opened inside a dialog landed at those
+  // coordinates *offset by the dialog's own corner*, which reads as "the menu
+  // doesn't open" when it lands outside and as "the dialog grew a scrollbar to
+  // the right" when it lands inside. The cap below turned the first into the
+  // common case, because a transformed ancestor with `overflow` clips them too.
+  //
+  // Capped and scrollable because the content can be taller than the screen:
+  // the top of a long form would otherwise be out of reach, with no scrollbar
+  // to show for it — the page behind is scroll-locked while a dialog is open.
   view! {
     <DialogOverlay />
     <div
@@ -159,7 +161,7 @@ pub fn DialogContent(#[prop(optional)] class: String, children: ChildrenFn) -> i
       data-state=move || if context.is_open.get() { "open" } else { "closed" }
       class=cn(
         &[
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-lg border p-6 shadow-lg sm:max-w-lg data-[state=closed]:pointer-events-none data-[state=closed]:invisible",
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed inset-0 z-50 m-auto grid h-fit max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] gap-4 overflow-y-auto rounded-lg border p-6 shadow-lg sm:max-w-lg data-[state=closed]:pointer-events-none data-[state=closed]:invisible",
           class.read_value().as_str(),
         ],
       )
