@@ -14,7 +14,11 @@ pub fn ContextMenu(#[prop(optional)] open: Option<RwSignal<bool>>, children: Chi
 
   provide_context(ContextMenuContext { is_open, position });
 
-  view! { <div data-slot="context-menu">{children()}</div> }
+  // Прозрачна для раскладки, как и её триггер: обёртка существует ради
+  // контекста и общего корня в DOM, а не ради коробки. Своя коробка обрывает
+  // цепочку растяжения — `h-full` внутри считался бы от неё, а она по высоте
+  // содержимого, — и объект, получивший меню, переставал бы заполнять ячейку.
+  view! { <div data-slot="context-menu" class="contents">{children()}</div> }
 }
 
 #[component]
@@ -35,7 +39,12 @@ pub fn ContextMenuTrigger(#[prop(optional, into)] class: String, children: Child
     <div
       node_ref=trigger_ref
       data-slot="context-menu-trigger"
-      class=cn(&["inline-block", class.as_str()])
+      // `contents` and not `inline-block`: the trigger exists to catch the
+      // gesture, not to lay anything out. A box of its own shrink-wraps what it
+      // wraps, so a tile told to fill its grid cell stops filling it the moment
+      // it gains a context menu — and the menu is invisible until you
+      // right-click, which makes the shrinking look like a bug in the tile.
+      class=cn(&["contents", class.as_str()])
       on:contextmenu=handle_contextmenu
     >
       {children()}
@@ -119,7 +128,7 @@ pub fn ContextMenuSubTrigger(
       data-state=data_state
       class=cn(
         &[
-          "focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[inset]:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+          "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[inset]:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
           class.as_str(),
         ],
       )
