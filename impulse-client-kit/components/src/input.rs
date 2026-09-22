@@ -22,9 +22,24 @@ pub fn Input(
   /// `type="color"` field. Fires only when the value actually changed.
   #[prop(optional)]
   on_change: Option<Callback<String>>,
+  /// Взять фокус, как только поле появилось.
+  ///
+  /// Не атрибутом `autofocus`: браузер читает его при разборе документа, а
+  /// поле диалога вставляется в DOM много позже и атрибут ему ничего не даёт.
+  #[prop(optional)]
+  autofocus: bool,
 ) -> impl IntoView {
+  let node = NodeRef::<leptos::html::Input>::new();
+
+  Effect::new(move |_| {
+    if autofocus && let Some(el) = node.get() {
+      let _ = el.focus();
+    }
+  });
+
   view! {
     <input
+      node_ref=node
       type=r#type
       class=cn(&[BASE_CLASSES.to_string(), class])
       prop:value=value
