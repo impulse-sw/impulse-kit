@@ -31,6 +31,11 @@ pub fn ContextMenuTrigger(#[prop(optional, into)] class: String, children: Child
 
   let handle_contextmenu = move |ev: leptos::ev::MouseEvent| {
     ev.prevent_default();
+    // Триггеры вкладываются друг в друга: строка лежит в карточке, карточка на
+    // доске, и у каждого своё меню. Щелчок по внутреннему — не щелчок по
+    // внешнему, иначе на одно нажатие открылись бы два меню сразу, и второе
+    // встало бы поверх первого в той же точке. Побеждает ближайший.
+    ev.stop_propagation();
     context.position.set((ev.client_x() as f64, ev.client_y() as f64));
     context.is_open.set(true);
   };
