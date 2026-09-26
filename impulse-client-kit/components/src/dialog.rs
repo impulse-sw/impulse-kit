@@ -156,17 +156,32 @@ pub fn DialogContent(#[prop(optional)] class: String, children: ChildrenFn) -> i
   // to show for it — the page behind is scroll-locked while a dialog is open.
   view! {
     <DialogOverlay />
+    // Центрирует обёртка, а не сам диалог. Трансформы у него по-прежнему нет —
+    // почему, сказано выше, — но и «высота по содержимому» между верхом и низом
+    // ему больше не нужна: `height: fit-content` у элемента, растянутого между
+    // `top` и `bottom`, вебвью WebKit разрешает как `auto`, и диалог занимал всё
+    // окно по высоте. В Firefox и Chromium того же не видно, поэтому в браузере
+    // это не всплывало, а в настольном приложении всплыло сразу.
+    //
+    // Обёртка не ловит указатель: иначе она накрыла бы подложку, а щелчок мимо
+    // диалога — это его закрытие. Ловит его сам диалог.
     <div
-      data-slot="dialog-content"
+      data-slot="dialog-positioner"
       data-state=move || if context.is_open.get() { "open" } else { "closed" }
-      class=cn(
-        &[
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed inset-0 z-50 m-auto grid h-fit max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] gap-4 overflow-y-auto rounded-lg border p-6 shadow-lg sm:max-w-lg data-[state=closed]:pointer-events-none data-[state=closed]:invisible",
-          class.read_value().as_str(),
-        ],
-      )
+      class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4 data-[state=closed]:invisible"
     >
-      {children.read_value()()}
+      <div
+        data-slot="dialog-content"
+        data-state=move || if context.is_open.get() { "open" } else { "closed" }
+        class=cn(
+          &[
+            "bg-background pointer-events-auto data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 z-50 grid max-h-full w-full gap-4 overflow-y-auto rounded-lg border p-6 shadow-lg sm:max-w-lg data-[state=closed]:pointer-events-none data-[state=closed]:invisible",
+            class.read_value().as_str(),
+          ],
+        )
+      >
+        {children.read_value()()}
+      </div>
     </div>
   }
 }
