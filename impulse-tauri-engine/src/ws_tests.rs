@@ -662,3 +662,51 @@ async fn status_sink_is_told_on_every_change() {
   );
   bg.abort();
 }
+
+#[test]
+fn every_public_ws_item_is_reachable_from_the_crate_root() {
+  // `ws` is a private module: everything an app touches it through the root
+  // re-export, and a type left out of that list exists only inside the crate.
+  // The shell that needs it then fails to compile — and it fails in the app's
+  // build, not here, because the engine itself is perfectly consistent without
+  // it. `StatusSink` was exactly that: declared, used in the public signature of
+  // `with_status_sink`, and unreachable by name.
+  let ws = include_str!("ws.rs");
+  let lib = include_str!("lib.rs");
+  let exported = lib
+    .split_once("pub use ws::{")
+    .expect("the root re-exports the ws module")
+    .1
+    .split_once('}')
+    .expect("the re-export list is closed")
+    .0;
+
+  let declared: Vec<&str> = ws
+    .lines()
+    .filter_map(|line| {
+      let rest = line
+        .strip_prefix("pub type ")
+        .or_else(|| line.strip_prefix("pub struct "))
+        .or_else(|| line.strip_prefix("pub trait "))
+        .or_else(|| line.strip_prefix("pub enum "))?;
+      Some(
+        rest
+          .split(|c: char| !c.is_alphanumeric() && c != '_')
+          .next()
+          .unwrap_or_default(),
+      )
+    })
+    .filter(|name| !name.is_empty())
+    .collect();
+
+  assert!(
+    declared.len() >= 11,
+    "the scan found too little to be checking anything"
+  );
+  for name in declared {
+    assert!(
+      exported.split(',').any(|e| e.trim() == name),
+      "`{name}` is public in `ws` but not re-exported from the crate root, so nothing outside can name it"
+    );
+  }
+}

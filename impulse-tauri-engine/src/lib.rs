@@ -56,7 +56,9 @@ pub mod lifecycle;
 #[cfg(feature = "ws")]
 mod ws;
 #[cfg(feature = "ws")]
-pub use ws::{Emit, LocalReply, ReconnectPolicy, WsBackend, WsEngine, WsEntry, WsQueue, WsRemote, WsSink, WsStream};
+pub use ws::{
+  Emit, LocalReply, ReconnectPolicy, StatusSink, WsBackend, WsEngine, WsEntry, WsQueue, WsRemote, WsSink, WsStream,
+};
 
 /// The concrete socket a Tauri shell opens, with the keepalive, idle detection
 /// and resume handling a mobile OS makes necessary.
