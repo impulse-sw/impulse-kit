@@ -54,9 +54,7 @@ pub fn Input(
         }
       }
       on:keydown=move |ev: web_sys::KeyboardEvent| {
-        if ev.key() == "Enter"
-          && let Some(on_enter) = on_enter
-        {
+        if ev.key() == "Enter" && let Some(on_enter) = on_enter {
           ev.prevent_default();
           on_enter.run(());
         }

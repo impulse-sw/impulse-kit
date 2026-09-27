@@ -18,7 +18,11 @@ pub fn ContextMenu(#[prop(optional)] open: Option<RwSignal<bool>>, children: Chi
   // контекста и общего корня в DOM, а не ради коробки. Своя коробка обрывает
   // цепочку растяжения — `h-full` внутри считался бы от неё, а она по высоте
   // содержимого, — и объект, получивший меню, переставал бы заполнять ячейку.
-  view! { <div data-slot="context-menu" class="contents">{children()}</div> }
+  view! {
+    <div data-slot="context-menu" class="contents">
+      {children()}
+    </div>
+  }
 }
 
 #[component]
