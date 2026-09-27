@@ -213,6 +213,17 @@ pub trait WsBackend: Send + Sync {
 /// `app.emit("ik_ws_message", frame)`; the engine crate stays Tauri-free.
 pub type Emit = Box<dyn Fn(String) + Send + Sync>;
 
+/// Tells the webview `(online, pending)` the moment either changes.
+///
+/// Without it a window can only ask, and asking is a poll: between two polls the
+/// window shows a connection state that is merely the last one it heard about.
+/// Worse, a window that has just opened has heard nothing at all, so its first
+/// answer is whatever it defaulted to — and a second window in the same process,
+/// sharing this very engine and its live socket, would announce "no connection"
+/// until its first poll came back. The engine knows exactly when the state
+/// changes; nobody else does.
+pub type StatusSink = Box<dyn Fn(bool, usize) + Send + Sync>;
+
 /// One queued offline frame awaiting replay.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct WsEntry {
@@ -442,6 +453,8 @@ pub struct WsEngine<R: WsRemote, B: WsBackend> {
   /// stops applying what it receives.
   epoch: std::sync::atomic::AtomicU64,
   policy: ReconnectPolicy,
+  /// Told on every change of `(online, pending)`; see [`StatusSink`].
+  status: Option<StatusSink>,
 }
 
 impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
@@ -468,6 +481,7 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
       reset: Notify::new(),
       epoch: std::sync::atomic::AtomicU64::new(0),
       policy: ReconnectPolicy::default(),
+      status: None,
     })
   }
 
@@ -477,6 +491,24 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
   pub fn with_reconnect_policy(mut self, policy: ReconnectPolicy) -> Self {
     self.policy = policy;
     self
+  }
+
+  /// Tells the shell about every change of `(online, pending)`, so a window
+  /// learns the truth when it changes rather than at its next poll.
+  ///
+  /// Optional, and the poll is still worth keeping alongside it: a window that
+  /// opens between two changes has missed every one of them, and asking once is
+  /// how it catches up.
+  pub fn with_status_sink(mut self, status: StatusSink) -> Self {
+    self.status = Some(status);
+    self
+  }
+
+  /// Announces `(online, pending)` as they are right now.
+  fn tell_status(&self) {
+    if let Some(tell) = &self.status {
+      tell(self.is_online(), self.pending_sync());
+    }
   }
 
   /// The app's local backend (e.g. to set the signed-in identity on it).
@@ -525,6 +557,9 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
     self.id_map.lock().expect("id map").clear();
     self.waiters.lock().expect("waiters").clear();
     self.backend.clear_local().await;
+    // После очистки, а не до: до неё в очереди ещё лежат кадры кончившейся
+    // сессии, и объявленное число было бы числом того, чего уже нет.
+    self.tell_status();
   }
 
   /// Handles one frame from the UI (`ik_ws_send`). Online, it writes to the server
@@ -594,6 +629,7 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
         if self.backend.should_queue(frame) {
           let queued = reply.queued.as_deref().unwrap_or(frame);
           self.queue.enqueue(queued, reply.provisional);
+          self.tell_status();
         }
         for out in reply.emit {
           (self.emit)(out);
@@ -635,6 +671,7 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
       Err(_) => return Err("previous socket is still being written to; retrying".to_string()),
     }
     self.online.store(true, Ordering::Relaxed);
+    self.tell_status();
 
     // Which session this socket belongs to. A sign-out bumps it, and every frame
     // is checked against it before being applied: a broadcast already in flight
@@ -750,7 +787,10 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
   }
 
   fn go_offline(&self) {
-    self.online.store(false, Ordering::Relaxed);
+    let was = self.online.swap(false, Ordering::Relaxed);
+    if was {
+      self.tell_status();
+    }
   }
 
   /// Replays queued frames against the server oldest-first, dropping each once
@@ -768,6 +808,7 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
         return Err(format!("sync stopped, socket lost: {e}"));
       }
       self.queue.ack(entry.id);
+      self.tell_status();
       if let Some(provisional) = entry.provisional_id {
         self.await_reconcile(provisional).await;
       }

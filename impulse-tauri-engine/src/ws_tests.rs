@@ -602,3 +602,63 @@ async fn the_loop_reconnects_after_the_socket_drops() {
 
   bg.abort();
 }
+
+#[tokio::test]
+async fn status_sink_is_told_on_every_change() {
+  // Окно не опрашивает движок, а узнаёт: между двумя опросами оно показывало бы
+  // ту связь, о которой слышало последний раз, а только что открытое окно не
+  // слышало ничего — и объявляло бы «нет связи», сидя в одном процессе с живым
+  // сокетом. Момент изменения знает только движок.
+  let server = FakeServer::new();
+  let emitted = Emitted::default();
+  let seen: Arc<Mutex<Vec<(bool, usize)>>> = Arc::new(Mutex::new(Vec::new()));
+  let engine = Arc::new(
+    WsEngine::new(
+      MemBackend::default(),
+      FakeRemote { server: server.clone() },
+      "ws://x",
+      queue_path(),
+      emitted.sink(),
+    )
+    .unwrap()
+    .with_status_sink({
+      let seen = seen.clone();
+      Box::new(move |online, pending| seen.lock().unwrap().push((online, pending)))
+    }),
+  );
+
+  // Офлайн: запись легла в очередь — это изменение, и о нём сказано.
+  engine
+    .send(json!({ "type": "create", "tmp": 0, "content": "hi" }).to_string())
+    .await;
+  assert_eq!(
+    seen.lock().unwrap().last().copied(),
+    Some((false, 1)),
+    "об очереди, выросшей офлайн, сказано вместе с её длиной"
+  );
+
+  // Подключение — изменение связи, и очередь на нём же и уходит.
+  let bg = tokio::spawn({
+    let engine = engine.clone();
+    async move {
+      let _ = engine.connect_and_run().await;
+    }
+  });
+  assert!(
+    eventually(|| seen.lock().unwrap().iter().any(|s| s.0)).await,
+    "о подключении сказано"
+  );
+  assert!(
+    eventually(|| seen.lock().unwrap().last().copied() == Some((true, 0))).await,
+    "и об опустевшей очереди тоже: {:?}",
+    seen.lock().unwrap()
+  );
+
+  // Потеря сокета — тоже изменение.
+  engine.drop_socket();
+  assert!(
+    eventually(|| seen.lock().unwrap().last().map(|s| s.0) == Some(false)).await,
+    "о потере связи сказано"
+  );
+  bg.abort();
+}
