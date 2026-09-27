@@ -666,7 +666,10 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
             tracing::warn!("ws stream error: {e}");
             break;
           }
-          None => break,
+          None => {
+            tracing::info!("ws closed by the peer");
+            break;
+          }
         }
       }
     };
@@ -711,8 +714,15 @@ impl<R: WsRemote, B: WsBackend> WsEngine<R, B> {
     let mut delay = self.policy.initial_delay;
     loop {
       match self.connect_and_run().await {
-        Ok(()) => delay = self.policy.initial_delay,
-        Err(e) => tracing::debug!("ws connection attempt ended: {e}"),
+        // Не `debug`: почему связь кончилась — единственная строка, по которой
+        // мерцающий показатель синхронии вообще можно объяснить, и искать её
+        // приходится в журнале собранного приложения, где `debug` выключен.
+        // «Сокет закрылся, переподключаюсь» — не шум: в норме это раз за сеанс.
+        Ok(()) => {
+          tracing::info!("ws connection closed; reconnecting in {:?}", self.policy.initial_delay);
+          delay = self.policy.initial_delay;
+        }
+        Err(e) => tracing::warn!("ws connection attempt ended: {e}"),
       }
       after_cycle().await;
       let resumed = tokio::select! {

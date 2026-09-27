@@ -39,11 +39,19 @@
 //! click; a finger has to rest for [`LONG_PRESS_MS`] before it moves, so a swipe
 //! across a list still scrolls it. Nothing here calls `preventDefault` until a
 //! drag has actually begun, which is what keeps both of those true.
+//!
+//! That is also why no axis is reserved with `touch-action`: it is latched when
+//! the touch starts, and at that moment nothing knows yet which gesture this is.
+//! Both axes stay the browser's, and the gesture the hold claims is taken away
+//! from it on the next `touchmove` — see [`arm_touch_guard`].
+
+use std::cell::RefCell;
 
 use impulse_client_kit::utils::cn;
 use leptos::ev;
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
+use leptos::wasm_bindgen::closure::Closure;
 use web_sys::{Element, PointerEvent};
 
 /// How far a mouse or pen must travel before a press becomes a drag.
@@ -154,7 +162,32 @@ impl DndContext {
   }
 
   fn start(&self, pending: Pending) {
-    self.pending.set(Some(pending));
+    self.set_pending(Some(pending));
+  }
+
+  /// The press, plus the `touchmove` guard that has to live exactly as long as
+  /// it: armed while a finger is down on a draggable, gone the moment it is not.
+  fn set_pending(&self, pending: Option<Pending>) {
+    match &pending {
+      Some(p) if p.touch => arm_touch_guard(*self),
+      _ => disarm_touch_guard(),
+    }
+    self.pending.set(pending);
+  }
+
+  /// Whether the gesture in progress is ours rather than the browser's.
+  ///
+  /// True once a drag is running, and true for a finger that has already served
+  /// out the hold — that one is a drag as of its next move, and the move is the
+  /// last moment at which the scroll can still be called off.
+  fn owns_gesture(&self) -> bool {
+    if self.active.get_untracked().is_some() {
+      return true;
+    }
+    self
+      .pending
+      .get_untracked()
+      .is_some_and(|p| p.touch && now_ms() - p.started_at >= LONG_PRESS_MS)
   }
 
   /// Resolves the chain of drop zones under `(x, y)`, innermost first.
@@ -202,7 +235,7 @@ impl DndContext {
       // picking anything up — let the browser have it.
       if now_ms() - p.started_at < LONG_PRESS_MS {
         if moved > TOUCH_SLOP {
-          self.pending.set(None);
+          self.set_pending(None);
         }
         return;
       }
@@ -233,7 +266,7 @@ impl DndContext {
   }
 
   fn reset(&self) {
-    self.pending.set(None);
+    self.set_pending(None);
     if self.active.get_untracked().is_some() {
       self.active.set(None);
     }
@@ -251,6 +284,58 @@ fn now_ms() -> f64 {
     .performance()
     .map(|p| p.now())
     .unwrap_or_else(js_sys::Date::now)
+}
+
+thread_local! {
+  /// The live non-passive `touchmove` guard, if a finger is down on a draggable.
+  ///
+  /// One slot, because [`DndProvider`] is mounted once and a press replaces the
+  /// previous one rather than adding to it.
+  static TOUCH_GUARD: RefCell<Option<Closure<dyn FnMut(web_sys::Event)>>> = const { RefCell::new(None) };
+}
+
+/// Starts listening for `touchmove` non-passively, so a gesture the hold has
+/// made ours can be taken away from the browser.
+///
+/// `touch-action` cannot do this job. It is latched when the touch *starts*, and
+/// at that moment nothing knows yet whether the finger is scrolling or picking
+/// something up — that is what the hold decides, hundreds of milliseconds later.
+/// Naming a direction upfront therefore means giving one up for good: `pan-y`
+/// spent the horizontal axis on a drag that may never happen, and a board whose
+/// columns scroll sideways could not be scrolled at all with a finger on a card.
+/// So both axes stay the browser's, and the one gesture we do claim is taken by
+/// cancelling it here.
+///
+/// Non-passive on purpose, and only while a finger is actually down: a permanent
+/// one costs every scroll on the page its compositor fast path.
+fn arm_touch_guard(ctx: DndContext) {
+  TOUCH_GUARD.with(|cell| {
+    if cell.borrow().is_some() {
+      return;
+    }
+    let handler = Closure::<dyn FnMut(web_sys::Event)>::new(move |ev: web_sys::Event| {
+      if ctx.owns_gesture() {
+        ev.prevent_default();
+      }
+    });
+    let options = web_sys::AddEventListenerOptions::new();
+    options.set_passive(false);
+    let _ = window().add_event_listener_with_callback_and_add_event_listener_options(
+      "touchmove",
+      handler.as_ref().unchecked_ref(),
+      &options,
+    );
+    *cell.borrow_mut() = Some(handler);
+  });
+}
+
+/// Gives `touchmove` back to the browser: the press is over, one way or another.
+fn disarm_touch_guard() {
+  TOUCH_GUARD.with(|cell| {
+    if let Some(handler) = cell.borrow_mut().take() {
+      let _ = window().remove_event_listener_with_callback("touchmove", handler.as_ref().unchecked_ref());
+    }
+  });
 }
 
 /// Provides the drag state and owns the window-level pointer listeners. Mount
@@ -373,7 +458,10 @@ pub fn Draggable(
       draggable="false"
       on:dragstart=|ev: web_sys::DragEvent| ev.prevent_default()
       on:pointerdown=on_pointer_down
-      class=cn(&[if disabled { "" } else { "touch-pan-y select-none" }, class.as_str()])
+      // Both axes stay the browser's: which gesture this is cannot be known
+      // when the touch starts, and `touch-action` is decided exactly then. See
+      // [`arm_touch_guard`].
+      class=cn(&[if disabled { "" } else { "touch-manipulation select-none" }, class.as_str()])
     >
       {children()}
     </div>

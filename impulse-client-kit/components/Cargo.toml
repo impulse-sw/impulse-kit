@@ -80,6 +80,10 @@ web-sys = { version = "0.3.82", features = [
   # leaving the trigger from moving onto the card it just opened.
   "MouseEvent",
   "NodeList",
+  # `dnd` claims a gesture the hold made its own by cancelling the browser's
+  # scroll, and that means a `touchmove` listener registered non-passively —
+  # which is `AddEventListenerOptions`, not the typed helper.
+  "AddEventListenerOptions",
   # `dnd` times the press that turns into a touch drag on the monotonic clock.
   "Performance",
   "PointerEvent",
