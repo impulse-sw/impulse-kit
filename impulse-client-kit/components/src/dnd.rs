@@ -291,6 +291,7 @@ thread_local! {
   ///
   /// One slot, because [`DndProvider`] is mounted once and a press replaces the
   /// previous one rather than adding to it.
+  #[allow(clippy::type_complexity)]
   static TOUCH_GUARD: RefCell<Option<Closure<dyn FnMut(web_sys::Event)>>> = const { RefCell::new(None) };
 }
 
