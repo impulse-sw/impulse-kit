@@ -70,7 +70,14 @@ where
   IV: IntoView + 'static,
 {
   /// Create a new handler with the given options and root component factory.
+  ///
+  /// Initialises the global Leptos task executor (tokio variant); subsequent
+  /// calls are no-ops. It belongs here rather than in [`leptos_router`]: the
+  /// renderer streams through that executor, so every handler needs it, and a
+  /// service that mounts this handler itself - because what it renders depends
+  /// on the request - got no executor at all and failed on its first render.
   pub fn new(opts: LeptosOptions, app_fn: F) -> Self {
+    let _ = any_spawner::Executor::init_tokio();
     let mode = opts.stream_mode;
     Self {
       opts: Arc::new(opts),
@@ -301,14 +308,13 @@ where
 /// that mirrors their on-disk path; any path that does not match a real file
 /// falls through to the SSR renderer.
 ///
-/// Initialises the global Leptos task executor (tokio variant) on first call;
-/// subsequent calls are no-ops. Must be invoked from within a tokio runtime.
+/// Must be invoked from within a tokio runtime: the handler it builds
+/// initialises the global Leptos task executor (tokio variant).
 pub fn leptos_router<F, IV>(opts: LeptosOptions, app_fn: F) -> Router
 where
   F: Fn() -> IV + Clone + Send + Sync + 'static,
   IV: IntoView + 'static,
 {
-  let _ = any_spawner::Executor::init_tokio();
   let assets = super::assets::build_assets_handler(&opts.site_root);
   let mut handler = LeptosSsrHandler::new(opts, app_fn);
   if let Some(assets) = assets {
