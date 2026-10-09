@@ -80,6 +80,7 @@ pub mod select;
 pub mod separator;
 pub mod shake;
 pub mod sheet;
+pub mod side_nav;
 pub mod sidebar;
 pub mod skeleton;
 pub mod slider;
