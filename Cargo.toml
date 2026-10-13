@@ -38,8 +38,8 @@ impulse-client-kit-blocks = { path = "impulse-client-kit/blocks", default-featur
 impulse-tailwind-sources = { path = "impulse-client-kit/tailwind-sources" }
 impulse-client-ring = { path = "impulse-client-ring", default-features = false }
 
-impulse-ring-connector = { git = "https://github.com/impulse-sw/impulse-ring.git", tag = "0.8.0" }
-impulse-ring-http = { git = "https://github.com/impulse-sw/impulse-ring.git", tag = "0.8.0" }
+impulse-ring-connector = { git = "https://github.com/impulse-sw/impulse-ring.git", tag = "0.9.0" }
+impulse-ring-http = { git = "https://github.com/impulse-sw/impulse-ring.git", tag = "0.9.0" }
 
 anyhow = "1"
 brotli = { version = "7", default-features = false }

@@ -58,8 +58,9 @@ use std::time::Duration;
 use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
 use impulse_ring_connector::{Connection, Subscriber};
 use impulse_ring_http::{
-  HEADER_BODY_CHANNEL, HEADER_REQUEST_BODY_CHANNEL, MAX_INLINE_REQUEST_BODY, REQUEST_BODY_CHUNK, REQUEST_SCHEMA,
-  RESPONSE_SCHEMA, RingHeader, RingHttpRequest, RingHttpResponse, RingStreamFrame, STREAM_SCHEMA, http_fn_name, opcode,
+  HEADER_BODY_CHANNEL, HEADER_REPLY_CAP, HEADER_REQUEST_BODY_CHANNEL, MAX_INLINE_REQUEST_BODY, REQUEST_SCHEMA,
+  RESPONSE_SCHEMA, RingHeader, RingHttpRequest, RingHttpResponse, RingStreamFrame, STREAM_SCHEMA, body_chunk,
+  http_fn_name, max_inline_request_body, opcode,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -97,6 +98,9 @@ pub struct ImpulseRingClient {
   fn_name: String,
   key: Option<String>,
   timeout: Duration,
+  /// Arena to ask for when publishing a request-body channel; `0` = the broker's
+  /// default. See [`ImpulseRingClient::with_stream_arena`].
+  stream_arena: usize,
 }
 
 impl ImpulseRingClient {
@@ -116,6 +120,22 @@ impl ImpulseRingClient {
     Ok(Self::with_connection(Arc::new(conn), target_app))
   }
 
+  /// Connect with a reply ring of `reply_cap` bytes instead of the broker's
+  /// default (512 KiB).
+  ///
+  /// Every response to this client — and every RPC reply — arrives as one record
+  /// on this one ring, so its size is the ceiling on an inline response body. A
+  /// client that fetches large documents raises it once here instead of paying for
+  /// a body channel per response; the request states the capacity
+  /// ([`HEADER_REPLY_CAP`]) and the server derives its limit from it. The broker
+  /// clamps the request to its own bounds and rounds it up to a power of two.
+  pub fn connect_with_reply_cap(target_app: &str, reply_cap: usize) -> io::Result<Self> {
+    let seq = CLIENT_SEQ.fetch_add(1, Ordering::Relaxed);
+    let client_name = format!("ring-http-client-{}-{seq}", std::process::id());
+    let conn = Connection::connect_with_reply_cap(&client_name, reply_cap)?;
+    Ok(Self::with_connection(Arc::new(conn), target_app))
+  }
+
   /// Build a client from an existing [`Connection`], targeting `target_app`.
   ///
   /// Useful when a single process talks to several Ring applications and wants
@@ -127,6 +147,7 @@ impl ImpulseRingClient {
       fn_name: http_fn_name(target_app),
       key: None,
       timeout: DEFAULT_TIMEOUT,
+      stream_arena: 0,
     }
   }
 
@@ -134,6 +155,20 @@ impl ImpulseRingClient {
   #[must_use]
   pub fn with_key(mut self, key: impl Into<String>) -> Self {
     self.key = Some(key.into());
+    self
+  }
+
+  /// Arena to ask for when this client publishes a channel for a large request
+  /// body (default: the broker's 512 KiB).
+  ///
+  /// The arena sets the frame size — a channel is a ring, so a frame takes a
+  /// share of it ([`body_chunk`]) — and thus how much of a multi-megabyte upload
+  /// moves per hop. Raise it for an app that ships large payloads; the broker
+  /// clamps and rounds the request, and the frame size follows what it actually
+  /// allocated.
+  #[must_use]
+  pub fn with_stream_arena(mut self, arena_cap: usize) -> Self {
+    self.stream_arena = arena_cap;
     self
   }
 
@@ -217,27 +252,56 @@ impl ImpulseRingClient {
   /// If the server returned the body out-of-band over a channel (because it was
   /// too large to fit the reply ring), the chunks are reassembled here, so the
   /// returned response always carries a complete inline body.
-  pub fn call_blocking(&self, mut req: RingHttpRequest, timeout: Duration) -> io::Result<RingHttpResponse> {
+  pub fn call_blocking(&self, req: RingHttpRequest, timeout: Duration) -> io::Result<RingHttpResponse> {
+    let mut resp = self.call_blocking_streaming(req, timeout)?;
+    self.reassemble_chunked_body(&mut resp)?;
+    Ok(resp)
+  }
+
+  /// The same call, but a chunked body is left on its channel.
+  ///
+  /// For a caller that does not want the body in memory: a reverse proxy hands
+  /// it onward frame by frame, and reassembling it here would mean holding the
+  /// whole of somebody else's download — and waiting for its last byte before
+  /// passing on its first. The response comes back with
+  /// [`HEADER_BODY_CHANNEL`](impulse_ring_http::HEADER_BODY_CHANNEL) still on it
+  /// and an empty inline `body`; subscribe to that channel
+  /// ([`streaming::subscribe_by_name`] plus [`streaming::RingEventStream`]) and
+  /// keep this client alive while the stream lasts, because the bus connection is
+  /// what keeps the channel open.
+  ///
+  /// A response that arrived inline (no such header) needs nothing further — it
+  /// is an ordinary response, body included.
+  pub fn call_blocking_streaming(&self, mut req: RingHttpRequest, timeout: Duration) -> io::Result<RingHttpResponse> {
     // A request body too large for the function request ring is streamed over a
     // Ring channel instead of being shipped inline (see `stream_large_request_body`).
     self.stream_large_request_body(&mut req)?;
-    let mut resp = self.conn.call_blocking::<RingHttpRequest, RingHttpResponse>(
+    // State the size of our reply ring, so the responder derives its inline limit
+    // from the ring the answer will travel on instead of assuming a default one.
+    req
+      .headers
+      .push(RingHeader::new(HEADER_REPLY_CAP, self.conn.reply_capacity().to_string()));
+    self.conn.call_blocking::<RingHttpRequest, RingHttpResponse>(
       &self.fn_name,
       self.key.as_deref(),
       &req,
       REQUEST_SCHEMA,
       RESPONSE_SCHEMA,
       timeout,
-    )?;
-    self.reassemble_chunked_body(&mut resp)?;
-    Ok(resp)
+    )
   }
 
-  /// If `req`'s body is too large to ship inline through the function request ring
-  /// (`> MAX_INLINE_REQUEST_BODY`), move it out of the inline record and stream it
-  /// over a freshly published Ring channel, tagging the request with
-  /// [`HEADER_REQUEST_BODY_CHANNEL`] so the listener reassembles it transparently.
-  /// A no-op for small bodies.
+  /// If `req`'s body is too large to ship inline through the function request ring,
+  /// move it out of the inline record and stream it over a freshly published Ring
+  /// channel, tagging the request with [`HEADER_REQUEST_BODY_CHANNEL`] so the
+  /// listener reassembles it transparently. A no-op for small bodies.
+  ///
+  /// "Too large" is measured against the ring the body would actually travel on:
+  /// the function's request arena, whose capacity the broker reports on lookup. A
+  /// service that exposed its function with a 4 MiB arena therefore accepts 1.5 MiB
+  /// bodies inline, with no constant anywhere to keep in step; a lookup that fails
+  /// (an older broker, a function that has gone away) falls back to the default
+  /// ring's limit, and the call itself then reports the real error.
   ///
   /// The body is drained onto the channel by a detached thread that outlives this
   /// call; it holds the [`Publisher`](impulse_ring_connector::Publisher) (and thus
@@ -245,16 +309,32 @@ impl ImpulseRingClient {
   /// the request-side mirror of the server's `chunk_large_body` for responses.
   fn stream_large_request_body(&self, req: &mut RingHttpRequest) -> io::Result<()> {
     if req.body.len() <= MAX_INLINE_REQUEST_BODY {
+      return Ok(()); // fits the smallest ring there is; no lookup needed
+    }
+    let inline_limit = self
+      .conn
+      .function_arena_capacity(&self.fn_name, self.key.as_deref())
+      .map(max_inline_request_body)
+      .unwrap_or(MAX_INLINE_REQUEST_BODY);
+    if req.body.len() <= inline_limit {
       return Ok(());
     }
+
     use impulse_ring_http::stream_channel_name;
     let session = next_session_id();
     let chan = stream_channel_name(&self.app_name, session, "reqbody");
-    let publisher = self.conn.publish_channel(&chan, STREAM_SCHEMA, self.key.as_deref())?;
+    let publisher =
+      self
+        .conn
+        .publish_channel_with_arena(&chan, STREAM_SCHEMA, self.key.as_deref(), self.stream_arena)?;
+    // The frame size follows the arena the broker actually gave us, not what was
+    // asked for: it clamps and rounds, and a frame that overflowed the ring would
+    // fail to publish at all.
+    let chunk_size = body_chunk(publisher.capacity());
 
     let body = std::mem::take(&mut req.body);
     std::thread::spawn(move || {
-      for chunk in body.chunks(REQUEST_BODY_CHUNK) {
+      for chunk in body.chunks(chunk_size) {
         if publisher.publish(&RingStreamFrame::data(chunk.to_vec())).is_err() {
           return; // listener gone
         }

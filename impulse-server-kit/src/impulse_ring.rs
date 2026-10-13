@@ -33,9 +33,9 @@ use std::sync::{Arc, Weak};
 use http_body_util::BodyExt;
 use impulse_ring_connector::Connection;
 use impulse_ring_http::{
-  HEADER_BODY_CHANNEL, HEADER_CHAN_DOWN, HEADER_REQUEST_BODY_CHANNEL, HEADER_UPGRADE, MAX_INLINE_RESPONSE_BODY,
-  REQUEST_SCHEMA, RESPONSE_BODY_CHUNK, RESPONSE_SCHEMA, RingHeader, RingHttpRequest, RingHttpResponse, RingStreamFrame,
-  RingUpgradeKind, STREAM_SCHEMA, http_fn_name, opcode, stream_channel_name,
+  DEFAULT_RING_CAP, HEADER_BODY_CHANNEL, HEADER_CHAN_DOWN, HEADER_REPLY_CAP, HEADER_REQUEST_BODY_CHANNEL,
+  HEADER_UPGRADE, REQUEST_SCHEMA, RESPONSE_SCHEMA, RingHeader, RingHttpRequest, RingHttpResponse, RingStreamFrame,
+  RingUpgradeKind, STREAM_SCHEMA, body_chunk, http_fn_name, max_inline_response_body, opcode, stream_channel_name,
 };
 use salvo::conn::SocketAddr;
 use salvo::http::uri::Scheme;
@@ -71,6 +71,7 @@ pub struct ImpulseRingListener {
   access_key: Option<String>,
   wt_handler: Option<RingWebTransportHandler>,
   req_arena_cap: usize,
+  stream_arena_cap: usize,
 }
 
 impl std::fmt::Debug for ImpulseRingListener {
@@ -93,6 +94,7 @@ impl ImpulseRingListener {
       access_key: None,
       wt_handler: None,
       req_arena_cap: 0,
+      stream_arena_cap: 0,
     }
   }
 
@@ -113,6 +115,22 @@ impl ImpulseRingListener {
   #[must_use]
   pub fn with_arena_cap(mut self, bytes: usize) -> Self {
     self.req_arena_cap = bytes;
+    self
+  }
+
+  /// Request an arena of `bytes` for every channel this listener publishes to
+  /// carry a body or a stream (`0` = broker default, 512 KiB).
+  ///
+  /// This is the *streaming* counterpart to [`with_arena_cap`](Self::with_arena_cap),
+  /// which sizes the request arena. The arena sets the frame size — a channel is a
+  /// ring, and a frame takes a share of it — so it decides how much of a large
+  /// download moves per hop: 512 KiB gives 192 KiB frames, 8 MiB gives 3 MiB ones.
+  /// Raise it for an application that serves large files or high-rate streams. The
+  /// broker clamps the value to `[256 KiB, 128 MiB]` and rounds it up to a power of
+  /// two, and the frame size follows what it actually allocated.
+  #[must_use]
+  pub fn with_stream_arena(mut self, bytes: usize) -> Self {
+    self.stream_arena_cap = bytes;
     self
   }
 
@@ -163,6 +181,7 @@ where
   let key = listener.access_key.clone();
   let wt_handler = listener.wt_handler.clone();
   let req_arena_cap = listener.req_arena_cap;
+  let stream_arena_cap = listener.stream_arena_cap;
   let rt = tokio::runtime::Handle::current();
 
   // The connector is blocking and thread-based; set it up off the async
@@ -181,6 +200,7 @@ where
       key: setup_key.map(Arc::new),
       rt: rt.clone(),
       wt_handler,
+      stream_arena_cap,
     };
     conn.expose_function_with_arena::<RingHttpRequest, RingHttpResponse, _>(
       &fn_name,
@@ -248,6 +268,8 @@ struct RingHttpHandler {
   rt: Handle,
   /// Optional Ring-native WebTransport session handler.
   wt_handler: Option<RingWebTransportHandler>,
+  /// Arena to ask for when publishing a stream or body channel (`0` = default).
+  stream_arena_cap: usize,
 }
 
 /// How long the listener waits for the next request-body chunk before declaring
@@ -353,11 +375,55 @@ impl RingHttpHandler {
     Ok(())
   }
 
-  /// Plain one-shot HTTP: run the pipeline and collect the whole response body.
+  /// Plain one-shot HTTP.
+  ///
+  /// A body that is **already in memory** (the usual case: a rendered page, a
+  /// JSON document, a file the handler read) is serialized into the record and
+  /// chunked only if it exceeds the reply ring.
+  ///
+  /// A body that is **still being produced** — a proxied upstream, a handler that
+  /// writes as it goes, anything `res.stream(..)` — is not collected at all. It
+  /// cannot be: collecting it means waiting for its last byte before the caller
+  /// sees its first, holding the whole thing in memory on the way, and answering
+  /// the RPC only at the end — past the caller's per-call timeout for anything
+  /// that takes a while. Such a body gets the channel handshake immediately
+  /// (status and headers now, bytes as they arrive), which is what the SSE path
+  /// has always done; the difference is only that this body is finite, so it
+  /// ends with `CLOSE` rather than running until the stream is dropped.
   async fn handle_plain(&self, req: RingHttpRequest) -> io::Result<RingHttpResponse> {
+    let reply_cap = caller_reply_cap(&req);
     let mut res = self.run_pipeline(req).await?;
-    let wire = response_to_wire(&mut res).await?;
-    self.chunk_large_body(wire)
+    if body_is_in_hand(res.body_mut()) {
+      let wire = response_to_wire(&mut res).await?;
+      return self.chunk_large_body(wire, reply_cap);
+    }
+    self.stream_body(&mut res)
+  }
+
+  /// Answer with the body-channel handshake and pump the body onto the channel
+  /// as it arrives.
+  ///
+  /// The caller reassembles it transparently (`HEADER_BODY_CHANNEL`), or — if it
+  /// is a proxy — passes the channel straight through as its own streaming body.
+  fn stream_body(&self, res: &mut Response) -> io::Result<RingHttpResponse> {
+    let session = next_session_id();
+    let chan = stream_channel_name(&self.app_name, session, "body");
+    let publisher = self.publish_stream(&chan)?;
+
+    let status = res.status_code.unwrap_or(StatusCode::OK).as_u16() as i32;
+    let mut headers: Vec<RingHeader> = wire_headers(res);
+    headers.push(RingHeader::new(HEADER_BODY_CHANNEL, chan));
+
+    let body = res.take_body();
+    self.rt.spawn(async move {
+      pump_body_to_channel(body, publisher).await;
+    });
+
+    Ok(RingHttpResponse {
+      status,
+      headers,
+      body: Vec::new(),
+    })
   }
 
   /// A unary RPC response is a single reply-ring record, so a body larger than
@@ -366,20 +432,27 @@ impl RingHttpHandler {
   /// and hand the caller the channel name via [`HEADER_BODY_CHANNEL`]; the client
   /// reassembles it transparently. Mirrors the SSE down-channel handshake, but
   /// for a finite body.
-  fn chunk_large_body(&self, mut wire: RingHttpResponse) -> io::Result<RingHttpResponse> {
-    if wire.body.len() <= MAX_INLINE_RESPONSE_BODY {
+  ///
+  /// `reply_cap` is the capacity of the ring the answer travels on — the caller's,
+  /// stated in the request ([`HEADER_REPLY_CAP`]) because only the caller knows it.
+  /// So a client that sized its reply ring for large documents gets them inline,
+  /// and one that kept the default gets the same limit as before.
+  fn chunk_large_body(&self, mut wire: RingHttpResponse, reply_cap: usize) -> io::Result<RingHttpResponse> {
+    if wire.body.len() <= max_inline_response_body(reply_cap) {
       return Ok(wire);
     }
-    let conn = self.conn()?;
     let session = next_session_id();
     let chan = stream_channel_name(&self.app_name, session, "body");
-    let publisher = conn.publish_channel(&chan, STREAM_SCHEMA, self.key())?;
+    let publisher = self.publish_stream(&chan)?;
+    // The frame size follows the arena the broker actually allocated, not the one
+    // asked for: it clamps and rounds, and an oversized frame would never publish.
+    let chunk_size = body_chunk(publisher.capacity());
 
     // Hand the body to a background thread that drains it onto the channel; the
     // server connection keeps the channel alive until the client has drained it.
     let body = std::mem::take(&mut wire.body);
     std::thread::spawn(move || {
-      for chunk in body.chunks(RESPONSE_BODY_CHUNK) {
+      for chunk in body.chunks(chunk_size) {
         if publisher.publish(&RingStreamFrame::data(chunk.to_vec())).is_err() {
           return; // subscriber gone
         }
@@ -395,19 +468,19 @@ impl RingHttpHandler {
   /// event-stream response, publish a channel and stream the body onto it,
   /// answering the RPC with the upgrade handshake.
   async fn handle_sse(&self, req: RingHttpRequest) -> io::Result<RingHttpResponse> {
+    let reply_cap = caller_reply_cap(&req);
     let mut res = self.run_pipeline(req).await?;
 
     // Only treat genuine event-stream responses as SSE; otherwise fall back to a
     // normal collected response (e.g. the route returned an error page).
     if !response_is_event_stream(&res) {
       let wire = response_to_wire(&mut res).await?;
-      return self.chunk_large_body(wire);
+      return self.chunk_large_body(wire, reply_cap);
     }
 
-    let conn = self.conn()?;
     let session = next_session_id();
     let down_name = stream_channel_name(&self.app_name, session, "down");
-    let publisher = conn.publish_channel(&down_name, STREAM_SCHEMA, self.key())?;
+    let publisher = self.publish_stream(&down_name)?;
 
     // Handshake: hand back the response's status + headers plus the channel name.
     let status = res.status_code.unwrap_or(StatusCode::OK).as_u16() as i32;
@@ -426,6 +499,14 @@ impl RingHttpHandler {
       headers,
       body: Vec::new(),
     })
+  }
+
+  /// Publish a channel for a body or a stream, with the arena this listener was
+  /// configured for (see [`ImpulseRingListener::with_stream_arena`]).
+  fn publish_stream(&self, name: &str) -> io::Result<impulse_ring_connector::Publisher> {
+    self
+      .conn()?
+      .publish_channel_with_arena(name, STREAM_SCHEMA, self.key(), self.stream_arena_cap)
   }
 
   /// Upgrade the strong connection, or fail if the listener is shutting down.
@@ -598,6 +679,34 @@ fn wire_headers(res: &Response) -> Vec<RingHeader> {
     .collect()
 }
 
+/// The capacity of the ring the answer will travel on: the caller's reply ring,
+/// as stated in the request.
+///
+/// Absent or unparseable — an older client, or one with nothing to say about it —
+/// means the default-sized ring the responder had to assume before.
+fn caller_reply_cap(req: &RingHttpRequest) -> usize {
+  req_header(req, HEADER_REPLY_CAP)
+    .and_then(|v| v.trim().parse::<usize>().ok())
+    .filter(|cap| *cap > 0)
+    .unwrap_or(DEFAULT_RING_CAP)
+}
+
+/// Is this body already in memory, in full?
+///
+/// `None`, `Once` and `Chunks` are: salvo has every byte of them, and serializing
+/// them into the record costs a copy and nothing else. Everything else is still
+/// being produced — a proxied upstream (`Hyper`), a handler writing as it goes
+/// (`Channel`), a stream (`Stream`, `Boxed`) — and waiting for its end is exactly
+/// what must not happen. `Error` belongs with the first group: the catcher turns
+/// it into a page, which is in memory.
+fn body_is_in_hand(body: &salvo::http::ResBody) -> bool {
+  use salvo::http::ResBody;
+  matches!(
+    body,
+    ResBody::None | ResBody::Once(_) | ResBody::Chunks(_) | ResBody::Error(_)
+  )
+}
+
 /// Drain a response body, publishing each chunk as a `DATA` frame and a final
 /// `CLOSE` frame on the given channel.
 async fn pump_body_to_channel(mut body: salvo::http::ResBody, publisher: impulse_ring_connector::Publisher) {
@@ -640,6 +749,11 @@ fn build_salvo_request(req: RingHttpRequest) -> io::Result<Request> {
 
   let mut builder = http::Request::builder().method(method).uri(target);
   for h in &req.headers {
+    // Transport bookkeeping, not part of the HTTP request: the caller's reply-ring
+    // size is for the responder, and a handler that saw it could only be confused.
+    if h.name.eq_ignore_ascii_case(HEADER_REPLY_CAP) {
+      continue;
+    }
     let name = HeaderName::from_bytes(h.name.as_bytes()).map_err(io::Error::other)?;
     let value = HeaderValue::from_str(&h.value).map_err(io::Error::other)?;
     builder = builder.header(name, value);
@@ -674,6 +788,84 @@ async fn response_to_wire(res: &mut Response) -> io::Result<RingHttpResponse> {
 mod tests {
   use super::*;
   use salvo::http::cookie::Cookie;
+
+  fn wire_request(headers: Vec<RingHeader>) -> RingHttpRequest {
+    RingHttpRequest {
+      method: "GET".into(),
+      uri: "/".into(),
+      headers,
+      body: Vec::new(),
+    }
+  }
+
+  /// Какое тело собирать, а какое — отдавать потоком.
+  ///
+  /// В этом различении весь смысл правки: тело, которое ещё производится, нельзя
+  /// дожидаться — ни ради памяти, ни ради таймаута вызывающей стороны.
+  #[test]
+  fn a_body_still_being_produced_is_not_collected() {
+    use salvo::http::ResBody;
+    use std::collections::VecDeque;
+
+    // Уже в памяти — собрать и отдать записью (а если велико, то кусками).
+    assert!(body_is_in_hand(&ResBody::None));
+    assert!(body_is_in_hand(&ResBody::Once(bytes::Bytes::from_static(b"page"))));
+    assert!(body_is_in_hand(&ResBody::Chunks(VecDeque::new())));
+
+    // Ошибка тоже в памяти: ловец превратит её в страницу.
+    assert!(body_is_in_hand(&ResBody::Error(salvo::http::StatusError::not_found())));
+
+    // Ещё производится — только каналом. `Channel` здесь представляет всю эту
+    // семью (`Hyper`, `Stream`, `Boxed` — та же ветка `matches!`): тело, у
+    // которого есть отправитель, а последнего байта ещё нет.
+    let (sender, receiver) = ResBody::channel();
+    drop(sender);
+    assert!(!body_is_in_hand(&receiver));
+  }
+
+  /// Предел встроенного ответа — свойство кольца вызывающей стороны, а не
+  /// константа. Молчание означает умолчание: ровно то, что приходилось
+  /// предполагать раньше.
+  #[test]
+  fn the_inline_limit_comes_from_the_callers_ring() {
+    assert_eq!(caller_reply_cap(&wire_request(vec![])), DEFAULT_RING_CAP);
+    assert_eq!(
+      caller_reply_cap(&wire_request(vec![RingHeader::new(HEADER_REPLY_CAP, "8388608")])),
+      8 * 1024 * 1024
+    );
+    // Регистр не важен (заголовки HTTP нечувствительны к нему), мусор и ноль —
+    // это умолчание, а не паника и не нулевой предел.
+    assert_eq!(
+      caller_reply_cap(&wire_request(vec![RingHeader::new("X-Impulse-Ring-Reply-Cap", " 1048576 ")])),
+      1024 * 1024
+    );
+    assert_eq!(
+      caller_reply_cap(&wire_request(vec![RingHeader::new(HEADER_REPLY_CAP, "уйма")])),
+      DEFAULT_RING_CAP
+    );
+    assert_eq!(
+      caller_reply_cap(&wire_request(vec![RingHeader::new(HEADER_REPLY_CAP, "0")])),
+      DEFAULT_RING_CAP
+    );
+    // Больший предел — ровно во столько же раз больше.
+    assert_eq!(
+      max_inline_response_body(8 * DEFAULT_RING_CAP),
+      8 * max_inline_response_body(DEFAULT_RING_CAP)
+    );
+  }
+
+  /// Служебный заголовок не должен доезжать до обработчика: это бухгалтерия
+  /// транспорта, а не часть запроса.
+  #[test]
+  fn the_reply_cap_header_is_stripped_before_the_pipeline() {
+    let req = build_salvo_request(wire_request(vec![
+      RingHeader::new(HEADER_REPLY_CAP, "8388608"),
+      RingHeader::new("accept", "text/html"),
+    ]))
+    .expect("build");
+    assert!(req.headers().get(HEADER_REPLY_CAP).is_none());
+    assert_eq!(req.headers().get("accept").map(|v| v.as_bytes()), Some(&b"text/html"[..]));
+  }
 
   /// Cookies added to a salvo response via the cookie jar must surface as
   /// `Set-Cookie` headers on the Ring wire — otherwise auth session cookies
