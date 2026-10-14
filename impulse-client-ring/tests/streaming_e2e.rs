@@ -116,6 +116,40 @@ async fn mp_echo(req: &mut Request, res: &mut Response) {
   res.write_body(body).ok();
 }
 
+/// A body that is still being produced when the handler returns: three chunks
+/// from a stream, like a proxied upstream or a handler writing as it goes.
+///
+/// Small on purpose. A streaming body is not collected before the answer goes
+/// out, so it travels over a body channel however short it is — and a short one
+/// is the case where the publisher finishes before the caller has even
+/// subscribed. If that race lost the body, this is what would catch it.
+#[handler]
+async fn streamed_small(res: &mut Response) {
+  let chunks = futures_util::stream::iter(
+    ["alpha-", "beta-", "gamma"]
+      .into_iter()
+      .map(|s| Ok::<_, std::io::Error>(bytes::Bytes::from_static(s.as_bytes()))),
+  );
+  res.stream(chunks);
+}
+
+/// A streaming body of several megabytes: more than one frame, so the publisher
+/// has to wait for the subscriber to drain the ring.
+#[handler]
+async fn streamed_big(res: &mut Response) {
+  let chunks = futures_util::stream::iter(
+    (0..24).map(|i| Ok::<_, std::io::Error>(bytes::Bytes::from(vec![b'a' + (i % 26) as u8; 128 * 1024]))),
+  );
+  res.stream(chunks);
+}
+
+/// A body that is already in memory and larger than the reply ring: the
+/// collect-then-chunk path, which the streaming change left in place.
+#[handler]
+async fn big_inline(res: &mut Response) {
+  res.write_body(vec![b'z'; 3 * 1024 * 1024]).ok();
+}
+
 #[handler]
 async fn ws_echo(req: &mut Request, res: &mut Response) -> Result<(), salvo::http::StatusError> {
   WebSocketUpgrade::new()
@@ -172,6 +206,9 @@ async fn plain_msgpack_sse_websocket_and_webtransport_over_ring() {
     .push(Router::with_path("hello").get(hello))
     .push(Router::with_path("mp").post(mp_echo))
     .push(Router::with_path("sse").get(sse_handler))
+    .push(Router::with_path("streamed-small").get(streamed_small))
+    .push(Router::with_path("streamed-big").get(streamed_big))
+    .push(Router::with_path("big-inline").get(big_inline))
     .push(Router::with_path("ws").goal(ws_echo));
   let (server, _handle) = start(state, &setup, router).await.unwrap();
   let server_task = tokio::spawn(server);
@@ -213,6 +250,46 @@ async fn plain_msgpack_sse_websocket_and_webtransport_over_ring() {
   let resp = client.post("/mp").body(big.clone()).send().await.unwrap();
   assert_eq!(resp.status().as_u16(), 200);
   assert_eq!(resp.bytes(), big, "large streamed request body did not round-trip");
+
+  // ---- response bodies that do not fit the reply ring, or are not in memory ----
+  //
+  // Three cases, one question each.
+  //
+  // A body still being produced when the handler returns is not collected: the
+  // listener answers with the channel handshake and pumps the body onto the
+  // channel as it arrives. It therefore travels over a channel however short it
+  // is — and a short one finishes before the caller has subscribed, which is
+  // exactly where losing it would be easy.
+  let resp = client.get("/streamed-small").send().await.unwrap();
+  assert_eq!(resp.status().as_u16(), 200);
+  assert_eq!(
+    String::from_utf8_lossy(&resp.bytes()),
+    "alpha-beta-gamma",
+    "a short streaming body did not arrive whole"
+  );
+
+  // The same, several megabytes of it: more than one frame, so the publisher has
+  // to wait for the subscriber to drain the ring between frames.
+  let resp = client.get("/streamed-big").send().await.unwrap();
+  assert_eq!(resp.status().as_u16(), 200);
+  let got = resp.bytes();
+  assert_eq!(got.len(), 24 * 128 * 1024, "a large streaming body was truncated");
+  assert!(
+    got.chunks(128 * 1024).enumerate().all(|(i, chunk)| {
+      let expected = b'a' + (i % 26) as u8;
+      chunk.iter().all(|b| *b == expected)
+    }),
+    "a large streaming body arrived out of order or corrupted"
+  );
+
+  // And a body that *is* in memory but exceeds the reply ring: collected into the
+  // record as before, then chunked onto a channel because it cannot be returned
+  // inline.
+  let resp = client.get("/big-inline").send().await.unwrap();
+  assert_eq!(resp.status().as_u16(), 200);
+  let got = resp.bytes();
+  assert_eq!(got.len(), 3 * 1024 * 1024, "a large inline body was truncated");
+  assert!(got.iter().all(|b| *b == b'z'), "a large inline body arrived corrupted");
 
   // SSE: collect three events
   let mut stream = client.sse("/sse").await.unwrap();
