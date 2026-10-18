@@ -110,8 +110,15 @@ pub enum ProtocolConfig {
     ///
     /// Omitted (or `0`) uses the broker default (512 KiB). The broker clamps the
     /// value to `[256 KiB, 128 MiB]` and rounds it up to a power of two. Raise it
-    /// for high-throughput services that need to buffer more in-flight requests;
-    /// it does not change the max inline body (large bodies stream over a channel).
+    /// for a high-throughput service that needs to buffer more in-flight requests
+    /// — and for one that receives large bodies, because this is also what sets
+    /// the inline ceiling: a caller derives it from the arena the broker gave
+    /// this function (`function_arena_capacity` → `max_inline_request_body`,
+    /// three eighths of it), not from a constant of its own. The familiar
+    /// 192 KiB is that share of the default arena; a 32 MiB arena carries a
+    /// 12 MiB body inline. Anything above the ceiling travels on a channel the
+    /// caller publishes per body, which costs a control round-trip on a bus
+    /// whose control plane is single-threaded and shared by every service.
     #[serde(default)]
     arena_size_kib: Option<usize>,
   },
