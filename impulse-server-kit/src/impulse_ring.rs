@@ -509,6 +509,40 @@ impl RingHttpHandler {
       .publish_channel_with_arena(name, STREAM_SCHEMA, self.key(), self.stream_arena_cap)
   }
 
+  /// Оба канала виртуального соединения — исходящий `down` и подписка на
+  /// `up`, который опубликовал позвавший, — на отдельном потоке.
+  ///
+  /// Отдельном потому, что обе ручки брокера **блокирующие**, а зовут их из
+  /// `async fn` на рантайме слушателя (так же, как `reassemble_request_body`,
+  /// и по той же причине). Брокер, которому нечего выделить или который просто
+  /// медлит, в этом случае съедает рабочий поток рантайма вместо того, чтобы
+  /// вернуть ошибку, — и позвавший не получает ответа вовсе. Он тогда видит
+  /// `timed out waiting for broker reply`, из которого не следует ничего: ни
+  /// кто не ответил, ни почему. А отправленный отсюда `Err` диспетчер
+  /// превращает в `500 ring listener error: …` с жалобой брокера внутри.
+  ///
+  /// Арена — та, на которую настроен слушатель, как у `SSE` и у крупных тел.
+  /// Виртуальное соединение — такой же поток, и просить ему арену по
+  /// умолчанию, пока рядом настроена другая, значит голодать там, где место
+  /// выделено.
+  async fn open_virtual_channels(
+    &self,
+    down_name: String,
+    up_name: String,
+  ) -> io::Result<(impulse_ring_connector::Publisher, impulse_ring_connector::Subscriber)> {
+    let conn = self.conn()?;
+    let key = self.key.as_ref().map(|k| k.to_string());
+    let arena = self.stream_arena_cap;
+    tokio::task::spawn_blocking(move || {
+      use impulse_client_ring::streaming::subscribe_by_name;
+      let publisher = conn.publish_channel_with_arena(&down_name, STREAM_SCHEMA, key.as_deref(), arena)?;
+      let subscriber = subscribe_by_name(&conn, &up_name, key.as_deref())?;
+      Ok((publisher, subscriber))
+    })
+    .await
+    .map_err(io::Error::other)?
+  }
+
   /// Upgrade the strong connection, or fail if the listener is shutting down.
   fn conn(&self) -> io::Result<Arc<Connection>> {
     self
@@ -529,7 +563,7 @@ impl RingHttpHandler {
   /// channel pair as an ordinary HTTP/1.1 connection *with upgrades*, so salvo's
   /// native `WebSocketUpgrade` works unchanged — Ring only relays the bytes.
   async fn handle_websocket(&self, req: RingHttpRequest) -> io::Result<RingHttpResponse> {
-    use impulse_client_ring::streaming::{RingDuplex, subscribe_by_name};
+    use impulse_client_ring::streaming::RingDuplex;
     use impulse_ring_http::{HEADER_CHAN_UP, HEADER_SESSION};
     use salvo::conn::http1;
     use salvo::rt::tokio::TokioIo;
@@ -544,8 +578,7 @@ impl RingHttpHandler {
     let down_name = stream_channel_name(&self.app_name, session, "down");
 
     // Server outbound on `down`, inbound from the client's `up`.
-    let publisher = conn.publish_channel(&down_name, STREAM_SCHEMA, self.key())?;
-    let subscriber = subscribe_by_name(&conn, &up_name, self.key())?;
+    let (publisher, subscriber) = self.open_virtual_channels(down_name.clone(), up_name).await?;
     let duplex = RingDuplex::new(conn.clone(), publisher, subscriber);
 
     let hyper_handler = self.service.hyper_handler(
@@ -584,7 +617,7 @@ impl RingHttpHandler {
   /// registered on the listener instead. The real WebTransport-over-HTTP/3 edge
   /// (e.g. LBRP) terminates the protocol and relays the session here.
   async fn handle_webtransport(&self, req: RingHttpRequest) -> io::Result<RingHttpResponse> {
-    use impulse_client_ring::streaming::{RingWebTransport, subscribe_by_name};
+    use impulse_client_ring::streaming::RingWebTransport;
     use impulse_ring_http::{HEADER_CHAN_UP, HEADER_SESSION};
 
     let handler = self
@@ -600,8 +633,7 @@ impl RingHttpHandler {
       .unwrap_or_else(next_session_id);
     let down_name = stream_channel_name(&self.app_name, session, "down");
 
-    let publisher = conn.publish_channel(&down_name, STREAM_SCHEMA, self.key())?;
-    let subscriber = subscribe_by_name(&conn, &up_name, self.key())?;
+    let (publisher, subscriber) = self.open_virtual_channels(down_name.clone(), up_name).await?;
     // The server is the non-initiator (odd stream ids).
     let wt = RingWebTransport::new(conn.clone(), publisher, subscriber, false);
     self.rt.spawn(handler(wt));

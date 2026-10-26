@@ -38,6 +38,33 @@ const RECV_TICK: Duration = Duration::from_millis(250);
 /// How long [`subscribe_by_name`] waits for a freshly published channel to appear.
 const SUBSCRIBE_WAIT: Duration = Duration::from_secs(5);
 
+/// Сколько ждать перед **первым** повтором опроса каналов.
+///
+/// Дальше срок удваивается до [`SUBSCRIBE_POLL_MAX`]. Опрос не бесплатный:
+/// `list_channels` — это обращение к брокеру, и его ответ едет тем же кольцом
+/// ответов соединения, что и всё остальное. Ровный опрос раз в 50 мс давал до
+/// сотни обращений на одну попытку подписаться, с каждой стороны; когда
+/// подписка не удаётся, а клиент переподключается, эти сотни идут подряд и
+/// подряд — кольцо ответов забивается, брокер теряет управляющий ответ, и
+/// зовущий получает `timed out waiting for broker reply`. То есть сам опрос
+/// воспроизводит ту неудачу, из-за которой он и крутится.
+///
+/// Удвоение оставляет быстрый случай быстрым — канал, опубликованный мгновением
+/// раньше, находится на первом или втором заходе, — а худший случай обходится
+/// десятком обращений вместо сотни.
+const SUBSCRIBE_POLL_MIN: Duration = Duration::from_millis(50);
+
+/// Потолок промежутка между опросами (см. [`SUBSCRIBE_POLL_MIN`]).
+const SUBSCRIBE_POLL_MAX: Duration = Duration::from_millis(500);
+
+/// Промежуток перед следующим опросом: удвоение с потолком.
+///
+/// Отдельной функцией затем, что проверять нужно именно расписание — сколько
+/// обращений к брокеру стоит одна неудачная подписка, — а не то, как спит поток.
+fn next_poll(wait: Duration) -> Duration {
+  (wait * 2).min(SUBSCRIBE_POLL_MAX)
+}
+
 /// Publish a streaming channel carrying [`RingStreamFrame`]s.
 pub fn publish_stream_channel(conn: &Connection, name: &str, key: Option<&str>) -> io::Result<Publisher> {
   conn.publish_channel(name, STREAM_SCHEMA, key)
@@ -49,19 +76,25 @@ pub fn publish_stream_channel(conn: &Connection, name: &str, key: Option<&str>) 
 /// the channel is being registered on the broker.
 pub fn subscribe_by_name(conn: &Connection, name: &str, key: Option<&str>) -> io::Result<Subscriber> {
   let deadline = Instant::now() + SUBSCRIBE_WAIT;
+  let mut wait = SUBSCRIBE_POLL_MIN;
   loop {
     for ci in conn.list_channels()? {
       if ci.name == name {
         return conn.subscribe(ci.channel_id, key, STREAM_SCHEMA);
       }
     }
-    if Instant::now() >= deadline {
+    let left = deadline.saturating_duration_since(Instant::now());
+    if left.is_zero() {
       return Err(io::Error::new(
         io::ErrorKind::NotFound,
         format!("ring stream channel '{name}' did not appear"),
       ));
     }
-    std::thread::sleep(Duration::from_millis(50));
+    // Не спать дольше, чем осталось: иначе последний сон переносит отказ за
+    // срок, и позвавший успевает отвалиться раньше, чем ему ответят, — а ответ
+    // «канала нет» он мог бы увидеть и обработать.
+    std::thread::sleep(wait.min(left));
+    wait = next_poll(wait);
   }
 }
 
@@ -601,5 +634,64 @@ impl Stream for RingEventStream {
 
   fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
     self.inbound.poll_recv(cx)
+  }
+}
+
+#[cfg(test)]
+mod poll_schedule {
+  use super::*;
+
+  /// Сколько раз опрос спросит брокера, прежде чем сдаться, и когда сдастся.
+  fn schedule() -> (usize, Duration) {
+    let mut spent = Duration::ZERO;
+    let mut wait = SUBSCRIBE_POLL_MIN;
+    // Первое обращение — до всякого сна: канал, опубликованный мгновением
+    // раньше, находится сразу.
+    let mut calls = 1;
+    while spent < SUBSCRIBE_WAIT {
+      spent += wait.min(SUBSCRIBE_WAIT - spent);
+      wait = next_poll(wait);
+      calls += 1;
+    }
+    (calls, spent)
+  }
+
+  /// Быстрый случай остался быстрым: канал, появившийся за первые полсотни
+  /// миллисекунд, ждут столько же, сколько ждали ровным опросом.
+  #[test]
+  fn the_first_retry_is_as_soon_as_it_ever_was() {
+    assert_eq!(SUBSCRIBE_POLL_MIN, Duration::from_millis(50));
+  }
+
+  /// Срок ожидания не изменился — изменилось только, сколько раз за него
+  /// спрашивают.
+  #[test]
+  fn backing_off_does_not_move_the_deadline() {
+    let (_, spent) = schedule();
+    assert_eq!(spent, SUBSCRIBE_WAIT);
+  }
+
+  /// То, ради чего всё это: одна неудачная подписка стоит брокеру десятка
+  /// обращений, а не сотни. Сотня — это кольцо ответов, забитое опросом о том,
+  /// почему не работает подписка, и `timed out waiting for broker reply` в
+  /// ответ на всё остальное.
+  #[test]
+  fn a_failed_subscribe_costs_the_broker_a_dozen_calls_not_a_hundred() {
+    let (calls, _) = schedule();
+    let flat = SUBSCRIBE_WAIT.as_millis() / SUBSCRIBE_POLL_MIN.as_millis();
+    assert!(calls <= 16, "опрос стоит {calls} обращений");
+    assert!(
+      (calls as u128) * 5 < flat,
+      "опрос должен быть впятеро дешевле ровного ({calls} против {flat})"
+    );
+  }
+
+  /// Промежуток растёт и упирается в потолок, а не в бесконечность: подписка,
+  /// которая вот-вот удастся, не должна ждать лишнюю секунду.
+  #[test]
+  fn the_gap_grows_and_stops_growing() {
+    assert_eq!(next_poll(SUBSCRIBE_POLL_MIN), Duration::from_millis(100));
+    assert_eq!(next_poll(Duration::from_millis(400)), Duration::from_millis(500));
+    assert_eq!(next_poll(SUBSCRIBE_POLL_MAX), SUBSCRIBE_POLL_MAX);
   }
 }
