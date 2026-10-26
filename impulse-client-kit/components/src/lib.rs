@@ -43,6 +43,7 @@ pub mod card;
 pub mod carousel;
 pub mod checkbox;
 pub mod collapsible;
+pub mod collection;
 pub mod combobox;
 pub mod command;
 pub mod context_menu;
