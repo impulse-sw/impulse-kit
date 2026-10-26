@@ -317,6 +317,75 @@ pub fn apply_native_base_theme() {
   }
 }
 
+/// The `id` of the `<style>` element carrying the shell's viewport rules.
+pub const VIEWPORT_STYLE_ELEMENT_ID: &str = "impulse-native-viewport";
+
+/// `touch-action` leaves the pan gestures and takes away the pinch: a browser
+/// told this never starts a zoom, so there is no gesture to cancel later.
+///
+/// `-webkit-text-size-adjust` is the other half of the same answer. Android's
+/// WebView inflates text on its own when it decides a page is "too narrow", and
+/// text that changes size by itself is the same inconsistency arriving through a
+/// different door.
+#[cfg(all(target_arch = "wasm32", feature = "tauri"))]
+const VIEWPORT_CSS: &str = ":root, body { touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; }\n";
+
+/// Pins the webview's scale, so the app cannot be pinch-zoomed.
+///
+/// A web page is zoomable because it is a page: the reader owns how big it is,
+/// and taking that away in a browser would be taking away an accessibility
+/// control. An app is not a page. Pinching an app window scales its *layout* —
+/// the navigation rail, the sheet, the safe-area insets — against a viewport
+/// the app believes it still owns, and what comes out is neither the phone's
+/// layout nor the tablet's. So this is called from the native shell's boot and
+/// nowhere else: the browser build keeps its zoom.
+///
+/// Three locks, because one engine each ignores the other two:
+///
+/// * the viewport meta (`user-scalable=no, maximum-scale=1`) — Android's
+///   WebView honours it, Chrome the browser deliberately does not, which is
+///   exactly the split we want;
+/// * `touch-action: pan-x pan-y` — Chromium's own answer, and the one that
+///   stops the gesture from ever starting;
+/// * `gesturestart`/`gesturechange` — WebKit's pinch, which arrives as its own
+///   event family and is not covered by either of the above.
+///
+/// Idempotent and safe to call before hydration. A no-op off wasm and without
+/// the `tauri` feature.
+#[cfg(all(target_arch = "wasm32", feature = "tauri"))]
+pub fn pin_viewport_scale() {
+  use wasm_bindgen::JsCast;
+  use wasm_bindgen::prelude::Closure;
+
+  inject_style(VIEWPORT_STYLE_ELEMENT_ID, VIEWPORT_CSS);
+
+  let Some(window) = web_sys::window() else { return };
+  let Some(document) = window.document() else { return };
+
+  // The shell's `index.html` is the browser build's too, so the meta says what
+  // a page should say and is narrowed here, where we know this is a window.
+  if let Some(meta) = document.query_selector("meta[name=viewport]").ok().flatten() {
+    let content = meta.get_attribute("content").unwrap_or_default();
+    if !content.contains("user-scalable") {
+      let pinned = format!("{content}, maximum-scale=1, user-scalable=no");
+      let _ = meta.set_attribute("content", pinned.trim_start_matches([',', ' ']));
+    }
+  }
+
+  // WebKit's pinch. `gesturestart` alone is enough to stop the zoom, but
+  // cancelling `gesturechange` too keeps a gesture that began before this ran
+  // from carrying on scaling.
+  for event in ["gesturestart", "gesturechange"] {
+    let stop = Closure::<dyn FnMut(web_sys::Event)>::new(|e: web_sys::Event| {
+      if e.cancelable() {
+        e.prevent_default();
+      }
+    });
+    let _ = document.add_event_listener_with_callback(event, stop.as_ref().unchecked_ref());
+    stop.forget();
+  }
+}
+
 /// Publishes the system's scheme on `<html>` for a theme provider to resolve
 /// "follow the system" against, and announces the change.
 ///
@@ -359,6 +428,12 @@ fn is_dark_scheme() -> bool {
 /// No-op stand-in off wasm, so call sites need no target gating of their own.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn apply_native_base_theme() {}
+
+/// No-op stand-in where there is no webview to pin: off wasm, and in a build
+/// that is not the shell's. See the real [`pin_viewport_scale`] for why the
+/// browser build keeps its zoom.
+#[cfg(not(all(target_arch = "wasm32", feature = "tauri")))]
+pub fn pin_viewport_scale() {}
 
 /// Appends (or replaces the contents of) a `<style>` element with `id`.
 ///
