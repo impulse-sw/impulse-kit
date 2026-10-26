@@ -171,7 +171,13 @@ fn host_of(origin: &str) -> &str {
 ///    `http://` URLs for an `https://` site, which a crawler files away as a
 ///    second, duplicate host. Both headers list proxies left to right, so the
 ///    first value is the one the client actually spoke to.
-/// 3. The request's own `Host`.
+/// 3. The request's own authority, then its `Host`.
+///
+/// Both of 3 describe the hop *this* server accepted, which is why they come
+/// last rather than first: a proxy dials the service on its internal address,
+/// and over HTTP/2 that address arrives as the request's `:authority`. Taken
+/// ahead of the forwarding headers it wins every time there is one, and the
+/// application concludes it was asked on `127.0.0.1`.
 ///
 /// An application with its own [`CanonicalOrigin`] configured overrides all
 /// three: local configuration outranks anything the network claims.
@@ -186,20 +192,54 @@ pub fn request_origin(req: &Request) -> String {
   if let Some(origin) = forwarded_origin(req) {
     return origin;
   }
-  let scheme = req
-    .uri()
-    .scheme_str()
-    .map(str::to_string)
-    .or_else(|| forwarded(req, "x-forwarded-proto"))
+  // The forwarding headers before the request's own authority, and that order
+  // is the whole of this function being right behind a proxy. What the URI
+  // carries is the hop *this* server accepted: LBRP dials the service on its
+  // internal address, and over HTTP/2 that address arrives as the request's
+  // `:authority`. Read first, it wins whenever there is one to read — and then
+  // the application believes it was asked on `127.0.0.1` rather than on the
+  // blog, which is how an article published to a site answers `404` on that
+  // site's own domain. The scheme goes the same way: the inside hop is plain
+  // HTTP under a proxy that terminates TLS, and believing it publishes
+  // `http://` URLs for an `https://` site.
+  let scheme = forwarded(req, "x-forwarded-proto")
+    .or_else(|| req.uri().scheme_str().map(str::to_string))
     .unwrap_or_else(|| "http".to_string());
-  let host = req
-    .uri()
-    .host()
-    .map(str::to_string)
-    .or_else(|| forwarded(req, "x-forwarded-host"))
+  let host = forwarded(req, "x-forwarded-host")
+    .or_else(|| req.uri().host().map(str::to_string))
     .or_else(|| forwarded(req, HOST.as_str()))
     .unwrap_or_default();
   format!("{scheme}://{host}")
+}
+
+/// The host the client **asked for**, as it typed it.
+///
+/// A different question from [`request_origin`], and the difference is not a
+/// nicety. `request_origin` answers "what is this service published as", and a
+/// proxy told to state that may well state one canonical name for a service
+/// reachable on several — LBRP's `provide_origin_as_header: true` sends the
+/// first hostname of the service's `from` list on every request, whichever of
+/// them was asked. That is the right answer for a `<link rel="canonical">` and
+/// the wrong one for "which of our sites is this", because it cannot vary.
+///
+/// So this deliberately never reads `X-Forwarded-Origin`. It reads, in order:
+/// `X-Forwarded-Host` (what the proxy says the client asked for), the request's
+/// own authority, then `Host`. The port is kept — a deployment answering on two
+/// ports is two addresses — and the value is lowercased, because host names are
+/// case-insensitive and a comparison against a configured one must be too.
+///
+/// Empty when nothing said: a caller matching against configured hosts then
+/// matches none, which is the honest answer rather than a guess.
+///
+/// **Trust:** the same caveat as [`request_origin`] — these headers are the
+/// client's unless a proxy overwrites them. Use it to pick between hosts this
+/// deployment already serves, never to decide what a request may reach.
+pub fn request_host(req: &Request) -> String {
+  forwarded(req, "x-forwarded-host")
+    .or_else(|| req.uri().authority().map(|a| a.as_str().to_string()))
+    .or_else(|| forwarded(req, HOST.as_str()))
+    .unwrap_or_default()
+    .to_lowercase()
 }
 
 /// `X-Forwarded-Origin`, if it is an origin and nothing else.
@@ -267,6 +307,80 @@ mod tests {
       );
     }
     req
+  }
+
+  /// A request that reached this server through a proxy, as the proxy made it:
+  /// the authority on the inside hop, the public name in the forwarding header.
+  fn proxied_to(authority: &str, headers: &[(&str, &str)]) -> Request {
+    let mut req = req_with(headers);
+    *req.uri_mut() = format!("http://{authority}/p/slug").parse().unwrap();
+    req
+  }
+
+  /// The host a proxy *dialled* is not the host the reader asked for.
+  ///
+  /// LBRP forwards to the service over its own connection, and that connection
+  /// carries the service's internal address — `127.0.0.1:8005`, a container
+  /// name — as the request's authority. Read ahead of `X-Forwarded-Host`, it
+  /// wins every time there is one to read, and the application decides it was
+  /// asked on an address no site is configured for: an article published to a
+  /// blog answers `404` on that blog's own domain.
+  #[test]
+  fn the_forwarded_host_outranks_the_hop_this_server_accepted() {
+    let req = proxied_to(
+      "127.0.0.1:8005",
+      &[
+        ("host", "127.0.0.1:8005"),
+        ("x-forwarded-proto", "https"),
+        ("x-forwarded-host", "blog.example.com"),
+      ],
+    );
+    assert_eq!(request_origin(&req), "https://blog.example.com");
+  }
+
+  /// Nothing forwarded means nothing in front: the request's own authority is
+  /// then the only thing that knows, and it is right.
+  #[test]
+  fn a_direct_request_is_still_read_from_its_own_authority() {
+    let req = proxied_to("blog.example.com", &[("host", "blog.example.com")]);
+    assert_eq!(request_origin(&req), "http://blog.example.com");
+  }
+
+  /// The question `request_origin` cannot answer for a service on several
+  /// hostnames — and the reason this function exists.
+  ///
+  /// LBRP's `provide_origin_as_header: true` states the service's *first*
+  /// hostname on every request, so an application that read the origin to
+  /// decide which of its sites was asked concluded "the first one" every time.
+  /// An article published to the blog answered `404` on the blog's own domain.
+  #[test]
+  fn the_asked_for_host_ignores_a_canonical_origin() {
+    let req = req_with(&[
+      ("host", "127.0.0.1:8005"),
+      ("x-forwarded-host", "blog.verbalautomation.tech"),
+      ("x-forwarded-origin", "https://representa.verbalautomation.tech"),
+    ]);
+    assert_eq!(request_host(&req), "blog.verbalautomation.tech");
+    // …while the origin still answers its own question, unchanged.
+    assert_eq!(request_origin(&req), "https://representa.verbalautomation.tech");
+  }
+
+  /// The port is part of the address, and host names are case-insensitive.
+  #[test]
+  fn the_asked_for_host_keeps_the_port_and_folds_the_case() {
+    assert_eq!(
+      request_host(&req_with(&[("host", "Blog.Example.COM:8443")])),
+      "blog.example.com:8443"
+    );
+  }
+
+  /// Nothing forwarded: the request's own authority, then `Host`.
+  #[test]
+  fn the_asked_for_host_falls_back_to_the_request() {
+    let direct = proxied_to("blog.example.com:8005", &[]);
+    assert_eq!(request_host(&direct), "blog.example.com:8005");
+    assert_eq!(request_host(&req_with(&[("host", "blog.example.com")])), "blog.example.com");
+    assert_eq!(request_host(&Request::default()), "");
   }
 
   /// The case every deployment behind a TLS-terminating proxy hits: the
