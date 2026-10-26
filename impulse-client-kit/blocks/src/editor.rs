@@ -34,8 +34,13 @@
 //! # What it is not
 //!
 //! Not a code IDE: no multi-cursor, no bracket matching, no folding, no
-//! find-and-replace, and the highlighter sees one line at a time (a Markdown
-//! fence marks its own line; it does not colour everything between two of them).
+//! *replace*, and the highlighter sees one line at a time (a Markdown fence
+//! marks its own line; it does not colour everything between two of them).
+//!
+//! Find there is, and it has to be: the browser's own `Ctrl+F` searches the DOM,
+//! and the DOM here holds a few hundred lines around the viewport. On a document
+//! long enough to need this editor at all, the browser's find reports most of it
+//! as absent — which is worse than not offering find, because it answers.
 //!
 //! A selection can only span what the DOM holds — so while one is being dragged
 //! the window grows with it rather than moving, and shrinks back to the viewport
@@ -218,6 +223,66 @@ struct Pos {
   col: usize,
 }
 
+/// Where one search hit sits: the line, and the byte range inside it.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct Hit {
+  line: usize,
+  from: usize,
+  to: usize,
+}
+
+/// Every occurrence of `needle`, in reading order.
+///
+/// Case-insensitive, and the offsets are byte offsets into the *original* line.
+/// That distinction is the whole of the care here: lowercasing can change a
+/// string's length — a Turkish dotted capital `İ` folds to two chars — so a
+/// search run over a folded copy and reported against the original points past
+/// its own match, by one byte here and by more in a line with several. The scan
+/// therefore walks the original and folds only the candidate window.
+///
+/// Matches do not overlap: after a hit the scan resumes at its end, so `aa` in
+/// `aaaa` finds two, not three — what a reader stepping through hits expects.
+fn find_all(lines: &[String], needle: &str) -> Vec<Hit> {
+  let mut hits = Vec::new();
+  if needle.is_empty() {
+    return hits;
+  }
+  let folded_needle = needle.to_lowercase();
+  for (line, text) in lines.iter().enumerate() {
+    let mut at = 0usize;
+    while at < text.len() {
+      if !text.is_char_boundary(at) {
+        at += 1;
+        continue;
+      }
+      let rest = &text[at..];
+      // As many characters as it takes for the fold to reach the needle's
+      // length — the window that could match, measured in folded bytes.
+      let taken: String = rest
+        .chars()
+        .scan(0usize, |folded_len, c| {
+          if *folded_len >= folded_needle.len() {
+            return None;
+          }
+          *folded_len += c.to_lowercase().map(char::len_utf8).sum::<usize>();
+          Some(c)
+        })
+        .collect();
+      if taken.to_lowercase() == folded_needle {
+        hits.push(Hit {
+          line,
+          from: at,
+          to: at + taken.len(),
+        });
+        at += taken.len().max(1);
+      } else {
+        at += rest.chars().next().map_or(1, char::len_utf8);
+      }
+    }
+  }
+  hits
+}
+
 /// One undoable change: the lines `at..at + removed.len()` became `inserted`.
 struct Edit {
   at: usize,
@@ -303,6 +368,9 @@ struct State {
   /// `Escape` was the last key pressed, so the next `Tab` moves focus instead of
   /// typing indentation — the way out for anyone driving this from a keyboard.
   tab_escapes: bool,
+  /// Empty space kept below the last line, in pixels. Zero unless the caller
+  /// asked for it; see [`overscroll_for`].
+  overscroll: f64,
 }
 
 impl Default for State {
@@ -332,6 +400,7 @@ impl Default for State {
       redo: Vec::new(),
       last_edit_ms: 0.0,
       tab_escapes: false,
+      overscroll: 0.0,
     }
   }
 }
@@ -550,6 +619,15 @@ struct Ctx {
   relight: StoredValue<Option<TimeoutHandle>>,
   /// The pending "the scrolling has stopped" timer, if any.
   settle: StoredValue<Option<TimeoutHandle>>,
+  /// Whether the document may be scrolled past its last line.
+  past_end: bool,
+  /// What the find bar is looking for, or `None` while it is closed. The empty
+  /// string is an *open* bar with nothing typed in it yet, which is a different
+  /// thing from a closed one.
+  needle: RwSignal<Option<String>>,
+  hits: RwSignal<Vec<Hit>>,
+  /// Which hit is the current one, as an index into `hits`.
+  at: RwSignal<usize>,
 }
 
 impl Ctx {
@@ -603,6 +681,25 @@ pub fn SourceEditor(
   #[prop(optional)] spellcheck: bool,
   #[prop(optional)] tab_size: Option<usize>,
   #[prop(optional)] highlight: Option<Syntax>,
+  /// Keep a screenful of empty space below the last line, so the end of the
+  /// document can be brought up to the top of the editor. See
+  /// [`overscroll_for`]. Off by default: in a field that is one control among
+  /// several, blank space under the text is a field that looks broken.
+  #[prop(optional)]
+  scroll_past_end: bool,
+  /// `Ctrl+F` opens a find bar belonging to this editor.
+  ///
+  /// Opt-in, and for one reason either way. In a full-page editor the browser's
+  /// own find is not merely redundant, it is *wrong*: only the window of lines
+  /// around the viewport is in the DOM, so `Ctrl+F` searches a few hundred
+  /// lines of a document and reports the rest as absent. In a small field it is
+  /// the opposite — nobody searches a three-line note, and taking `Ctrl+F` away
+  /// from the page to offer it would be the worse trade.
+  #[prop(optional)]
+  searchable: bool,
+  /// Wording for the find bar, for an app that is not in English.
+  #[prop(optional)]
+  find_labels: FindLabels,
 ) -> impl IntoView {
   let ctx = Ctx {
     state: StoredValue::new(State::default()),
@@ -614,6 +711,10 @@ pub fn SourceEditor(
     blank: RwSignal::new(true),
     relight: StoredValue::new(None),
     settle: StoredValue::new(None),
+    past_end: scroll_past_end,
+    needle: RwSignal::new(None),
+    hits: RwSignal::new(Vec::new()),
+    at: RwSignal::new(0),
   };
   let editable = !disabled && !readonly;
   let indent = StoredValue::new(" ".repeat(tab_size.unwrap_or(2).clamp(1, 8)));
@@ -707,6 +808,15 @@ pub fn SourceEditor(
       }
       return;
     }
+    // The browser's own find would search the window of lines in the DOM and
+    // report the rest of the document as absent, so for a searchable editor it
+    // is ours. `а` is what the `f` key types on a Russian layout, and `key()`
+    // reports the letter, not the key.
+    if searchable && ctrl && matches!(key.as_str(), "f" | "F" | "а" | "А") {
+      ev.prevent_default();
+      open_find(ctx);
+      return;
+    }
     // Firefox does not always raise `beforeinput` for undo, so the shortcut is
     // caught here as well as there.
     if ctrl && matches!(key.as_str(), "z" | "Z" | "я" | "Я") {
@@ -723,6 +833,14 @@ pub fn SourceEditor(
     // is an editor a keyboard user cannot get out of. Any other key puts the
     // trap back.
     if key == "Escape" {
+      // The find bar is the innermost thing `Escape` can close, so it closes
+      // first — and the key goes no further, or the editor would also hand it
+      // to whatever is listening on the window.
+      if ctx.needle.get_untracked().is_some() {
+        ev.prevent_default();
+        close_find(ctx);
+        return;
+      }
       let composing = ctx.state.try_update_value(|st| {
         st.tab_escapes = true;
         st.composing
@@ -836,6 +954,81 @@ pub fn SourceEditor(
           sync(ctx);
         }
       />
+      {searchable
+        .then(|| {
+          let labels = StoredValue::new(find_labels);
+          // The id is not knowable until the content element exists, so it is
+          // taken on the first render rather than built here.
+          let id = StoredValue::new(String::new());
+          Effect::new(move |_| {
+            if id.get_value().is_empty() {
+              id.set_value(find_input_id(ctx));
+            }
+          });
+          view! {
+            <Show when=move || ctx.needle.get().is_some()>
+              <div
+                data-slot="source-editor-find"
+                // Sticky, so it stays with the reader as the document scrolls
+                // under it, and against the top edge so it never covers the
+                // line a hit is on — that line sits a third of the way down.
+                class="sticky top-0 z-10 ml-auto flex w-fit items-center gap-1 rounded-b-md border border-t-0 border-border bg-popover p-1 shadow-md"
+                // The bar lives inside the scroll box and is typed into; a
+                // keystroke here is not a keystroke in the document.
+                on:keydown=move |ev: web_sys::KeyboardEvent| {
+                  ev.stop_propagation();
+                  match ev.key().as_str() {
+                    "Escape" => {
+                      ev.prevent_default();
+                      close_find(ctx);
+                    }
+                    "Enter" => {
+                      ev.prevent_default();
+                      step_hit(ctx, !ev.shift_key());
+                    }
+                    _ => {}
+                  }
+                }
+              >
+                <input
+                  id=move || id.get_value()
+                  type="text"
+                  class="h-8 w-44 rounded-sm bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground"
+                  placeholder=labels.with_value(|l| l.placeholder.clone())
+                  prop:value=move || ctx.needle.get().unwrap_or_default()
+                  on:input=move |ev| {
+                    ctx.needle.set(Some(event_target_value(&ev)));
+                    research(ctx);
+                    show_hit(ctx);
+                  }
+                />
+                <span class="shrink-0 px-1 text-xs tabular-nums text-muted-foreground">
+                  {move || {
+                    let total = ctx.hits.with(Vec::len);
+                    if ctx.needle.get().unwrap_or_default().is_empty() {
+                      String::new()
+                    } else if total == 0 {
+                      labels.with_value(|l| l.nothing.clone())
+                    } else {
+                      format!("{}/{total}", ctx.at.get() + 1)
+                    }
+                  }}
+                </span>
+                <FindStep ctx=ctx forward=false label=labels.with_value(|l| l.previous.clone()) />
+                <FindStep ctx=ctx forward=true label=labels.with_value(|l| l.next.clone()) />
+                <button
+                  type="button"
+                  class="grid size-7 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  title=labels.with_value(|l| l.close.clone())
+                  aria-label=labels.with_value(|l| l.close.clone())
+                  on:click=move |_| close_find(ctx)
+                >
+                  "\u{d7}"
+                </button>
+              </div>
+            </Show>
+          }
+        })}
       <Show when=move || has_placeholder && ctx.blank.get()>
         <div class=cn(
           &[
@@ -845,6 +1038,225 @@ pub fn SourceEditor(
         )>{placeholder.clone()}</div>
       </Show>
     </div>
+  }
+}
+
+// -- Find ------------------------------------------------------------------
+
+/// Wording for the find bar. Defaults are English.
+#[derive(Clone)]
+pub struct FindLabels {
+  pub placeholder: String,
+  /// Shown in place of the count when the needle matches nothing.
+  pub nothing: String,
+  pub previous: String,
+  pub next: String,
+  pub close: String,
+}
+
+impl Default for FindLabels {
+  fn default() -> Self {
+    Self {
+      placeholder: "Find".into(),
+      nothing: "No matches".into(),
+      previous: "Previous match".into(),
+      next: "Next match".into(),
+      close: "Close".into(),
+    }
+  }
+}
+
+/// The id the find bar's input carries, so opening the bar can focus it.
+///
+/// Derived from the content element's own id, which Leptos makes unique: a page
+/// may hold two editors, and two inputs under one id is one input nobody can
+/// reach.
+fn find_input_id(ctx: Ctx) -> String {
+  let at = ctx
+    .content
+    .get_untracked()
+    .map(|el| el.unchecked_into::<Element>().id())
+    .unwrap_or_default();
+  format!("source-editor-find-{at}")
+}
+
+/// Opens the find bar, seeding it with whatever is selected.
+///
+/// Seeding, because what somebody has just selected is almost always what they
+/// are about to look for, and every editor behaves this way. One line only: a
+/// multi-line selection is not a word being hunted for, and dropping it into the
+/// box would hide the box's own contents.
+fn open_find(ctx: Ctx) {
+  let selected = selection()
+    .and_then(|s| s.to_string().as_string())
+    .unwrap_or_default();
+  let seed = (!selected.contains('\n') && !selected.is_empty())
+    .then_some(selected)
+    .or_else(|| ctx.needle.get_untracked())
+    .unwrap_or_default();
+  ctx.needle.set(Some(seed));
+  research(ctx);
+  let id = find_input_id(ctx);
+  request_animation_frame(move || {
+    if let Some(input) = document()
+      .get_element_by_id(&id)
+      .and_then(|el| el.dyn_into::<HtmlElement>().ok())
+    {
+      let _ = input.focus();
+    }
+  });
+}
+
+/// Closes the bar and puts the caret back in the document.
+fn close_find(ctx: Ctx) {
+  ctx.needle.set(None);
+  ctx.hits.set(Vec::new());
+  if let Some(content) = ctx.content.get_untracked() {
+    let _ = content.unchecked_into::<HtmlElement>().focus();
+  }
+}
+
+/// Re-runs the search and keeps the reader on the hit nearest where they were.
+///
+/// Nearest rather than the first: the search re-runs on every keystroke, and
+/// restarting at the top each time would walk somebody typing a longer word
+/// backwards through their own document.
+fn research(ctx: Ctx) {
+  let Some(needle) = ctx.needle.get_untracked() else {
+    ctx.hits.set(Vec::new());
+    return;
+  };
+  let was = ctx
+    .hits
+    .with_untracked(|hits| hits.get(ctx.at.get_untracked()).copied());
+  let hits = ctx.state.with_value(|st| find_all(&st.lines, &needle));
+  let at = match was {
+    Some(was) => hits
+      .iter()
+      .position(|hit| (hit.line, hit.from) >= (was.line, was.from))
+      .unwrap_or(0),
+    None => 0,
+  };
+  ctx.hits.set(hits);
+  ctx.at.set(at);
+}
+
+/// Moves to the current hit and shows it: scrolls its line into view, renders
+/// the window that now covers it, and selects the match itself.
+///
+/// The selection waits a frame because the line may not be in the DOM yet — the
+/// window is painted only once the scroll has been applied, and until then there
+/// is nothing to select.
+fn show_hit(ctx: Ctx) {
+  let Some(hit) = ctx
+    .hits
+    .with_untracked(|hits| hits.get(ctx.at.get_untracked()).copied())
+  else {
+    return;
+  };
+  let Some((root, _)) = ctx.elements() else {
+    return;
+  };
+  let view_h = f64::from(root.client_height());
+  // A third of the way down rather than at the very top: a hit on the first
+  // visible row shows what comes after it and nothing of what comes before, and
+  // the line before a match is usually what says whether it is the one.
+  let target = ctx
+    .state
+    .with_value(|st| st.offset_of(hit.line) + PAD_Y - view_h / 3.0)
+    .max(0.0);
+  set_scroll(ctx, &root, target);
+  render(ctx, true);
+  request_animation_frame(move || {
+    let Some((_, content)) = ctx.elements() else {
+      return;
+    };
+    ctx.state.with_value(|st| {
+      select_range(
+        &content,
+        st.first,
+        Pos {
+          line: hit.line,
+          col: hit.from,
+        },
+        Pos {
+          line: hit.line,
+          col: hit.to,
+        },
+      )
+    });
+  });
+}
+
+/// Steps to the next hit (or the previous one), wrapping around.
+fn step_hit(ctx: Ctx, forward: bool) {
+  let count = ctx.hits.with_untracked(Vec::len);
+  if count == 0 {
+    return;
+  }
+  ctx.at.update(|at| {
+    *at = match forward {
+      true => (*at + 1) % count,
+      false => (*at + count - 1) % count,
+    };
+  });
+  show_hit(ctx);
+}
+
+/// Selects `from..to` inside one rendered line.
+///
+/// Both ends go through the same walk [`set_dom_caret`] uses for the caret, so a
+/// match falling inside a highlighted span — which is several text nodes, not
+/// one — is selected across them.
+fn select_range(content: &Element, first: usize, from: Pos, to: Pos) -> Option<()> {
+  let doc = content.owner_document()?;
+  let range = doc.create_range().ok()?;
+  let start = content.children().item(from.line.checked_sub(first)? as u32)?;
+  let end = content.children().item(to.line.checked_sub(first)? as u32)?;
+
+  let mut acc = 0usize;
+  if !place_in(start.unchecked_ref(), from.col, &mut acc, &range, true) {
+    range.set_start(start.unchecked_ref::<Node>(), 0).ok()?;
+  }
+  let mut acc = 0usize;
+  if !place_in(end.unchecked_ref(), to.col, &mut acc, &range, false) {
+    range.set_end_after(end.unchecked_ref::<Node>()).ok()?;
+  }
+  let selection = selection()?;
+  selection.remove_all_ranges().ok()?;
+  selection.add_range(&range).ok()?;
+  Some(())
+}
+
+/// One of the find bar's two step buttons.
+///
+/// A component rather than two copies of the markup: the arrow is the only
+/// thing that differs, and a chevron written twice is a chevron that goes out of
+/// step once.
+#[component]
+fn FindStep(ctx: Ctx, forward: bool, label: String) -> impl IntoView {
+  view! {
+    <button
+      type="button"
+      class="grid size-7 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-40"
+      title=label.clone()
+      aria-label=label
+      prop:disabled=move || ctx.hits.with(Vec::is_empty)
+      on:click=move |_| step_hit(ctx, forward)
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="size-4"
+      >
+        <path d=if forward { "m6 9 6 6 6-6" } else { "m18 15-6-6-6 6" } />
+      </svg>
+    </button>
   }
 }
 
@@ -885,6 +1297,9 @@ fn render(ctx: Ctx, force: bool) {
   let moved = ctx.state.try_update_value(|st| {
     let view_h = f64::from(root.client_height());
     let scroll_top = f64::from(root.scroll_top());
+    // Before the window is worked out: the space below the last line is part of
+    // how far the document can be scrolled, and `pad` writes whatever is here.
+    st.overscroll = overscroll_for(st, view_h, ctx.past_end);
     let (mut first, mut last) = window_for(st, scroll_top, view_h, caret, going);
     if held && st.last > st.first {
       first = first.min(st.first);
@@ -1569,6 +1984,24 @@ fn hold_height(content: &Element, px: f64) {
 ///
 /// Padding rather than spacer elements on purpose: padding cannot be typed into,
 /// selected, or landed in by a caret, and it costs the browser nothing.
+/// How much empty space to keep below the last line, given the viewport.
+///
+/// A viewport less two rows: the last line can be brought up to near the top of
+/// the editor, which is the point — a writer working at the end of a piece
+/// otherwise does it on the bottom edge of the screen, with the line they are
+/// typing at the very limit of where a line can be. Two rows rather than none,
+/// so the end of the document never leaves the screen entirely.
+///
+/// Zero while the document still fits: there is nothing to scroll past, and
+/// padding a short note out to a screenful of blank would be inventing a
+/// document that is not there.
+fn overscroll_for(st: &State, view_h: f64, wanted: bool) -> f64 {
+  if !wanted || st.total() + PAD_Y * 2.0 <= view_h {
+    return 0.0;
+  }
+  (view_h - st.row_h * 2.0).max(0.0)
+}
+
 fn pad(st: &State, content: &Element) {
   let Some(el) = content.dyn_ref::<HtmlElement>() else {
     return;
@@ -1577,7 +2010,7 @@ fn pad(st: &State, content: &Element) {
   // into the same property the lines off screen stand in, because a browser has
   // only one `padding-top` and the inline one wins.
   let above = st.offset_of(st.first) + PAD_Y;
-  let below = st.total() - st.offset_of(st.last.min(st.lines.len())) + PAD_Y;
+  let below = st.total() - st.offset_of(st.last.min(st.lines.len())) + PAD_Y + st.overscroll;
   let style = el.style();
   let _ = style.set_property("padding-top", &format!("{}px", above.max(0.0).round()));
   let _ = style.set_property("padding-bottom", &format!("{}px", below.max(0.0).round()));
@@ -1897,7 +2330,7 @@ fn set_dom_caret(content: &Element, first: usize, pos: Pos) -> Option<()> {
   // The offset lands in one of the line's text nodes — or, on an empty line,
   // nowhere, since a `<br>` is not something a caret can sit inside.
   let mut acc = 0usize;
-  if !place_in(child.unchecked_ref(), pos.col, &mut acc, &range) {
+  if !place_in(child.unchecked_ref(), pos.col, &mut acc, &range, true) {
     range.set_start(child.unchecked_ref::<Node>(), 0).ok()?;
   }
   range.collapse_with_to_start(true);
@@ -1909,7 +2342,7 @@ fn set_dom_caret(content: &Element, first: usize, pos: Pos) -> Option<()> {
 
 /// Walks a rendered line's text nodes looking for byte offset `col`, and starts
 /// `range` there once it is found.
-fn place_in(node: &Node, col: usize, acc: &mut usize, range: &Range) -> bool {
+fn place_in(node: &Node, col: usize, acc: &mut usize, range: &Range, start: bool) -> bool {
   if node.node_type() == Node::TEXT_NODE {
     let text = node.node_value().unwrap_or_default();
     if col <= *acc + text.len() {
@@ -1917,14 +2350,18 @@ fn place_in(node: &Node, col: usize, acc: &mut usize, range: &Range) -> bool {
       if !text.is_char_boundary(within) {
         return false;
       }
-      return range.set_start(node, utf16_len(&text[..within]) as u32).is_ok();
+      let offset = utf16_len(&text[..within]) as u32;
+      return match start {
+        true => range.set_start(node, offset).is_ok(),
+        false => range.set_end(node, offset).is_ok(),
+      };
     }
     *acc += text.len();
     return false;
   }
   let mut child = node.first_child();
   while let Some(node) = child {
-    if place_in(&node, col, acc, range) {
+    if place_in(&node, col, acc, range, start) {
       return true;
     }
     child = node.next_sibling();
@@ -1975,8 +2412,8 @@ fn outdent(ctx: Ctx, indent: &str) {
     return;
   };
   let (mut from_acc, mut to_acc) = (0usize, 0usize);
-  if !place_in(child.unchecked_ref(), 0, &mut from_acc, &range)
-    || !place_in(child.unchecked_ref(), strip, &mut to_acc, &end)
+  if !place_in(child.unchecked_ref(), 0, &mut from_acc, &range, true)
+    || !place_in(child.unchecked_ref(), strip, &mut to_acc, &end, true)
   {
     return;
   }
@@ -2685,5 +3122,103 @@ mod tests {
         }
       }
     }
+  }
+}
+
+#[cfg(test)]
+mod find_tests {
+  use super::*;
+
+  fn doc(text: &str) -> Vec<String> {
+    text.lines().map(str::to_string).collect()
+  }
+
+  fn hit_texts<'a>(lines: &'a [String], hits: &[Hit]) -> Vec<&'a str> {
+    hits.iter().map(|h| &lines[h.line][h.from..h.to]).collect()
+  }
+
+  #[test]
+  fn finds_every_occurrence_in_reading_order() {
+    let lines = doc("the cat sat\non the mat\nnothing here\n");
+    let hits = find_all(&lines, "at");
+    assert_eq!(hit_texts(&lines, &hits), ["at", "at", "at"]);
+    assert_eq!(
+      hits.iter().map(|h| (h.line, h.from)).collect::<Vec<_>>(),
+      [(0, 5), (0, 9), (1, 8)]
+    );
+  }
+
+  #[test]
+  fn an_empty_needle_matches_nothing() {
+    assert!(find_all(&doc("anything\n"), "").is_empty());
+  }
+
+  /// Case-insensitive, and the offsets still point into the original text.
+  #[test]
+  fn case_is_ignored_on_both_sides() {
+    let lines = doc("Rust and RUST and rust\n");
+    let hits = find_all(&lines, "RuSt");
+    assert_eq!(hit_texts(&lines, &hits), ["Rust", "RUST", "rust"]);
+  }
+
+  /// Matches do not overlap: `aa` in `aaaa` is two hits, not three.
+  #[test]
+  fn matches_do_not_overlap() {
+    let lines = doc("aaaa\n");
+    let hits = find_all(&lines, "aa");
+    assert_eq!(hits.len(), 2);
+    assert_eq!(hits[1].from, 2);
+  }
+
+  /// The offsets are byte offsets into the line and land on char boundaries —
+  /// the selection is built from them, and a boundary off by one byte is a
+  /// panic in the middle of somebody's document.
+  #[test]
+  fn offsets_land_on_character_boundaries() {
+    let lines = doc("путь и ПУТЬ\n");
+    let hits = find_all(&lines, "путь");
+    assert_eq!(hit_texts(&lines, &hits), ["путь", "ПУТЬ"]);
+    for hit in &hits {
+      assert!(lines[hit.line].is_char_boundary(hit.from));
+      assert!(lines[hit.line].is_char_boundary(hit.to));
+    }
+  }
+
+  /// A fold that changes length must not shift the offsets.
+  ///
+  /// `İ` (U+0130) lowercases to two chars, so a search done over a folded copy
+  /// and reported against the original would point past its own match.
+  #[test]
+  fn a_fold_that_grows_does_not_shift_the_offsets() {
+    let lines = doc("İstanbul\n");
+    let hits = find_all(&lines, "stanbul");
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hit_texts(&lines, &hits), ["stanbul"]);
+    assert_eq!(hits[0].from, "İ".len());
+  }
+
+  /// A needle longer than the line is not a match, and does not read past it.
+  #[test]
+  fn a_needle_longer_than_the_line_is_not_a_match() {
+    assert!(find_all(&doc("ab\n"), "abcdef").is_empty());
+  }
+
+  /// Scrolling past the end is offered only once there is something to scroll.
+  #[test]
+  fn overscroll_waits_until_the_document_is_taller_than_the_view() {
+    let st = State {
+      row_h: 20.0,
+      heights: vec![20.0; 3],
+      measured: vec![true; 3],
+      lines: vec![String::new(); 3],
+      ..Default::default()
+    };
+    // 60px of text in a 400px editor: nothing to scroll, nothing to pad.
+    assert_eq!(overscroll_for(&st, 400.0, true), 0.0);
+    // The same document in a 50px editor already scrolls, so the affordance
+    // appears — a viewport less two rows.
+    assert_eq!(overscroll_for(&st, 50.0, true), 10.0);
+    // And never when the caller did not ask.
+    assert_eq!(overscroll_for(&st, 50.0, false), 0.0);
   }
 }
