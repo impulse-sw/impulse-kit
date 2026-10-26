@@ -11,8 +11,10 @@
 //! On `ssr` the theme is resolved from that cookie by the SSR handler, which
 //! also injects a blocking inline script into the `<head>` that reconciles the
 //! class from `localStorage` + `prefers-color-scheme` before first paint —
-//! together this eliminates the dark-mode flicker. This component therefore
-//! renders only its children without touching any DOM.
+//! together this eliminates the dark-mode flicker. [`ThemeProvider`] therefore
+//! renders only its children without touching any DOM, while [`ThemeToggle`]
+//! reads the same cookie (through [`InitialTheme`]) so the control it paints is
+//! already showing the mode the client is about to confirm.
 
 use leptos::prelude::*;
 
@@ -157,6 +159,36 @@ pub fn use_theme_mode() -> (Signal<ThemeMode>, impl Fn(ThemeMode) + Copy + 'stat
   let mode = Signal::derive(move || ThemeMode::from_storage(&stored.get()));
   let set_mode = move |next: ThemeMode| set_stored.set(next.as_storage().to_string());
   (mode, set_mode)
+}
+
+/// The mode the request's `impulse_theme` cookie names, for SSR.
+///
+/// The cookie carries only an *explicit* choice, exactly like the
+/// `localStorage` key it mirrors — absent means "follow the system", which is
+/// [`ThemeMode::System`] and nothing the server has to guess at.
+///
+/// This matters because hydration does not re-render markup it adopts: it binds
+/// the existing nodes and only updates them when a signal next *changes*. A
+/// server that painted the `System` face for a visitor whose cookie said `dark`
+/// therefore left that wrong face on screen until the first click moved the
+/// signal — which is precisely the stale "system theme" a landing page used to
+/// show after every load.
+#[cfg(feature = "ssr")]
+pub fn ssr_theme_mode() -> ThemeMode {
+  use impulse_client_kit::ssr::InitialTheme;
+
+  match use_context::<InitialTheme>() {
+    Some(InitialTheme(Some(value))) => ThemeMode::from_storage(&value),
+    _ => ThemeMode::System,
+  }
+}
+
+/// See the `csr`/`hydrate` [`use_theme_mode`]. On the server the mode comes from
+/// the request's theme cookie and the setter is inert: there is no client to
+/// persist to, and the hydrated runtime takes the choice over from here.
+#[cfg(feature = "ssr")]
+pub fn use_theme_mode() -> (Signal<ThemeMode>, impl Fn(ThemeMode) + Copy + 'static) {
+  (Signal::stored(ssr_theme_mode()), |_| {})
 }
 
 #[cfg(any(feature = "csr", feature = "hydrate"))]
@@ -429,7 +461,8 @@ pub fn ThemeToggle(
 }
 
 /// See the `csr`/`hydrate` [`ThemeToggle`] for the prop reference; on the server
-/// the button is inert and the `System` face is rendered.
+/// the button is inert and the face comes from the request's theme cookie (see
+/// [`ssr_theme_mode`]), so the markup hydration adopts is already right.
 #[cfg(feature = "ssr")]
 #[component]
 pub fn ThemeToggle(
@@ -453,7 +486,7 @@ pub fn ThemeToggle(
       dark_text,
       system_text,
     },
-    Signal::stored(ThemeMode::default()),
+    Signal::stored(ssr_theme_mode()),
     children,
   );
 

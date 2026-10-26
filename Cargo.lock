@@ -2552,8 +2552,8 @@ dependencies = [
 
 [[package]]
 name = "impulse-ring-connector"
-version = "0.9.0"
-source = "git+https://github.com/impulse-sw/impulse-ring.git?tag=0.9.0#2f8fd61f0cf6de174393fc77b3061a417c81edb4"
+version = "0.10.0"
+source = "git+https://github.com/impulse-sw/impulse-ring.git?tag=0.10.0#d572fe27b93c647425deaa3e284a7f00a3cfab93"
 dependencies = [
  "apache-avro",
  "getrandom 0.2.17",
@@ -2565,8 +2565,8 @@ dependencies = [
 
 [[package]]
 name = "impulse-ring-core"
-version = "0.9.0"
-source = "git+https://github.com/impulse-sw/impulse-ring.git?tag=0.9.0#2f8fd61f0cf6de174393fc77b3061a417c81edb4"
+version = "0.10.0"
+source = "git+https://github.com/impulse-sw/impulse-ring.git?tag=0.10.0#d572fe27b93c647425deaa3e284a7f00a3cfab93"
 dependencies = [
  "apache-avro",
  "getrandom 0.2.17",
@@ -2579,8 +2579,8 @@ dependencies = [
 
 [[package]]
 name = "impulse-ring-http"
-version = "0.9.0"
-source = "git+https://github.com/impulse-sw/impulse-ring.git?tag=0.9.0#2f8fd61f0cf6de174393fc77b3061a417c81edb4"
+version = "0.10.0"
+source = "git+https://github.com/impulse-sw/impulse-ring.git?tag=0.10.0#d572fe27b93c647425deaa3e284a7f00a3cfab93"
 dependencies = [
  "serde",
  "serde_bytes",

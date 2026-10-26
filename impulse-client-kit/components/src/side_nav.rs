@@ -122,6 +122,71 @@ struct SideNavContext {
   labels: SideNavLabels,
 }
 
+/// Правило подписей той панели, внутри которой это нарисовано, или `None`
+/// снаружи любой панели.
+///
+/// Нужно показанию, которое стоит и в панели, и в шапке телефона: в панели у
+/// него есть куда написать подпись и чем выровняться по разделам, в шапке —
+/// ни того, ни другого, и разница эта не в классах, а в том, что рисуется.
+/// [`SideNavLabel`] снаружи панели пишет подпись всегда, и это правильно для
+/// подписи; «а подпись вообще нужна?» — вопрос другой, и отвечают на него
+/// здесь.
+pub fn use_side_nav_labels() -> Option<SideNavLabels> {
+  use_context::<SideNavContext>().map(|ctx| ctx.labels)
+}
+
+/// Выравнивание по разделам: та же сетка, что у [`SideNavItem`].
+const ROW: &str = "flex w-full shrink-0 items-center gap-3 rounded-md px-3 py-2";
+
+/// Место под значок в такой строке.
+const ROW_ICON: &str = "flex size-5 shrink-0 items-center justify-center";
+
+/// Показание приложения в панели: значок в колонке разделов, подпись с
+/// разворотом.
+///
+/// Не кнопка и не раздел: читать, а не нажимать. Нужно это затем, что показание
+/// в рейке стоит в одном списке с разделами, и значок у него обязан попадать в
+/// ту же колонку — иначе рейка шириной со значок читается как неровная, а это
+/// единственное, что в ней видно. Повторять сетку разделов у себя каждому
+/// показанию значило бы разойтись с ней молча, в первый же раз, когда сетка
+/// поменяется.
+///
+/// Подпись гаснет вместе с подписями разделов ([`SideNavLabel`]), поэтому в
+/// свёрнутой панели от показания остаётся значок — и никакое число из неё не
+/// вылезает.
+///
+/// ```ignore
+/// view! {
+///   <SideNavRow title="Баллы" icon=|| view! { <Icon icon=icondata::LuStar class="size-4" /> }>
+///     {move || total.get().to_string()}
+///   </SideNavRow>
+/// }
+/// ```
+#[component]
+pub fn SideNavRow(
+  /// Значок: встаёт в ту же колонку, что значки разделов.
+  #[prop(into)]
+  icon: ViewFn,
+  /// Подсказка под указателем: в свёрнутой панели она единственное, что
+  /// объясняет значок.
+  #[prop(into, optional)]
+  title: TextProp,
+  #[prop(into, optional)] class: String,
+  /// Подпись: видна, пока панель развёрнута.
+  children: Children,
+) -> impl IntoView {
+  view! {
+    <div
+      data-slot="side-nav-row"
+      class=cn(&[ROW, "text-muted-foreground", class.as_str()])
+      title=move || title.get().to_string()
+    >
+      <span class=ROW_ICON>{icon.run()}</span>
+      <SideNavLabel>{children()}</SideNavLabel>
+    </div>
+  }
+}
+
 /// Панель разделов: вертикальный список во всю высоту отведённого ей места.
 ///
 /// Высоту берёт от родителя (`h-full`), а не от экрана: над ней может стоять
@@ -255,5 +320,39 @@ pub fn SideNavItem(
       <Icon class="size-5 shrink-0" icon=icon />
       <SideNavLabel>{text}</SideNavLabel>
     </button>
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::status_indicator::{StatusIndicator, StatusState};
+
+  /// Собирается ли строка показания так, как её пишет приложение: значок
+  /// замыканием, подсказка строкой, подпись — реактивным числом.
+  ///
+  /// Проверка именно сборки: вид здесь не разворачивают, а props у
+  /// `#[component]` сверяются на этапе компиляции — и расходились они до сих
+  /// пор только там, где такого вызова не было ни в одном собираемом крейте.
+  /// Набор значков у кита не подключён (`icondata` без умолчаний), поэтому
+  /// значком здесь стоит точка состояния — то же, чем его ставит
+  /// [`SyncIndicator`](crate::status_indicator::SyncIndicator).
+  #[test]
+  fn row_takes_a_closure_icon_and_a_reactive_label() {
+    let total = RwSignal::new(24_000_i64);
+    let _unrendered = move || {
+      view! {
+        <SideNav label="Разделы">
+          <SideNavFooter>
+            <SideNavRow
+              title="Баллы"
+              icon=|| view! { <StatusIndicator state=StatusState::Active /> }
+            >
+              {move || total.get().to_string()}
+            </SideNavRow>
+          </SideNavFooter>
+        </SideNav>
+      }
+    };
   }
 }

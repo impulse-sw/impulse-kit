@@ -10,6 +10,8 @@
 use impulse_client_kit::utils::cn;
 use leptos::prelude::*;
 
+use crate::side_nav::{SideNavRow, use_side_nav_labels};
+
 /// Visual status conveyed by the indicator.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub enum StatusState {
@@ -141,6 +143,20 @@ pub fn StatusIndicator(
 ///
 /// `pending` is the app's queue depth. In a browser build there is no queue, so
 /// pass `0` and the dot behaves exactly like the two-state one.
+///
+/// # Inside a side nav
+///
+/// Dropped into a [`SideNav`](crate::side_nav::SideNav) the indicator stops
+/// being a bare dot and becomes a row like any other: the dot sits in the same
+/// icon column as the sections, and the wording that was only ever a `title`
+/// becomes a caption visible whenever the rail is expanded.
+///
+/// A dot is the right shape in a header, where it stands next to other dense
+/// readouts and the row has no width to spare. In a 64px rail it is the one
+/// thing on screen that carries no words at all — people were left hovering a
+/// speck to find out what it meant, and the speck did not line up with anything
+/// above it either. `size` still applies in a header; in a rail the dot takes
+/// the size that reads against a `size-5` icon.
 #[component]
 pub fn SyncIndicator(
   /// Whether a connection to the server is currently held.
@@ -182,11 +198,26 @@ pub fn SyncIndicator(
     })
   };
 
-  view! {
-    <span class=cn(&["inline-flex", class.as_str()]) title=title>
-      <StatusIndicator state=state size=size />
-    </span>
+  // Снаружи панели — показание в плотной строке, где слов не разместить.
+  if use_side_nav_labels().is_none() {
+    return view! {
+      <span class=cn(&["inline-flex", class.as_str()]) title=title>
+        <StatusIndicator state=state size=size />
+      </span>
+    }
+    .into_any();
   }
+
+  view! {
+    <SideNavRow
+      class=class
+      title=Signal::derive(title)
+      icon=move || view! { <StatusIndicator state=state size=StatusIndicatorSize::Md /> }
+    >
+      {title}
+    </SideNavRow>
+  }
+  .into_any()
 }
 
 /// Tooltip wording for [`SyncIndicator`].
