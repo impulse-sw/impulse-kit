@@ -276,6 +276,99 @@ pub fn CollectionView(
   }
 }
 
+/// Элемент набора, раскрывающийся **на своём месте**.
+///
+/// Подробности появляются прямо под своей строкой, а не внизу списка. Это не
+/// вкус: открытое внизу человек не находит. Список шаблонов в Представе
+/// открывал редактор под собой целиком, и на двух десятках шаблонов нажатие
+/// выглядело как «ничего не произошло» — открылось оно экраном ниже, вне поля
+/// зрения.
+///
+/// Раскрытость приходит сигналом, а не живёт внутри, и это главное в подписи.
+/// Набор, у которого раскрыт один элемент, держит не «раскрыт ли я» у каждого,
+/// а «который раскрыт» у себя: два открытых редактора одного и того же — это
+/// два черновика, и второй затирает первый.
+///
+/// ```ignore
+/// <CollectionDisclosure
+///   open=Signal::derive(move || editing.get().as_deref() == Some(name))
+///   on_toggle=Callback::new(move |()| toggle(name.clone()))
+///   label="Показать шаблон"
+///   summary=move || view! { <span>{name.clone()}</span> }
+/// >
+///   <TemplateEditor name=name />
+/// </CollectionDisclosure>
+/// ```
+#[component]
+pub fn CollectionDisclosure(
+  /// Раскрыт ли элемент сейчас.
+  #[prop(into)]
+  open: Signal<bool>,
+  /// Нажали на значок раскрытия. Зовётся и приложением — строку обычно
+  /// открывают ещё и щелчком по названию.
+  on_toggle: Callback<()>,
+  /// Чем значок называется экранному читателю.
+  #[prop(into, optional)]
+  label: String,
+  #[prop(into, optional)] class: String,
+  /// Всегда видимая строка: название, показания, кнопки элемента.
+  #[prop(into)]
+  summary: ViewFn,
+  /// Подробности. Пока закрыто — не рисуются вовсе: не нарисованное не нужно
+  /// ни убирать из обхода табуляцией, ни прятать от экранного читателя, а
+  /// редактор на пол-экрана в каждой из двадцати строк — это двадцать
+  /// редакторов.
+  children: ChildrenFn,
+) -> impl IntoView {
+  let state = move || if open.get() { "open" } else { "closed" };
+  let children = StoredValue::new(children);
+
+  view! {
+    <div
+      data-slot="collection-disclosure"
+      data-state=state
+      class=cn(&["rounded-md border border-border", class.as_str()])
+    >
+      <div class="flex flex-wrap items-center gap-2 px-3 py-2">
+        <button
+          type="button"
+          data-slot="collection-disclosure-trigger"
+          // Кнопка, а не вся строка: в строке живут свои кнопки элемента —
+          // «удалить», «копировать», — и кнопка внутри кнопки это разметка,
+          // которую браузеры чинят каждый по-своему.
+          aria-expanded=move || open.get().to_string()
+          title=label.clone()
+          aria-label=label
+          class="grid size-6 shrink-0 cursor-pointer place-items-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          on:click=move |_| on_toggle.run(())
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class=move || {
+              cn(&["size-4 transition-transform duration-150", if open.get() { "rotate-90" } else { "" }])
+            }
+            aria-hidden="true"
+          >
+            <path d="m9 18 6-6-6-6" />
+          </svg>
+        </button>
+        {summary.run()}
+      </div>
+      <Show when=move || open.get()>
+        <div data-slot="collection-disclosure-detail" class="border-t border-border p-3">
+          {children.with_value(|c| c())}
+        </div>
+      </Show>
+    </div>
+  }
+}
+
 /// До скольких колонок разворачивается плитка.
 ///
 /// Предел, а не количество: на телефоне колонка всегда одна, и объявлять это
@@ -513,6 +606,35 @@ mod usage {
     }
   }
 
+  /// Раскрывающаяся строка — так, как её пишет приложение: раскрытость
+  /// считается от «который открыт», а не хранится в строке.
+  #[test]
+  fn a_disclosure_is_driven_by_which_one_is_open() {
+    let editing = RwSignal::new(None::<String>);
+    let _unrendered = move || {
+      let name = "report.typ".to_string();
+      let (for_open, for_toggle, for_summary) = (name.clone(), name.clone(), name.clone());
+      view! {
+        <CollectionDisclosure
+          open=Signal::derive(move || editing.get().as_deref() == Some(for_open.as_str()))
+          on_toggle=Callback::new(move |()| {
+            editing
+              .update(|at| {
+                *at = match at.as_deref() == Some(for_toggle.as_str()) {
+                  true => None,
+                  false => Some(for_toggle.clone()),
+                };
+              })
+          })
+          label="Показать шаблон"
+          summary=move || view! { <span class="font-medium">{for_summary.clone()}</span> }
+        >
+          <textarea class="w-full" />
+        </CollectionDisclosure>
+      }
+    };
+  }
+
   /// Собирается ли набор так, как его пишет приложение.
   ///
   /// Проверка именно сборки: вид здесь не разворачивают, а props у
@@ -539,6 +661,64 @@ mod usage {
           </For>
         </CollectionView>
       }
+    };
+  }
+
+  /// Строка набора, вынесенная приложением в свой `#[component]`: ровно так её
+  /// пишет вкладка шаблонов Представы.
+  ///
+  /// Проверяются здесь два превращения, на которых такая строка и ломается, а
+  /// ломается она в чужом крейте, который этой сборке не виден:
+  ///
+  /// * `#[prop(into)] Callback<String>` из простого замыкания. `From` для
+  ///   `Callback` объявлен только для кортежных входов, так что `Callback<String>`
+  ///   из `Fn(String)` берётся не им, а `IntoReactiveValue`, — и держится это
+  ///   ровно на том, что `#[prop(into)]` разворачивается в него.
+  /// * `#[prop(into)] Callback<()>` из `move |_: ()|`. Тип аргумента подписан
+  ///   нарочно: вывести его из одного места вызова компилятору нечем.
+  #[component]
+  fn TemplateRow(
+    name: String,
+    editing: RwSignal<Option<String>>,
+    #[prop(into)] on_open: Callback<String>,
+    #[prop(into)] on_save: Callback<()>,
+  ) -> impl IntoView {
+    let name = StoredValue::new(name);
+    let facts = "2 КиБ".to_string();
+    let open = Signal::derive(move || editing.get().as_deref() == Some(name.get_value().as_str()));
+    // Замыкание из одних `Copy`-захватов — само `Copy`, и его берут дважды:
+    // значок раскрытия и щелчок по названию открывают одно и то же.
+    let toggle = move || match open.get_untracked() {
+      true => editing.set(None),
+      false => on_open.run(name.get_value()),
+    };
+
+    view! {
+      <CollectionDisclosure
+        open=open
+        on_toggle=Callback::new(move |()| toggle())
+        label="Показать шаблон"
+        summary=move || {
+          view! {
+            <>
+              <button on:click=move |_| toggle()>{move || name.get_value()}</button>
+              <span class="text-xs text-muted-foreground">{facts.clone()}</span>
+            </>
+          }
+        }
+      >
+        <button on:click=move |_| on_save.run(())>"Сохранить"</button>
+      </CollectionDisclosure>
+    }
+  }
+
+  #[test]
+  fn an_app_hangs_its_own_row_component_off_a_disclosure() {
+    let editing = RwSignal::new(None::<String>);
+    let open = move |name: String| editing.set(Some(name));
+    let save = move |_: ()| editing.set(None);
+    let _unrendered = move || {
+      view! { <TemplateRow name="report.typ".to_string() editing on_open=open on_save=save /> }
     };
   }
 
