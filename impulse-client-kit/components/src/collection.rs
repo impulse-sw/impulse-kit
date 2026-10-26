@@ -551,3 +551,50 @@ mod usage {
     };
   }
 }
+
+#[cfg(test)]
+mod generated_shape {
+  use super::*;
+  use crate::layout::{ContainerSize, Gap};
+
+  /// Ровно та обёртка, которую печатает вывод `impulse-apps` на объявление
+  /// `Collection::of("board", "Доски").as_grid(3).switchable()`.
+  ///
+  /// Проверка именно сборки, и проверять есть что: дети едут свойством, а не
+  /// блоком — блок стал бы замыканием, забирающим их себе, а набор рисует их
+  /// в одной ветке из трёх. Это `FnOnce` и отказ сборки клиента (E0525).
+  #[component]
+  fn BoardCollection(
+    #[prop(into)] len: Signal<usize>,
+    #[prop(optional, into)] loading: Signal<bool>,
+    children: ChildrenFn,
+  ) -> impl IntoView {
+    view! {
+      <CollectionView
+        name="board"
+        len=len
+        loading=loading
+        default_layout=CollectionLayout::Grid
+        switchable=true
+        columns=CollectionColumns(3)
+        width=ContainerSize::Sm
+        gap=Gap::Md
+        empty_title="Пока нет ни одной доски"
+        empty_hint="Создайте первую"
+        labels=CollectionLabels { grid: "Плиткой".into(), list: "Списком".into() }
+        children=children
+      />
+    }
+  }
+
+  #[test]
+  fn the_generated_wrapper_forwards_its_children() {
+    let _unrendered = move || {
+      view! {
+        <BoardCollection len=0>
+          <div>"карточка"</div>
+        </BoardCollection>
+      }
+    };
+  }
+}
