@@ -41,6 +41,7 @@ pub fn HoverCard(
     content_ref: NodeRef::new(),
     open_timeout: StoredValue::new(None),
     close_timeout: StoredValue::new(None),
+    last_point: StoredValue::new(None),
   });
 
   view! {
@@ -58,7 +59,29 @@ pub fn HoverCardTrigger(#[prop(into, optional)] class: String, children: Childre
 
   provide_context(HoverCardTriggerRef { trigger_ref });
 
-  let handle_mouse_enter = move |_| context.open_after_delay();
+  let handle_mouse_enter = move |ev: web_sys::MouseEvent| {
+    context.last_point.set_value(Some((ev.client_x(), ev.client_y())));
+    context.open_after_delay();
+  };
+
+  // Карточку показывают тому, кто остановился, а не тому, кто просто провёл
+  // курсором. Отсчёт от входа этого не различает: достаточно задержаться в
+  // широкой строке — везя курсор к тому, по чему собирались щёлкнуть, — и
+  // карточка вылезает поверх цели. Поэтому каждое движение внутри начинает
+  // отсчёт заново, и открывается она, только когда курсор постоял на месте.
+  let handle_mouse_move = move |ev: web_sys::MouseEvent| {
+    // Открытую не трогаем: решение уже принято, а движение по уже показанному
+    // — не повод показать его ещё раз.
+    if context.is_open.get_untracked() {
+      return;
+    }
+    let now = (ev.client_x(), ev.client_y());
+    if !moved_beyond_slop(context.last_point.get_value(), now) {
+      return;
+    }
+    context.last_point.set_value(Some(now));
+    context.open_after_delay();
+  };
 
   let handle_mouse_leave = move |ev: web_sys::MouseEvent| {
     context.cancel_open();
@@ -82,10 +105,32 @@ pub fn HoverCardTrigger(#[prop(into, optional)] class: String, children: Childre
       data-slot="hover-card-trigger"
       class=cn(&["inline-block", class.as_str()])
       on:mouseenter=handle_mouse_enter
+      on:mousemove=handle_mouse_move
       on:mouseleave=handle_mouse_leave
     >
       {children()}
     </div>
+  }
+}
+
+/// Насколько курсор должен сдвинуться, чтобы это считалось движением.
+///
+/// Нуля мало. Палец, лежащий на тачпаде неподвижно, всё равно даёт дрожание в
+/// пиксель-другой, а прокрутка под неподвижным курсором в иных браузерах
+/// присылает `mousemove` вовсе без сдвига, — и отсчёт, начинающийся заново на
+/// каждое такое событие, не кончился бы никогда.
+const REST_SLOP: i32 = 3;
+
+/// Сдвинулся ли курсор настолько, чтобы считать, что он не стоит.
+///
+/// Запомненная точка обновляется только тогда, когда ответ «да»: иначе
+/// медленный уход курсора, по пикселю за событие, так и остался бы стоянием —
+/// каждый шаг в допуске, а сумма шагов через полэкрана.
+fn moved_beyond_slop(last: Option<(i32, i32)>, now: (i32, i32)) -> bool {
+  match last {
+    // Где курсор был, неизвестно, — значит, он только что появился.
+    None => true,
+    Some((x, y)) => (now.0 - x).abs() > REST_SLOP || (now.1 - y).abs() > REST_SLOP,
   }
 }
 
@@ -197,6 +242,9 @@ struct HoverCardContext {
   /// other.
   open_timeout: StoredValue<Option<TimeoutHandle>>,
   close_timeout: StoredValue<Option<TimeoutHandle>>,
+  /// Где курсор стоял, когда его видели в прошлый раз, — по нему и отличают
+  /// стояние от езды.
+  last_point: StoredValue<Option<(i32, i32)>>,
 }
 
 impl HoverCardContext {
@@ -215,6 +263,10 @@ impl HoverCardContext {
   }
 
   fn open_after_delay(&self) {
+    // Свой прежний отсчёт — тоже отсчёт: без этого движение курсора не
+    // переносило бы открытие, а назначало бы второе, и карточка вылезала бы по
+    // первому, заведённому ещё на входе.
+    self.cancel_open();
     self.cancel_close();
     let is_open = self.is_open;
     let handle = set_timeout_with_handle(
@@ -240,4 +292,46 @@ impl HoverCardContext {
 #[derive(Clone, Copy)]
 struct HoverCardTriggerRef {
   trigger_ref: NodeRef<leptos::html::Div>,
+}
+
+#[cfg(test)]
+mod rest {
+  use super::*;
+
+  #[test]
+  fn a_cursor_that_has_not_been_seen_yet_counts_as_moving() {
+    assert!(moved_beyond_slop(None, (120, 80)));
+  }
+
+  #[test]
+  fn a_trackpad_wobble_is_still_standing_still() {
+    // Палец лежит неподвижно, а события приходят: открыться должно, и допуск
+    // ровно за это.
+    assert!(!moved_beyond_slop(Some((120, 80)), (120, 80)));
+    assert!(!moved_beyond_slop(Some((120, 80)), (122, 78)));
+    assert!(!moved_beyond_slop(Some((120, 80)), (117, 83)));
+  }
+
+  #[test]
+  fn carrying_the_cursor_across_a_task_is_moving() {
+    assert!(moved_beyond_slop(Some((120, 80)), (140, 80)));
+    assert!(moved_beyond_slop(Some((120, 80)), (120, 60)));
+  }
+
+  /// Медленный уход — тоже уход: шаги в допуске складываются, потому что
+  /// запомненная точка не сдвигается, пока ответ «стоит».
+  #[test]
+  fn a_slow_drift_eventually_counts_as_moving() {
+    let start = (120, 80);
+    let mut last = Some(start);
+    let mut moved = false;
+    for step in 1..=4 {
+      let now = (start.0 + step, start.1);
+      moved = moved_beyond_slop(last, now);
+      if moved {
+        last = Some(now);
+      }
+    }
+    assert!(moved, "четыре шага по пикселю — это больше допуска");
+  }
 }

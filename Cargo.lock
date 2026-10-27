@@ -7498,7 +7498,3 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
-
-[[patch.unused]]
-name = "sdlc-buildinfo"
-version = "0.1.0"
