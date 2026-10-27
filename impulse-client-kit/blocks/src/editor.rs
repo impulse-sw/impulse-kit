@@ -1299,7 +1299,10 @@ fn render(ctx: Ctx, force: bool) {
     let scroll_top = f64::from(root.scroll_top());
     // Before the window is worked out: the space below the last line is part of
     // how far the document can be scrolled, and `pad` writes whatever is here.
-    st.overscroll = overscroll_for(st, view_h, ctx.past_end);
+    // Не `view_h`: место под последней строкой меряется окном, а не
+    // содержимым, и `client_height` говорит о первом только пока редактор
+    // кем-то ограничен (см. [`viewport_of`]).
+    st.overscroll = overscroll_for(st, viewport_of(&root), ctx.past_end);
     let (mut first, mut last) = window_for(st, scroll_top, view_h, caret, going);
     if held && st.last > st.first {
       first = first.min(st.first);
@@ -1986,11 +1989,16 @@ fn hold_height(content: &Element, px: f64) {
 /// selected, or landed in by a caret, and it costs the browser nothing.
 /// How much empty space to keep below the last line, given the viewport.
 ///
-/// A viewport less two rows: the last line can be brought up to near the top of
-/// the editor, which is the point — a writer working at the end of a piece
-/// otherwise does it on the bottom edge of the screen, with the line they are
-/// typing at the very limit of where a line can be. Two rows rather than none,
-/// so the end of the document never leaves the screen entirely.
+/// A viewport less one row: the last line can be brought all the way to the top
+/// of the editor and no further. That is the whole of what scrolling past the
+/// end is for — a writer finishing a piece otherwise does it on the bottom edge
+/// of the screen, with the line they are typing at the very limit of where a
+/// line can be. One row rather than none, so the end never leaves the screen.
+///
+/// A screenful, in other words, and never more: this is a property of the
+/// window, not of the document. A thousand-line document gets exactly what a
+/// ten-line one gets, because the two are scrolled to the same place — the last
+/// line, at the top.
 ///
 /// Zero while the document still fits: there is nothing to scroll past, and
 /// padding a short note out to a screenful of blank would be inventing a
@@ -1999,7 +2007,33 @@ fn overscroll_for(st: &State, view_h: f64, wanted: bool) -> f64 {
   if !wanted || st.total() + PAD_Y * 2.0 <= view_h {
     return 0.0;
   }
-  (view_h - st.row_h * 2.0).max(0.0)
+  (view_h - st.row_h).max(0.0)
+}
+
+/// The editor's own height, as far as it can be believed.
+///
+/// `client_height` is the viewport only while something above actually bounds
+/// the editor. The root carries `overflow-auto` and no height of its own — that
+/// is the caller's to give — and a caller who does not give it gets a box that
+/// grows with its text instead of scrolling inside it. `client_height` is then
+/// the height of the *document*, and the space kept below the last line comes
+/// out the same size: a thousand lines of text, a thousand lines of blank under
+/// it. Which is exactly what it looked like.
+///
+/// No editor is taller than the window it is drawn in, so the window is the
+/// bound. It cannot repair the layout — an unbounded editor is still a page
+/// that scrolls as a whole — but it keeps one misplaced class from turning the
+/// end of a document into a field of nothing.
+fn viewport_of(root: &Element) -> f64 {
+  let measured = f64::from(root.client_height());
+  let window = web_sys::window()
+    .and_then(|w| w.inner_height().ok())
+    .and_then(|v| v.as_f64())
+    .filter(|h| *h > 0.0);
+  match window {
+    Some(limit) => measured.min(limit),
+    None => measured,
+  }
 }
 
 fn pad(st: &State, content: &Element) {
@@ -3216,9 +3250,47 @@ mod find_tests {
     // 60px of text in a 400px editor: nothing to scroll, nothing to pad.
     assert_eq!(overscroll_for(&st, 400.0, true), 0.0);
     // The same document in a 50px editor already scrolls, so the affordance
-    // appears — a viewport less two rows.
-    assert_eq!(overscroll_for(&st, 50.0, true), 10.0);
+    // appears — a viewport less one row, which puts the last line at the top.
+    assert_eq!(overscroll_for(&st, 50.0, true), 30.0);
     // And never when the caller did not ask.
     assert_eq!(overscroll_for(&st, 50.0, false), 0.0);
+  }
+
+  /// The space below the end is a property of the window, not of the document.
+  ///
+  /// It read as proportional to the text — a thousand lines of blank under a
+  /// thousand lines of writing — and that is what a viewport measured off an
+  /// unbounded editor does to it: `client_height` becomes the document's own
+  /// height, and a screenful becomes a documentful. The arithmetic was never
+  /// the part that was wrong, so this pins the shape of it.
+  #[test]
+  fn the_space_below_the_end_is_one_screen_whatever_the_document() {
+    let screen = 600.0;
+    let short = State {
+      row_h: 20.0,
+      heights: vec![20.0; 40],
+      measured: vec![true; 40],
+      lines: vec![String::new(); 40],
+      ..Default::default()
+    };
+    let long = State {
+      row_h: 20.0,
+      heights: vec![20.0; 1000],
+      measured: vec![true; 1000],
+      lines: vec![String::new(); 1000],
+      ..Default::default()
+    };
+    assert_eq!(
+      overscroll_for(&short, screen, true),
+      overscroll_for(&long, screen, true),
+      "документ длиннее — место под ним то же"
+    );
+    // И это именно экран без одной строки: последняя встаёт наверх и не выше.
+    assert_eq!(overscroll_for(&long, screen, true), screen - 20.0);
+    // Двадцать тысяч пикселей текста не дают двадцати тысяч пикселей пустоты.
+    assert!(
+      overscroll_for(&long, screen, true) < long.total() / 10.0,
+      "место под концом выросло с документом"
+    );
   }
 }
