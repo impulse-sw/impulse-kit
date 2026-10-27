@@ -952,10 +952,24 @@ pub fn SourceEditor(
   };
 
   view! {
+    // Рамка вокруг коробки прокрутки, и нужна она ровно для одного: строка
+    // поиска лежит **поверх** редактора, а не внутри его прокрутки.
+    //
+    // Внутри она быть не может никак. Что лежит в прокрутке — часть документа:
+    // липкость держит элемент у края, только пока его собственное место в
+    // потоке не ушло за край, а фокус на поле браузер показывает, прокручивая к
+    // нему, — то есть к началу документа, где это место и было. Снаружи ни того,
+    // ни другого нет: полоса стоит от рамки, рамка не прокручивается, и
+    // прокручивать к полосе некуда.
+    //
+    // Высоту и начертание рамке даёт вызывающий (`class`): высота нужна ей,
+    // чтобы коробка прокрутки взяла её целиком, а начертание наследуется внутрь,
+    // к тексту.
+    <div data-slot="source-editor-frame" class=cn(&["relative", class.as_str()])>
     <div
       node_ref=ctx.root
       data-slot="source-editor"
-      class=cn(&[ROOT_CLASSES, if bare { "" } else { ROOT_FIELD_CLASSES }, class.as_str()])
+      class=cn(&[ROOT_CLASSES, "h-full", if bare { "" } else { ROOT_FIELD_CLASSES }])
       aria-disabled=disabled.then_some("true")
       on:scroll=move |_| {
         render(ctx, false);
@@ -979,6 +993,36 @@ pub fn SourceEditor(
             />
           }
         })}
+      <div
+        node_ref=ctx.content
+        data-slot="source-editor-content"
+        // `plaintext-only` is what makes an editable element behave like a text
+        // field: no markup, and none of the rich-text keyboard shortcuts.
+        contenteditable=editable.then_some("plaintext-only")
+        spellcheck=spellcheck.then_some("true")
+        role="textbox"
+        aria-multiline="true"
+        aria-readonly=readonly.then_some("true")
+        class=cn(&[CONTENT_CLASSES, if line_numbers { "py-2 pr-3 pl-14" } else { "px-3 py-2" }])
+        on:beforeinput=on_before_input
+        on:input=move |_| sync(ctx)
+        on:keydown=on_keydown
+        on:paste=on_paste
+        on:compositionstart=move |_| ctx.state.update_value(|st| st.composing = true)
+        on:compositionend=move |_| {
+          ctx.state.update_value(|st| st.composing = false);
+          sync(ctx);
+        }
+      />
+      <Show when=move || has_placeholder && ctx.blank.get()>
+        <div class=cn(
+          &[
+            "pointer-events-none absolute top-0 py-2 text-muted-foreground",
+            if line_numbers { "left-14" } else { "left-3" },
+          ],
+        )>{placeholder.clone()}</div>
+      </Show>
+    </div>
       {searchable
         .then(|| {
           let labels = StoredValue::new(find_labels);
@@ -994,26 +1038,20 @@ pub fn SourceEditor(
             <Show when=move || ctx.needle.get().is_some()>
               <div
                 data-slot="source-editor-find"
-                // Липкая, чтобы оставаться с читателем, пока документ едет под
-                // ней, и у верхнего края, чтобы не закрывать строку с
-                // найденным — та стоит на трети экрана сверху.
+                // Наложением поверх редактора: прижата к верхнему правому углу
+                // рамки, не к документу. Рамка не прокручивается, поэтому
+                // полоса стоит, сколько бы текста под ней ни проехало, и к
+                // началу документа при появлении не уносит.
                 //
-                // И **перед** текстом в разметке, а не после. Липкий элемент
-                // прилипает, только пока его собственное место в потоке внутри
-                // прокрутки: стоя последним, он лежал ниже всего документа и
-                // показывался, лишь когда до него домотаешь, — то есть в самом
-                // конце. Место в потоке у него теперь первое, и оттуда он
-                // прилипает к верху сразу.
+                // Правый угол, а не весь верх: она накрывает конец первых строк
+                // и ничего больше, а найденное показывается на трети высоты
+                // сверху и под неё не попадает.
                 //
-                // Высота — нулевая, а сама полоса лежит поверх текста. Заняв
-                // высоту, она сдвинула бы текст вниз, а нумерация строк и
-                // подсказка пустого поля стоят от верха самого редактора, не от
-                // текста: разъехались бы ровно на высоту полосы. Накрывает она
-                // при этом правый край первых строк и ничего больше — она
-                // прижата вправо и шириной по содержимому.
-                class="sticky top-0 z-10 h-0 overflow-visible"
-                // The bar lives inside the scroll box and is typed into; a
-                // keystroke here is not a keystroke in the document.
+                // Места в потоке не занимает вовсе — текст под ней не
+                // сдвигается, и нумерация строк с подсказкой пустого поля, обе
+                // отмеренные от верха редактора, остаются на своих местах.
+                class="absolute top-0 right-0 z-10 flex w-fit items-center gap-1 rounded-b-md border border-t-0 border-border bg-popover p-1 shadow-md"
+                // Полоса — поле ввода, и нажатие в ней не нажатие в документе.
                 on:keydown=move |ev: web_sys::KeyboardEvent| {
                   ev.stop_propagation();
                   match ev.key().as_str() {
@@ -1029,7 +1067,6 @@ pub fn SourceEditor(
                   }
                 }
               >
-              <div class="ml-auto flex w-fit items-center gap-1 rounded-b-md border border-t-0 border-border bg-popover p-1 shadow-md">
                 <input
                   id=move || id.get_value()
                   type="text"
@@ -1066,39 +1103,9 @@ pub fn SourceEditor(
                   "\u{d7}"
                 </button>
               </div>
-              </div>
             </Show>
           }
         })}
-      <div
-        node_ref=ctx.content
-        data-slot="source-editor-content"
-        // `plaintext-only` is what makes an editable element behave like a text
-        // field: no markup, and none of the rich-text keyboard shortcuts.
-        contenteditable=editable.then_some("plaintext-only")
-        spellcheck=spellcheck.then_some("true")
-        role="textbox"
-        aria-multiline="true"
-        aria-readonly=readonly.then_some("true")
-        class=cn(&[CONTENT_CLASSES, if line_numbers { "py-2 pr-3 pl-14" } else { "px-3 py-2" }])
-        on:beforeinput=on_before_input
-        on:input=move |_| sync(ctx)
-        on:keydown=on_keydown
-        on:paste=on_paste
-        on:compositionstart=move |_| ctx.state.update_value(|st| st.composing = true)
-        on:compositionend=move |_| {
-          ctx.state.update_value(|st| st.composing = false);
-          sync(ctx);
-        }
-      />
-      <Show when=move || has_placeholder && ctx.blank.get()>
-        <div class=cn(
-          &[
-            "pointer-events-none absolute top-0 py-2 text-muted-foreground",
-            if line_numbers { "left-14" } else { "left-3" },
-          ],
-        )>{placeholder.clone()}</div>
-      </Show>
     </div>
   }
 }
@@ -1164,7 +1171,7 @@ fn open_find(ctx: Ctx) {
       .get_element_by_id(&id)
       .and_then(|el| el.dyn_into::<HtmlElement>().ok())
     {
-      let _ = input.focus();
+      focus_without_scrolling(&input);
     }
   });
 }
@@ -1263,6 +1270,18 @@ fn show_hit(ctx: Ctx) {
   });
 }
 
+/// Ставит курсор в поле, не прокручивая к нему.
+///
+/// Браузер показывает то, что получило фокус, — прокручивая к нему ближайшего
+/// прокручиваемого предка. Полоса поиска лежит вне прокрутки редактора, так
+/// что его текст от этого не уедет, но уехать может страница, если редактор на
+/// ней не ограничен по высоте. Показывать её незачем: полоса и так на виду.
+fn focus_without_scrolling(el: &HtmlElement) {
+  let opts = web_sys::FocusOptions::new();
+  opts.set_prevent_scroll(true);
+  let _ = el.focus_with_options(&opts);
+}
+
 /// Возвращает ввод в строку поиска, если она открыта.
 fn reclaim_find_focus(ctx: Ctx) {
   if ctx.needle.get_untracked().is_none() {
@@ -1273,7 +1292,7 @@ fn reclaim_find_focus(ctx: Ctx) {
     .get_element_by_id(&id)
     .and_then(|el| el.dyn_into::<HtmlElement>().ok())
   {
-    let _ = input.focus();
+    focus_without_scrolling(&input);
   }
 }
 

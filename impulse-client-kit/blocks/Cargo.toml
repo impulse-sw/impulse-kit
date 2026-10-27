@@ -64,6 +64,9 @@ web-sys = { workspace = true, features = [
   "CssStyleDeclaration",
   "DataTransfer",
   "Document",
+  # `focus({ preventScroll: true })`: строка поиска лежит вне прокрутки
+  # редактора, и показывать её, прокручивая к ней, незачем — она и так на виду.
+  "FocusOptions",
   "DocumentFragment",
   "HtmlDocument",
   "InputEvent",
