@@ -778,3 +778,56 @@ mod generated_shape {
     };
   }
 }
+
+#[cfg(test)]
+mod two_views {
+  use super::*;
+  use crate::button::{Button, ButtonVariant};
+
+  /// Так приложение пишет элемент набора, у которого два вида.
+  ///
+  /// Проверяется не вёрстка, а то, чем раскладка доезжает до классов, — и там
+  /// две разные формы, которые легко перепутать:
+  ///
+  /// * у обычного узла `class` — атрибут, и замыкание, отдающее `&'static
+  ///   str`, в него ложится как есть;
+  /// * у кнопки кита `class` — свойство `Signal<String>`, и то же самое
+  ///   замыкание в него не ложится: нужен `Signal::derive` со `String`.
+  ///
+  /// Перепутанное — отказ сборки клиента, а клиент приложения собирается не
+  /// здесь. Поэтому форма закреплена здесь.
+  #[component]
+  fn BoardFace(#[prop(into)] title: String, owner: bool) -> impl IntoView {
+    let layout = use_collection_layout();
+    let title = StoredValue::new(title);
+
+    view! {
+      <Button
+        variant=ButtonVariant::Outline
+        class=Signal::derive(move || {
+          match layout.get() {
+            CollectionLayout::Grid => "flex h-full min-h-20 w-full flex-col items-start text-left",
+            CollectionLayout::List => "flex w-full flex-row items-center gap-3 text-left",
+          }
+            .to_string()
+        })
+      >
+        <div class=move || match layout.get() {
+          CollectionLayout::Grid => "line-clamp-2 w-full min-w-0 whitespace-normal font-medium",
+          CollectionLayout::List => "min-w-0 flex-1 truncate font-medium",
+        }>{move || title.get_value()}</div>
+        <div class=move || match layout.get() {
+          CollectionLayout::Grid => "mt-auto w-full text-xs text-muted-foreground",
+          CollectionLayout::List => "ml-auto shrink-0 text-xs text-muted-foreground",
+        }>{if owner { "владелец" } else { "доступ открыт" }}</div>
+      </Button>
+    }
+  }
+
+  #[test]
+  fn an_item_picks_its_classes_by_the_layout_it_is_drawn_in() {
+    let _unrendered = move || {
+      view! { <BoardFace title="Доска" owner=true /> }
+    };
+  }
+}
