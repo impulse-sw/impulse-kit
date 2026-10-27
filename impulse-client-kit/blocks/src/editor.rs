@@ -966,27 +966,6 @@ pub fn SourceEditor(
             />
           }
         })}
-      <div
-        node_ref=ctx.content
-        data-slot="source-editor-content"
-        // `plaintext-only` is what makes an editable element behave like a text
-        // field: no markup, and none of the rich-text keyboard shortcuts.
-        contenteditable=editable.then_some("plaintext-only")
-        spellcheck=spellcheck.then_some("true")
-        role="textbox"
-        aria-multiline="true"
-        aria-readonly=readonly.then_some("true")
-        class=cn(&[CONTENT_CLASSES, if line_numbers { "py-2 pr-3 pl-14" } else { "px-3 py-2" }])
-        on:beforeinput=on_before_input
-        on:input=move |_| sync(ctx)
-        on:keydown=on_keydown
-        on:paste=on_paste
-        on:compositionstart=move |_| ctx.state.update_value(|st| st.composing = true)
-        on:compositionend=move |_| {
-          ctx.state.update_value(|st| st.composing = false);
-          sync(ctx);
-        }
-      />
       {searchable
         .then(|| {
           let labels = StoredValue::new(find_labels);
@@ -1002,10 +981,24 @@ pub fn SourceEditor(
             <Show when=move || ctx.needle.get().is_some()>
               <div
                 data-slot="source-editor-find"
-                // Sticky, so it stays with the reader as the document scrolls
-                // under it, and against the top edge so it never covers the
-                // line a hit is on — that line sits a third of the way down.
-                class="sticky top-0 z-10 ml-auto flex w-fit items-center gap-1 rounded-b-md border border-t-0 border-border bg-popover p-1 shadow-md"
+                // Липкая, чтобы оставаться с читателем, пока документ едет под
+                // ней, и у верхнего края, чтобы не закрывать строку с
+                // найденным — та стоит на трети экрана сверху.
+                //
+                // И **перед** текстом в разметке, а не после. Липкий элемент
+                // прилипает, только пока его собственное место в потоке внутри
+                // прокрутки: стоя последним, он лежал ниже всего документа и
+                // показывался, лишь когда до него домотаешь, — то есть в самом
+                // конце. Место в потоке у него теперь первое, и оттуда он
+                // прилипает к верху сразу.
+                //
+                // Высота — нулевая, а сама полоса лежит поверх текста. Заняв
+                // высоту, она сдвинула бы текст вниз, а нумерация строк и
+                // подсказка пустого поля стоят от верха самого редактора, не от
+                // текста: разъехались бы ровно на высоту полосы. Накрывает она
+                // при этом правый край первых строк и ничего больше — она
+                // прижата вправо и шириной по содержимому.
+                class="sticky top-0 z-10 h-0 overflow-visible"
                 // The bar lives inside the scroll box and is typed into; a
                 // keystroke here is not a keystroke in the document.
                 on:keydown=move |ev: web_sys::KeyboardEvent| {
@@ -1023,6 +1016,7 @@ pub fn SourceEditor(
                   }
                 }
               >
+              <div class="ml-auto flex w-fit items-center gap-1 rounded-b-md border border-t-0 border-border bg-popover p-1 shadow-md">
                 <input
                   id=move || id.get_value()
                   type="text"
@@ -1059,9 +1053,31 @@ pub fn SourceEditor(
                   "\u{d7}"
                 </button>
               </div>
+              </div>
             </Show>
           }
         })}
+      <div
+        node_ref=ctx.content
+        data-slot="source-editor-content"
+        // `plaintext-only` is what makes an editable element behave like a text
+        // field: no markup, and none of the rich-text keyboard shortcuts.
+        contenteditable=editable.then_some("plaintext-only")
+        spellcheck=spellcheck.then_some("true")
+        role="textbox"
+        aria-multiline="true"
+        aria-readonly=readonly.then_some("true")
+        class=cn(&[CONTENT_CLASSES, if line_numbers { "py-2 pr-3 pl-14" } else { "px-3 py-2" }])
+        on:beforeinput=on_before_input
+        on:input=move |_| sync(ctx)
+        on:keydown=on_keydown
+        on:paste=on_paste
+        on:compositionstart=move |_| ctx.state.update_value(|st| st.composing = true)
+        on:compositionend=move |_| {
+          ctx.state.update_value(|st| st.composing = false);
+          sync(ctx);
+        }
+      />
       <Show when=move || has_placeholder && ctx.blank.get()>
         <div class=cn(
           &[
