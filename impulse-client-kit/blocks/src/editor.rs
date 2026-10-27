@@ -621,6 +621,8 @@ struct Ctx {
   settle: StoredValue<Option<TimeoutHandle>>,
   /// Whether the document may be scrolled past its last line.
   past_end: bool,
+  /// Сколько сверху закрыто чужим — см. свойство `top_inset`.
+  top_inset: Signal<f64>,
   /// What the find bar is looking for, or `None` while it is closed. The empty
   /// string is an *open* bar with nothing typed in it yet, which is a different
   /// thing from a closed one.
@@ -712,6 +714,16 @@ pub fn SourceEditor(
   /// флаг, уже поднятый, об этом не скажет, а счётчик скажет.
   #[prop(into, optional)]
   find_at: Signal<u32>,
+  /// Сколько сверху редактора закрыто чужим: шапкой приложения, липкой
+  /// панелью — всем, что лежит поверх его первых строк.
+  ///
+  /// Редактор этого не видит: закрывающий его элемент ему не родственник и в
+  /// его измерения не попадает. А знать надо: место под концом документа
+  /// отмеряется так, чтобы последняя строка встала наверх редактора, и если
+  /// верх редактора под шапкой — последняя строка оказывается под шапкой тоже.
+  /// Ровно на её высоту и не домотать.
+  #[prop(into, optional)]
+  top_inset: Signal<f64>,
 ) -> impl IntoView {
   let ctx = Ctx {
     state: StoredValue::new(State::default()),
@@ -724,6 +736,7 @@ pub fn SourceEditor(
     relight: StoredValue::new(None),
     settle: StoredValue::new(None),
     past_end: scroll_past_end,
+    top_inset,
     needle: RwSignal::new(None),
     hits: RwSignal::new(Vec::new()),
     at: RwSignal::new(0),
@@ -1206,13 +1219,15 @@ fn show_hit(ctx: Ctx) {
   let Some((root, _)) = ctx.elements() else {
     return;
   };
-  let view_h = f64::from(root.client_height());
+  // Видимая высота, а не вся: треть закрытого шапкой — не треть экрана, и
+  // найденное на ней оказалось бы под шапкой.
+  let view_h = viewport_of(ctx, &root);
   // A third of the way down rather than at the very top: a hit on the first
   // visible row shows what comes after it and nothing of what comes before, and
   // the line before a match is usually what says whether it is the one.
   let target = ctx
     .state
-    .with_value(|st| st.offset_of(hit.line) + PAD_Y - view_h / 3.0)
+    .with_value(|st| st.offset_of(hit.line) + PAD_Y - view_h / 3.0 - ctx.top_inset.get_untracked())
     .max(0.0);
   set_scroll(ctx, &root, target);
   render(ctx, true);
@@ -1376,7 +1391,7 @@ fn render(ctx: Ctx, force: bool) {
     // Не `view_h`: место под последней строкой меряется окном, а не
     // содержимым, и `client_height` говорит о первом только пока редактор
     // кем-то ограничен (см. [`viewport_of`]).
-    st.overscroll = overscroll_for(st, viewport_of(&root), ctx.past_end);
+    st.overscroll = overscroll_for(st, viewport_of(ctx, &root), ctx.past_end);
     let (mut first, mut last) = window_for(st, scroll_top, view_h, caret, going);
     if held && st.last > st.first {
       first = first.min(st.first);
@@ -2072,11 +2087,18 @@ fn hold_height(content: &Element, px: f64) {
 /// selected, or landed in by a caret, and it costs the browser nothing.
 /// How much empty space to keep below the last line, given the viewport.
 ///
-/// A viewport less one row: the last line can be brought all the way to the top
-/// of the editor and no further. That is the whole of what scrolling past the
-/// end is for — a writer finishing a piece otherwise does it on the bottom edge
-/// of the screen, with the line they are typing at the very limit of where a
-/// line can be. One row rather than none, so the end never leaves the screen.
+/// A viewport less one row and the field's own top padding: the last line comes
+/// all the way to the top of the editor and no further. That is the whole of
+/// what scrolling past the end is for — a writer finishing a piece otherwise
+/// does it on the bottom edge of the screen, with the line they are typing at
+/// the very limit of where a line can be. One row rather than none, so the end
+/// never leaves the screen.
+///
+/// [`PAD_Y`] because the document does not start at the top of the scroll box:
+/// the field's breathing room is above it, and the padding below has to give
+/// that back or the last line stops just short of the top — under whatever is
+/// drawn there. `view_h` arrives already less whatever the app says covers it
+/// (see the `top_inset` prop), so the same arithmetic answers both.
 ///
 /// A screenful, in other words, and never more: this is a property of the
 /// window, not of the document. A thousand-line document gets exactly what a
@@ -2090,7 +2112,7 @@ fn overscroll_for(st: &State, view_h: f64, wanted: bool) -> f64 {
   if !wanted || st.total() + PAD_Y * 2.0 <= view_h {
     return 0.0;
   }
-  (view_h - st.row_h).max(0.0)
+  (view_h - st.row_h - PAD_Y).max(0.0)
 }
 
 /// The editor's own height, as far as it can be believed.
@@ -2107,16 +2129,19 @@ fn overscroll_for(st: &State, view_h: f64, wanted: bool) -> f64 {
 /// bound. It cannot repair the layout — an unbounded editor is still a page
 /// that scrolls as a whole — but it keeps one misplaced class from turning the
 /// end of a document into a field of nothing.
-fn viewport_of(root: &Element) -> f64 {
+fn viewport_of(ctx: Ctx, root: &Element) -> f64 {
   let measured = f64::from(root.client_height());
   let window = web_sys::window()
     .and_then(|w| w.inner_height().ok())
     .and_then(|v| v.as_f64())
     .filter(|h| *h > 0.0);
-  match window {
+  let bounded = match window {
     Some(limit) => measured.min(limit),
     None => measured,
-  }
+  };
+  // И без того, что приложение накрыло сверху: под шапкой места нет, сколько
+  // бы его ни было у редактора.
+  (bounded - ctx.top_inset.get_untracked()).max(0.0)
 }
 
 fn pad(st: &State, content: &Element) {
@@ -3333,8 +3358,9 @@ mod find_tests {
     // 60px of text in a 400px editor: nothing to scroll, nothing to pad.
     assert_eq!(overscroll_for(&st, 400.0, true), 0.0);
     // The same document in a 50px editor already scrolls, so the affordance
-    // appears — a viewport less one row, which puts the last line at the top.
-    assert_eq!(overscroll_for(&st, 50.0, true), 30.0);
+    // appears — a viewport less one row and the field's own padding, which puts
+    // the last line at the top and not a hair above it.
+    assert_eq!(overscroll_for(&st, 50.0, true), 50.0 - 20.0 - PAD_Y);
     // And never when the caller did not ask.
     assert_eq!(overscroll_for(&st, 50.0, false), 0.0);
   }
@@ -3398,8 +3424,10 @@ mod find_tests {
       overscroll_for(&long, screen, true),
       "документ длиннее — место под ним то же"
     );
-    // И это именно экран без одной строки: последняя встаёт наверх и не выше.
-    assert_eq!(overscroll_for(&long, screen, true), screen - 20.0);
+    // И это именно экран без строки и без отступа поля: последняя строка
+    // встаёт ровно наверх — не ниже, чтобы её было видно, и не выше, чтобы не
+    // срезало.
+    assert_eq!(overscroll_for(&long, screen, true), screen - 20.0 - PAD_Y);
     // Двадцать тысяч пикселей текста не дают двадцати тысяч пикселей пустоты.
     assert!(
       overscroll_for(&long, screen, true) < long.total() / 10.0,
