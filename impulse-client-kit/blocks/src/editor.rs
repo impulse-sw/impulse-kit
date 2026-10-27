@@ -371,6 +371,12 @@ struct State {
   /// Empty space kept below the last line, in pixels. Zero unless the caller
   /// asked for it; see [`overscroll_for`].
   overscroll: f64,
+  /// Что за поиск нарисован сейчас: искомое и номер текущего совпадения.
+  ///
+  /// Отметки живут в нарисованных строках, а перерисовка по умолчанию трогает
+  /// только края окна. Без этой памяти набранная в поиске буква не меняла бы
+  /// ничего из уже нарисованного — то есть подсветка отставала бы на шаг.
+  painted_find: Option<(String, usize)>,
 }
 
 impl Default for State {
@@ -391,6 +397,7 @@ impl Default for State {
       last: 0,
       composing: false,
       painted: (0, 0),
+      painted_find: None,
       last_scroll: 0.0,
       last_moved_ms: 0.0,
       heading: 0.0,
@@ -1076,6 +1083,10 @@ pub fn SourceEditor(
                   on:input=move |ev| {
                     ctx.needle.set(Some(event_target_value(&ev)));
                     research(ctx);
+                    // Перерисовка до показа: отметки живут в нарисованных
+                    // строках, и стёртая буква должна убрать подсветку даже
+                    // тогда, когда показывать стало нечего.
+                    render(ctx, true);
                     show_hit(ctx);
                   }
                 />
@@ -1180,6 +1191,8 @@ fn open_find(ctx: Ctx) {
 fn close_find(ctx: Ctx) {
   ctx.needle.set(None);
   ctx.hits.set(Vec::new());
+  // Отметки нарисованы в строках и сами не уйдут.
+  render(ctx, true);
   if let Some(content) = ctx.content.get_untracked() {
     let _ = content.unchecked_into::<HtmlElement>().focus();
   }
@@ -1469,10 +1482,15 @@ fn draw(ctx: Ctx, root: &Element, content: &Element, caret: Option<Pos>, going: 
   // has means it never shrinks in between, so there is nothing to clamp.
   let moving = ctx.state.with_value(State::is_moving);
   hold_height(content, f64::from(root.scroll_height()));
+  let find = Find {
+    hits: ctx.hits.get_untracked(),
+    at: ctx.at.get_untracked(),
+    key: ctx.needle.get_untracked().map(|needle| (needle, ctx.at.get_untracked())),
+  };
   let corrected = ctx.state.try_update_value(|st| {
     let anchor = st.line_at(scroll_top - PAD_Y);
     let was = st.offset_of(anchor);
-    paint(st, content, ctx.highlight);
+    paint(st, content, ctx.highlight, &find);
     measure(st, content);
     // Measuring rows that were guesses has moved the anchor line. Take the
     // difference out of the guesses above rather than out of the reader's scroll
@@ -1601,7 +1619,7 @@ fn price_chunk(ctx: Ctx) {
       // No highlighting: spans are inline and wrap exactly as the bare text
       // does, so colouring a line the reader will never see is work for
       // nothing.
-      if let Some(div) = make_line(&doc, &st.lines[line], None, Block::default()) {
+      if let Some(div) = make_line(&doc, &st.lines[line], None, Block::default(), &[]) {
         let _ = fragment.append_child(&div);
         todo.push(line);
       }
@@ -1928,7 +1946,7 @@ fn window_for(st: &State, scroll_top: f64, view_h: f64, caret: Option<Pos>, goin
 /// A rebuild is still the answer when the new window shares nothing with the old
 /// one, or when the browser has been editing and the rows no longer stand one to
 /// a line — which [`sync`] says by clearing `painted`.
-fn paint(st: &mut State, content: &Element, highlight: Option<Syntax>) {
+fn paint(st: &mut State, content: &Element, highlight: Option<Syntax>, find: &Find) {
   let Some(doc) = content.owner_document() else {
     return;
   };
@@ -1936,7 +1954,12 @@ fn paint(st: &mut State, content: &Element, highlight: Option<Syntax>) {
   // Nothing can be coloured before it is known what it is inside of.
   st.ensure_blocks(highlight, last);
   let (was_first, was_last) = st.painted;
-  let intact = was_last > was_first
+  // Поиск изменился — отметки стоят не там, и края окна тут не помогут:
+  // перерисовывать надо всё, что на экране.
+  let same_find = st.painted_find.as_ref() == find.key.as_ref();
+  st.painted_find = find.key.clone();
+  let intact = same_find
+    && was_last > was_first
     && first < was_last
     && last > was_first
     && content.children().length() as usize == was_last - was_first;
@@ -1944,7 +1967,7 @@ fn paint(st: &mut State, content: &Element, highlight: Option<Syntax>) {
   if !intact {
     let fragment = doc.create_document_fragment();
     for line in first.min(st.lines.len())..last {
-      if let Some(div) = make_line(&doc, &st.lines[line], highlight, st.block_of(line)) {
+      if let Some(div) = make_line(&doc, &st.lines[line], highlight, st.block_of(line), &find.on(line)) {
         let _ = fragment.append_child(&div);
       }
     }
@@ -1967,35 +1990,121 @@ fn paint(st: &mut State, content: &Element, highlight: Option<Syntax>) {
     }
   }
   for line in (first..was_first.min(last)).rev() {
-    if let Some(div) = make_line(&doc, &st.lines[line], highlight, st.block_of(line)) {
+    if let Some(div) = make_line(&doc, &st.lines[line], highlight, st.block_of(line), &find.on(line)) {
       let _ = content.insert_before(&div, content.first_child().as_ref());
     }
   }
   for line in was_last.max(first)..last {
-    if let Some(div) = make_line(&doc, &st.lines[line], highlight, st.block_of(line)) {
+    if let Some(div) = make_line(&doc, &st.lines[line], highlight, st.block_of(line), &find.on(line)) {
       let _ = content.append_child(&div);
     }
   }
   st.painted = (first, last);
 }
 
+/// Найденное — так, как его видит отрисовка: отметки по строкам.
+///
+/// Снимок, а не сигнал: отрисовка идёт в середине правки состояния, и читать
+/// из неё реактивное значит подписать её на себя же.
+struct Find {
+  hits: Vec<Hit>,
+  /// Номер совпадения, на котором стоим, в `hits`.
+  at: usize,
+  /// Чем нарисовано: искомое и номер текущего. Ничего не ищут — `None`.
+  key: Option<(String, usize)>,
+}
+
+impl Find {
+  /// Отметки на одной строке, слева направо.
+  fn on(&self, line: usize) -> Vec<(usize, usize, &'static str)> {
+    self
+      .hits
+      .iter()
+      .enumerate()
+      .filter(|(_, hit)| hit.line == line)
+      .map(|(i, hit)| {
+        let class = match i == self.at {
+          true => HIT_CURRENT_CLASS,
+          false => HIT_CLASS,
+        };
+        (hit.from, hit.to, class)
+      })
+      .collect()
+  }
+}
+
+/// Как помечается найденное: подсветка на каждом совпадении.
+///
+/// Выделением браузера обойтись нельзя. Оно одно на документ — значит показало
+/// бы одно совпадение из двадцати, — и гаснет, стоит фокусу уйти в строку
+/// поиска, то есть ровно тогда, когда в неё и печатают. Отметка — часть
+/// нарисованной строки и живёт по тем же правилам, что и раскраска синтаксиса.
+const HIT_CLASS: &str = "rounded-xs bg-primary/25";
+
+/// То же для совпадения, на котором стоим: его видно среди остальных.
+const HIT_CURRENT_CLASS: &str = "rounded-xs bg-primary/60 text-primary-foreground";
+
+/// Накладывает отметки найденного на раскраску синтаксиса.
+///
+/// Отметка сильнее цвета: внутри совпадения раскраска уступает ей целиком, а
+/// не смешивается с ней. Смешать было бы нечем — класс у отрезка один, — да и
+/// читается подсветка тем хуже, чем больше под ней всего.
+///
+/// На вход идут отрезки, отсортированные и непересекающиеся (`find_all` даёт
+/// именно такие), на выходе — тоже: [`make_line`] других не принимает.
+fn with_hits(painted: Vec<HighlightSpan>, marks: &[(usize, usize, &'static str)]) -> Vec<HighlightSpan> {
+  if marks.is_empty() {
+    return painted;
+  }
+  let mut out: Vec<HighlightSpan> = Vec::with_capacity(painted.len() + marks.len());
+  for span in painted {
+    let mut at = span.from;
+    for &(from, to, _) in marks {
+      if to <= at || from >= span.to {
+        continue;
+      }
+      if from > at {
+        out.push(HighlightSpan { from: at, to: from, class: span.class });
+      }
+      at = at.max(to);
+    }
+    if at < span.to {
+      out.push(HighlightSpan { from: at, to: span.to, class: span.class });
+    }
+  }
+  out.extend(marks.iter().map(|&(from, to, class)| HighlightSpan { from, to, class }));
+  out.sort_by_key(|span| (span.from, span.to));
+  out
+}
+
 /// One line's worth of DOM.
 ///
 /// An empty line gets a `<br>`: an empty block is zero pixels tall, and a line
 /// nobody can see is a line nobody can click into.
-fn make_line(doc: &Document, text: &str, highlight: Option<Syntax>, block: Block) -> Option<Element> {
+fn make_line(
+  doc: &Document,
+  text: &str,
+  highlight: Option<Syntax>,
+  block: Block,
+  marks: &[(usize, usize, &'static str)],
+) -> Option<Element> {
   let div = doc.create_element("div").ok()?;
   if text.is_empty() {
     let br = doc.create_element("br").ok()?;
     let _ = div.append_child(&br);
     return Some(div);
   }
-  let Some(highlight) = highlight else {
-    div.set_text_content(Some(text));
-    return Some(div);
+  // Раскраски может не быть, а отметки — быть: искать можно и в простом тексте.
+  let painted = match highlight {
+    Some(highlight) => (highlight.paint)(text, block),
+    None if marks.is_empty() => {
+      div.set_text_content(Some(text));
+      return Some(div);
+    }
+    None => Vec::new(),
   };
   let mut at = 0usize;
-  for span in (highlight.paint)(text, block) {
+  for span in with_hits(painted, marks) {
     // A highlighter handing back overlapping, unsorted or mid-character offsets
     // is ignored rather than allowed to corrupt the line.
     if span.from < at
@@ -2372,12 +2481,21 @@ fn relight(ctx: Ctx) {
   let Some(doc) = content.owner_document() else {
     return;
   };
+  let find = Find {
+    hits: ctx.hits.get_untracked(),
+    at: ctx.at.get_untracked(),
+    key: ctx.needle.get_untracked().map(|needle| (needle, ctx.at.get_untracked())),
+  };
   let replaced = ctx.state.try_update_value(|st| {
     st.ensure_blocks(Some(highlight), caret.line);
     let index = caret.line.checked_sub(st.first)?;
     let old = content.children().item(index as u32)?;
     let text = st.lines.get(caret.line)?;
-    let new = make_line(&doc, text, Some(highlight), st.block_of(caret.line))?;
+    // Отметки на этой строке — те же, что нарисованы сейчас: правка строки не
+    // ищет заново, а стереть найденное на ней значило бы потерять подсветку до
+    // следующего прохода.
+    let marks = find.on(caret.line);
+    let new = make_line(&doc, text, Some(highlight), st.block_of(caret.line), &marks)?;
     content.replace_child(&new, &old).ok()?;
     Some(())
   });
@@ -3362,6 +3480,68 @@ mod find_tests {
   #[test]
   fn a_needle_longer_than_the_line_is_not_a_match() {
     assert!(find_all(&doc("ab\n"), "abcdef").is_empty());
+  }
+
+  /// Найденное помечается поверх раскраски, а не вместо неё.
+  #[test]
+  fn a_hit_marks_the_line_without_losing_the_colour_around_it() {
+    // «ключевое слово» на всю строку, и совпадение внутри него.
+    let painted = vec![HighlightSpan { from: 0, to: 12, class: "kw" }];
+    let out = with_hits(painted, &[(4, 8, HIT_CLASS)]);
+    let shape: Vec<_> = out.iter().map(|s| (s.from, s.to, s.class)).collect();
+    assert_eq!(shape, vec![(0, 4, "kw"), (4, 8, HIT_CLASS), (8, 12, "kw")]);
+  }
+
+  /// Отрезки на выходе отсортированы и не пересекаются — других `make_line` не
+  /// принимает, он их молча выбрасывает.
+  #[test]
+  fn merged_spans_stay_sorted_and_apart() {
+    let painted = vec![
+      HighlightSpan { from: 0, to: 5, class: "a" },
+      HighlightSpan { from: 7, to: 20, class: "b" },
+    ];
+    let out = with_hits(painted, &[(3, 9, HIT_CURRENT_CLASS), (15, 17, HIT_CLASS)]);
+    let mut at = 0;
+    for span in &out {
+      assert!(span.from >= at, "отрезки разъехались: {:?}", (span.from, span.to));
+      assert!(span.to > span.from, "пустой отрезок");
+      at = span.to;
+    }
+    // Отметки целы, а раскраска под ними уступила.
+    assert!(out.iter().any(|s| (s.from, s.to, s.class) == (3, 9, HIT_CURRENT_CLASS)));
+    assert!(out.iter().any(|s| (s.from, s.to, s.class) == (15, 17, HIT_CLASS)));
+  }
+
+  /// Текущее совпадение отличается от остальных, иначе среди двадцати его не
+  /// найти.
+  #[test]
+  fn the_hit_being_stood_on_looks_different() {
+    assert_ne!(HIT_CLASS, HIT_CURRENT_CLASS);
+    let find = Find {
+      hits: vec![
+        Hit { line: 3, from: 0, to: 2 },
+        Hit { line: 3, from: 5, to: 7 },
+        Hit { line: 9, from: 1, to: 3 },
+      ],
+      at: 1,
+      key: None,
+    };
+    assert_eq!(
+      find.on(3),
+      vec![(0, 2, HIT_CLASS), (5, 7, HIT_CURRENT_CLASS)],
+      "на строке две отметки, и вторая — текущая"
+    );
+    assert_eq!(find.on(9), vec![(1, 3, HIT_CLASS)]);
+    assert!(find.on(4).is_empty(), "на строке без совпадений отметок нет");
+  }
+
+  /// Без поиска раскраска не трогается вовсе.
+  #[test]
+  fn nothing_searched_means_nothing_touched() {
+    let painted = vec![HighlightSpan { from: 2, to: 6, class: "kw" }];
+    let out = with_hits(painted.clone(), &[]);
+    assert_eq!(out.len(), painted.len());
+    assert_eq!((out[0].from, out[0].to, out[0].class), (2, 6, "kw"));
   }
 
   /// Scrolling past the end is offered only once there is something to scroll.
