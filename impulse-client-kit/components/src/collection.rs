@@ -92,10 +92,30 @@ struct CollectionContext {
   layout: Signal<CollectionLayout>,
 }
 
-/// Раскладка набора, внутри которого это нарисовано.
+/// Раскладка набора, **внутри которого** это нарисовано.
 ///
 /// Снаружи любого набора — умолчание ([`CollectionLayout::Grid`]): карточка,
 /// нарисованная вне набора, рисуется как карточка.
+///
+/// Отсюда правило, на котором уже спотыкались: спрашивать надо **там, где
+/// рисуют элемент**, а не в теле страницы, которая набор содержит. Контекст
+/// поднимает сам [`CollectionView`], и для страницы он ещё не существует —
+/// функция отдаст ей умолчание, молча и навсегда, а переключатель будет
+/// исправно переключать то, чего элементы не читают.
+///
+/// ```ignore
+/// // Так — да: замыкание зовёт набор, когда рисует детей.
+/// <DocumentCollection len=len>
+///   {move || {
+///     let layout = use_collection_layout();
+///     …
+///   }}
+/// </DocumentCollection>
+///
+/// // Так — нет: здесь набора ещё нет, и раскладка всегда умолчание.
+/// let layout = use_collection_layout();
+/// view! { <DocumentCollection len=len>…</DocumentCollection> }
+/// ```
 pub fn use_collection_layout() -> Signal<CollectionLayout> {
   use_context::<CollectionContext>()
     .map(|ctx| ctx.layout)
