@@ -700,6 +700,18 @@ pub fn SourceEditor(
   /// Wording for the find bar, for an app that is not in English.
   #[prop(optional)]
   find_labels: FindLabels,
+  /// Счётчик «открой поиск»: сдвинулся — строка поиска открывается.
+  ///
+  /// `Ctrl+F` редактор ловит сам, но пункт меню им воспользоваться не может:
+  /// нажатие в нативной панели приезжает из обратного вызова JS, вне всякого
+  /// представления, и дотянуться оттуда до поля внутри компонента нечем.
+  /// Счётчик — то, чем до него дотягиваются: приложение его сдвигает, редактор
+  /// открывается.
+  ///
+  /// Счётчик, а не флаг: искать просят и второй раз подряд, не закрыв строку, —
+  /// флаг, уже поднятый, об этом не скажет, а счётчик скажет.
+  #[prop(into, optional)]
+  find_at: Signal<u32>,
 ) -> impl IntoView {
   let ctx = Ctx {
     state: StoredValue::new(State::default()),
@@ -719,6 +731,22 @@ pub fn SourceEditor(
   let editable = !disabled && !readonly;
   let indent = StoredValue::new(" ".repeat(tab_size.unwrap_or(2).clamp(1, 8)));
   let has_placeholder = !placeholder.is_empty();
+
+  // Просьба открыть поиск, пришедшая снаружи — из пункта меню (см. `find_at`).
+  //
+  // Первое значение пропускается: эффект выполняется и на монтировании, а
+  // открывать поиск всякому, кто просто открыл документ, незачем.
+  if searchable {
+    let seen = StoredValue::new(None::<u32>);
+    Effect::new(move |_| {
+      let now = find_at.get();
+      let first = seen.get_value().is_none();
+      seen.set_value(Some(now));
+      if !first {
+        open_find(ctx);
+      }
+    });
+  }
 
   // Mount, and anybody setting the document from outside. Both are the same
   // thing — a value this editor did not write — so both take the same path.
@@ -1185,7 +1213,32 @@ fn show_hit(ctx: Ctx) {
         },
       )
     });
+    // Выделив совпадение, вернуть ввод в строку поиска.
+    //
+    // Выделение в `contenteditable` — это и перевод фокуса в него: браузер не
+    // умеет выделять в поле, в котором не стоит курсор. А строка поиска ищет на
+    // каждом нажатии, то есть выделяет на каждом нажатии, — и второй набранный
+    // символ уходил уже в документ. Выглядело это так, будто курсор сам уехал
+    // из поля в текст.
+    //
+    // Браузер продолжает рисовать выделение и потеряв фокус, приглушённым, так
+    // что найденное видно, а печатается по-прежнему в поле.
+    reclaim_find_focus(ctx);
   });
+}
+
+/// Возвращает ввод в строку поиска, если она открыта.
+fn reclaim_find_focus(ctx: Ctx) {
+  if ctx.needle.get_untracked().is_none() {
+    return;
+  }
+  let id = find_input_id(ctx);
+  if let Some(input) = document()
+    .get_element_by_id(&id)
+    .and_then(|el| el.dyn_into::<HtmlElement>().ok())
+  {
+    let _ = input.focus();
+  }
 }
 
 /// Steps to the next hit (or the previous one), wrapping around.
@@ -1604,7 +1657,16 @@ fn price_chunk(ctx: Ctx) {
 /// in a state it forgot to leave.
 fn follow_end(ctx: Ctx, root: &Element, going: f64) {
   let scroll_top = f64::from(root.scroll_top());
-  let max = f64::from(root.scroll_height() - root.client_height());
+  // Без места под концом документа: оно часть `scroll_height`, но не часть
+  // документа. Появившись впервые — а появляется оно на первой же отрисовке,
+  // где его попросили, — оно выглядело отсюда как разом доросший документ, и
+  // читателя уносило в самый низ. Ровно это и делал поиск: открываясь, он
+  // вызывал отрисовку, та впервые писала отступ, и вместо найденного человек
+  // оказывался в конце текста.
+  //
+  // Расти должен текст, а не наша собственная подложка под ним.
+  let overscroll = ctx.state.with_value(|st| st.overscroll);
+  let max = f64::from(root.scroll_height() - root.client_height()) - overscroll;
   let view_h = f64::from(root.client_height());
   let Some((growth, reach)) = ctx.state.try_update_value(|st| {
     let growth = max - st.last_max;
@@ -3254,6 +3316,36 @@ mod find_tests {
     assert_eq!(overscroll_for(&st, 50.0, true), 30.0);
     // And never when the caller did not ask.
     assert_eq!(overscroll_for(&st, 50.0, false), 0.0);
+  }
+
+  /// Подложка под концом — не рост документа.
+  ///
+  /// `follow_end` уносит читателя вниз, когда конец ушёл от него, и меряет это
+  /// ростом `scroll_height`. Место под концом — тоже `scroll_height`, и
+  /// появляется оно разом, на первой же отрисовке, где его попросили. Открытие
+  /// поиска такую отрисовку и вызывало: вместо найденного человек оказывался в
+  /// конце текста.
+  ///
+  /// Проверяется арифметика, которой `follow_end` считает рост: из высоты
+  /// прокрутки вычитается место под концом, и появление этого места ростом не
+  /// выглядит.
+  #[test]
+  fn the_padding_below_the_end_is_not_the_document_growing() {
+    let view_h = 600.0;
+    let doc_h = 20_000.0;
+    // Как считает `follow_end`: `scroll_height` минус окно минус подложка.
+    let max_of = |scroll_h: f64, overscroll: f64| scroll_h - view_h - overscroll;
+
+    // До того, как место под концом написано.
+    let before = max_of(doc_h, 0.0);
+    // И после: `scroll_height` вырос ровно на него.
+    let after = max_of(doc_h + (view_h - 20.0), view_h - 20.0);
+    assert_eq!(before, after, "подложка под концом прочиталась как рост документа");
+
+    // А настоящая дописанная строка ростом быть обязана.
+    let typed = max_of(doc_h + 20.0 + (view_h - 20.0), view_h - 20.0);
+    assert!(typed > before, "дописанная строка не выглядит ростом");
+    assert_eq!(typed - before, 20.0, "рост должен быть ровно в одну строку");
   }
 
   /// The space below the end is a property of the window, not of the document.
