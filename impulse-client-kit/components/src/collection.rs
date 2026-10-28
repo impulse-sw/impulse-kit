@@ -127,6 +127,24 @@ pub fn use_collection_layout() -> Signal<CollectionLayout> {
 /// Разное число для плитки и списка — не кокетство: скелет обещает, сколько
 /// примерно приедет, и шесть полосок во всю ширину обещают экран списка, а
 /// шесть плиток — две строки сетки.
+/// Промежуток между элементами при этой раскладке.
+///
+/// Объявленный промежуток — про **плитку**: у карточки есть площадь, и воздух
+/// между карточками отделяет одну от другой. У строки площади нет, и отделяет
+/// её не воздух, а линия снизу — поэтому список берёт волосок, что бы набор ни
+/// объявил. Шестнадцать пикселей между строками рассыпали перечень на карточки,
+/// и строки переставали читаться строками (IUX-24).
+///
+/// Не настройка: промежуток списка — свойство списка, и объявлять его каждому
+/// набору значило бы разрешить им разойтись. Кому нужен волосок у плитки, тот
+/// называет его обычным путём.
+fn gap_for(layout: CollectionLayout, declared: Gap) -> Gap {
+  match layout {
+    CollectionLayout::List => Gap::Hair,
+    CollectionLayout::Grid => declared,
+  }
+}
+
 fn skeletons(layout: CollectionLayout) -> usize {
   match layout {
     CollectionLayout::Grid => 6,
@@ -254,7 +272,7 @@ pub fn CollectionView(
         if loading.get() {
           let layout = layout.get();
           return view! {
-            <Grid cols=GridCols::One gap=gap class=columns.class(layout)>
+            <Grid cols=GridCols::One gap=gap_for(layout, gap) class=columns.class(layout)>
               {(0..skeletons(layout))
                 .map(|_| {
                   let height = match layout {
@@ -286,7 +304,7 @@ pub fn CollectionView(
             .into_any();
         }
         view! {
-          <Grid cols=GridCols::One gap=gap class=columns.class(layout.get())>
+          <Grid cols=GridCols::One gap=gap_for(layout.get(), gap) class=columns.class(layout.get())>
             {children.with_value(|c| c())}
           </Grid>
         }
@@ -849,5 +867,36 @@ mod two_views {
     let _unrendered = move || {
       view! { <BoardFace title="Доска" owner=true /> }
     };
+  }
+}
+
+#[cfg(test)]
+mod spacing {
+  use super::*;
+
+  /// Промежуток следует раскладке, а не только объявлению.
+  ///
+  /// Объявленный — про плитку: у карточки есть площадь, и воздух отделяет одну
+  /// от другой. У строки площади нет, и отделяет её линия снизу, поэтому
+  /// шестнадцать пикселей между строками рассыпали перечень на карточки
+  /// (IUX-24).
+  #[test]
+  fn список_берёт_волосок_а_плитка_объявленное() {
+    assert_eq!(gap_for(CollectionLayout::Grid, Gap::Md).class(), "gap-4");
+    assert_eq!(gap_for(CollectionLayout::Grid, Gap::Lg).class(), "gap-6");
+    // Что бы набор ни объявил: промежуток списка — свойство списка.
+    assert_eq!(gap_for(CollectionLayout::List, Gap::Md).class(), "gap-px");
+    assert_eq!(gap_for(CollectionLayout::List, Gap::Xxl).class(), "gap-px");
+  }
+
+  /// Волосок — это волосок, а не «почти ноль».
+  ///
+  /// Ступени между нулём и четырьмя пикселями в шкале не было вовсе, и список
+  /// приходилось выбирать между «слиплось» и «рассыпалось».
+  #[test]
+  fn волосок_это_один_пиксель() {
+    assert_eq!(Gap::Hair.class(), "gap-px");
+    assert_eq!(Gap::None.class(), "gap-0");
+    assert_eq!(Gap::Xs.class(), "gap-1");
   }
 }

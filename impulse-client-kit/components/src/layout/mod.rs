@@ -29,6 +29,12 @@ pub use spacer::Spacer;
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub enum Gap {
   None,
+  /// Волосок: `gap-px`.
+  ///
+  /// Не «очень плотно», а **черта**: столько нужно перечню, элементы которого
+  /// отделены линией снизу, а не воздухом. Ступени ниже `gap-1` в шкале не
+  /// было, и такой перечень рассыпался на карточки.
+  Hair,
   Xs,
   Sm,
   #[default]
@@ -42,6 +48,7 @@ impl Gap {
   pub fn class(&self) -> &'static str {
     match self {
       Gap::None => "gap-0",
+      Gap::Hair => "gap-px",
       Gap::Xs => "gap-1",
       Gap::Sm => "gap-2",
       Gap::Md => "gap-4",
