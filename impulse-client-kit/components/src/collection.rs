@@ -36,6 +36,25 @@
 //!
 //! Ключ — имя набора, а не адрес страницы: один и тот же набор на двух экранах
 //! — это один набор, и переключив его в одном месте, человек переключил его.
+//!
+//! # Почему набор не рисует переключателя
+//!
+//! Рисовал. Своей строкой над содержимым, и строка эта была почти пуста: две
+//! кнопки у правого края и полоса воздуха на всю остальную ширину — в каждом
+//! наборе каждого приложения. Доске она отнимала ряд целиком.
+//!
+//! Смена вида — ровно то, чем бывает команда: до неё дотягиваются из меню, из
+//! палитры, жестом своей платформы. Поэтому место переключателя выбирает тот,
+//! кто рисует экран: приложение на метафреймворке объявляет смену вида
+//! командой и не рисует ничего, а [`CollectionLayoutSwitch`] остаётся тому,
+//! кому меню негде взять.
+//!
+//! Из этого и устройство выбора: он лежит **под именем набора**, а не внутри
+//! компонента, — иначе до него не дотянулась бы команда, которая стоит в меню
+//! приложения, то есть снаружи всякого набора.
+
+use std::cell::RefCell;
+use std::collections::BTreeMap;
 
 use impulse_client_kit::utils::cn;
 use leptos::prelude::*;
@@ -104,6 +123,80 @@ impl CollectionLayout {
 /// Ключ, под которым помнится выбор раскладки набора `name`.
 pub fn collection_layout_key(name: &str) -> String {
   format!("collection-layout:{name}")
+}
+
+// --- Где живёт выбранная раскладка -----------------------------------------
+
+/// Что известно о наборе этого имени.
+///
+/// `ArcRwSignal`, а не `RwSignal`, и это главное здесь. Обычный сигнал лежит в
+/// арене своего владельца и снимается вместе с ним; эту же запись читает меню,
+/// которое живёт дольше экрана с набором. Чтение снятого сигнала — паника на
+/// весь интерфейс, и ровно на ней уже спотыкались.
+#[derive(Clone)]
+struct Known {
+  /// Раскладка, которой набор показывают. `None` — его ещё не рисовали, и
+  /// какая у него раскладка, не знает никто: умолчание объявляет сам набор, а
+  /// отвечать за него здесь нечем.
+  layout: ArcRwSignal<Option<CollectionLayout>>,
+  /// Сколько наборов этого имени сейчас на экране.
+  ///
+  /// Счёт, а не «да/нет»: один и тот же набор бывает на экране дважды, и уход
+  /// одного из двух не делает его невидимым.
+  shown: ArcRwSignal<usize>,
+}
+
+thread_local! {
+  /// Наборы, о которых что-то известно.
+  ///
+  /// Своя на поток: на сервере таких потоков столько, сколько запросов разом,
+  /// и общая память между ними была бы выбором одного человека, показанным
+  /// другому. Там она и не заполняется — эффекты на сервере не идут, — так что
+  /// страница рисуется умолчанием набора, а гидратация подставляет выбранное.
+  static KNOWN: RefCell<BTreeMap<String, Known>> = const { RefCell::new(BTreeMap::new()) };
+}
+
+/// Запись о наборе, заводя её, если набора ещё не видели.
+fn known(name: &str) -> Known {
+  KNOWN.with_borrow_mut(|known| {
+    known
+      .entry(name.to_string())
+      .or_insert_with(|| Known {
+        layout: ArcRwSignal::new(None),
+        shown: ArcRwSignal::new(0),
+      })
+      .clone()
+  })
+}
+
+/// Раскладка, которой показывают набор `name`, — если его показывали.
+///
+/// Спрашивают это снаружи набора: команда смены вида стоит в меню приложения и
+/// должна пометить ту раскладку, которая сейчас. `None` значит «набор ни разу
+/// не рисовали» — умолчание объявлено самим набором, и выдумывать его здесь
+/// значило бы ответить за него.
+pub fn collection_layout(name: &str) -> Option<CollectionLayout> {
+  known(name).layout.get()
+}
+
+/// Показать набор `name` этой раскладкой.
+///
+/// Зовут это и переключатель, и команда меню — и обе снаружи: выбор лежит под
+/// именем набора, а не внутри его компонента, и дотянуться до него можно, пока
+/// набор на экране и пока его там нет.
+pub fn set_collection_layout(name: &str, layout: CollectionLayout) {
+  known(name).layout.set(Some(layout));
+  write_layout(&collection_layout_key(name), layout);
+}
+
+/// Есть ли набор `name` сейчас на экране.
+///
+/// По этому команда смены вида и становится серой: переключать набор, которого
+/// не видно, — значит менять то, чего человек не увидит сменившимся. Серый
+/// пункт при этом остаётся в меню: исчезнувший человек ищет глазами и не
+/// находит.
+pub fn collection_on_screen(name: &str) -> bool {
+  known(name).shown.get() > 0
 }
 
 #[derive(Clone, Copy)]
@@ -224,7 +317,15 @@ fn shell_class(layout: CollectionLayout, gap: Gap, columns: CollectionColumns) -
       "flex min-h-0 w-full min-w-0 flex-1 items-start overflow-x-auto overflow-y-hidden pb-2",
       gap_for(layout, gap).class(),
     ]),
-    CollectionLayout::Grouped => cn(&["flex w-full min-w-0 flex-col", gap_for(layout, gap).class()]),
+    // Прокручивается сам, и это не выбор, а следствие. Страница, на которой
+    // живёт разбитый на группы набор, отдала ему высоту экрана и остаток
+    // срезала (`overflow-hidden`): столбцы доски прокручиваются по одному, и
+    // прокрутки у самой страницы нет. Список по группам на той же странице
+    // оказывался срезанным — сорок задач просто не показывались.
+    CollectionLayout::Grouped => cn(&[
+      "flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-y-auto",
+      gap_for(layout, gap).class(),
+    ]),
   }
 }
 
@@ -304,60 +405,64 @@ pub fn CollectionView(
   /// Раскладка, с которой набор начинает, пока человек не выбрал другую.
   #[prop(optional)]
   default_layout: CollectionLayout,
-  /// Показывать ли переключатель. Без него набор рисуется умолчанием и не
-  /// спрашивает: у набора из трёх строк выбирать нечего.
-  #[prop(optional)]
-  switchable: bool,
-  /// Какие раскладки предлагать, в порядке показа.
-  ///
-  /// Называет их состав, а не этот список: плитка и строка подходят всякому
-  /// набору, а доска — только разбитому на группы, и предлагать её набору
-  /// документов было бы предложением, которое не во что превратить.
-  #[prop(optional)]
-  offers: Option<&'static [CollectionLayout]>,
   /// До скольких колонок разворачивается плитка. Точки останова — решение
   /// системы: приложение называет предел.
   #[prop(optional)]
   columns: CollectionColumns,
   #[prop(optional)] width: ContainerSize,
   #[prop(optional)] gap: Gap,
+  /// Стоит ли набор вплотную к краям.
+  ///
+  /// Отступ по краям принадлежит **полосе**, а не набору: он нужен набору,
+  /// который и есть содержимое страницы, и он же удваивается у набора,
+  /// стоящего внутри того, у кого отступ уже есть. Доска задач стоит внутри
+  /// доски — и получила второй отступ слева и справа, которого у неё до этого
+  /// не было.
+  #[prop(optional)]
+  flush: bool,
   /// Что показать, когда показывать нечего.
   #[prop(optional, into)]
   empty_title: String,
   #[prop(optional, into)] empty_hint: String,
-  #[prop(optional)] labels: CollectionLabels,
-  /// Своё в строке заголовка: кнопка «создать», фильтр, что угодно. Встаёт
-  /// слева от переключателя.
+  /// Своё в строке заголовка: кнопка «создать», фильтр, переключатель вида.
+  /// Нет его — нет и строки: пустая полоса над набором отнимает ряд и ничего
+  /// не говорит.
   #[prop(into, optional)]
   toolbar: Option<ViewFn>,
   children: ChildrenFn,
 ) -> impl IntoView {
-  let chosen = RwSignal::new(None::<CollectionLayout>);
   let key = StoredValue::new(collection_layout_key(&name));
-  // Умолчание — две плоские: таким был переключатель, пока раскладок было две,
-  // и набор, ничего не назвавший, обязан остаться таким же.
-  let offers: &'static [CollectionLayout] = offers.unwrap_or(&[CollectionLayout::Grid, CollectionLayout::List]);
+  let known = known(&name);
+
+  // Набор на экране: по этому команда смены вида знает, серая она или нет.
+  // Счётчик, а не флаг, — и снимается он уходом самого набора, а не ухода
+  // страницы: страница бывает одна, а наборов на ней несколько.
+  let shown = known.shown.clone();
+  shown.update(|n| *n += 1);
+  let gone = known.shown.clone();
+  on_cleanup(move || gone.update(|n| *n = n.saturating_sub(1)));
 
   // Прочитанное — эффектом, а не при сборке вида. На гидратации разметка уже
   // пришла с сервера, и вид, собранный из хранилища сразу, разошёлся бы с ней:
   // гидратация принимает узлы, а не перерисовывает их, и расхождение осталось
   // бы на экране до первого изменения сигнала.
+  //
+  // И только если раскладка ещё не названа: вернувшись на экран, набор обязан
+  // застать тот вид, которым его оставили, а не тот, что лежит в хранилище, —
+  // между этими двумя мог успеть вклиниться выбор из меню.
+  let first = known.layout.clone();
   Effect::new(move |previous: Option<()>| {
     if previous.is_some() {
       return;
     }
-    if let Some(stored) = read_layout(&key.get_value()) {
-      chosen.set(Some(stored));
+    if first.get_untracked().is_none() {
+      first.set(Some(read_layout(&key.get_value()).unwrap_or(default_layout)));
     }
   });
 
-  let layout = Signal::derive(move || chosen.get().unwrap_or(default_layout));
+  let current = known.layout.clone();
+  let layout = Signal::derive(move || current.get().unwrap_or(default_layout));
   provide_context(CollectionContext { layout });
-
-  let pick = move |next: CollectionLayout| {
-    chosen.set(Some(next));
-    write_layout(&key.get_value(), next);
-  };
 
   // Колесо по пустому месту доски везёт её вбок.
   //
@@ -385,7 +490,6 @@ pub fn CollectionView(
     }
   };
 
-  let labels = StoredValue::new(labels);
   let children = StoredValue::new(children);
   // Через `StoredValue`, чтобы замыкание вида осталось `FnMut`: вид
   // перерисовывается на каждое изменение раскладки, а замыкание, из которого
@@ -396,45 +500,22 @@ pub fn CollectionView(
 
   view! {
     // Полоса — теми же словами, что и `Container` кита, но своей коробкой:
-    // доске высота нужна насквозь (её столбцы ограничены экраном и
-    // прокручиваются сами, а блок по содержимому вытянул бы страницу на сорок
-    // задач), и класс полосы зависит от раскладки, а `Container` принимает его
-    // строкой — строка от сигнала не меняется.
+    // разбитому на группы набору высота нужна насквозь (столбцы доски
+    // ограничены экраном и прокручиваются сами, а список по группам
+    // прокручивается целиком), и класс полосы зависит от раскладки, а
+    // `Container` принимает его строкой — строка от сигнала не меняется.
     <div
       data-slot="collection"
       class=move || cn(&[
-        "mx-auto w-full px-4 sm:px-6 lg:px-8",
+        "mx-auto w-full",
         width.class(),
-        match layout.get() {
-          CollectionLayout::Board => "flex min-h-0 flex-1 flex-col py-4",
-          _ => "py-4",
-        },
+        if flush { "" } else { "px-4 py-4 sm:px-6 lg:px-8" },
+        if layout.get().grouped() { "flex min-h-0 flex-1 flex-col" } else { "" },
       ])
     >
-      <Show when=move || switchable || has_toolbar>
+      <Show when=move || has_toolbar>
         <div data-slot="collection-bar" class="mb-3 flex items-center justify-end gap-2">
           {move || toolbar.with_value(|toolbar| toolbar.as_ref().map(ViewFn::run))}
-          <Show when=move || switchable>
-            <div
-              role="group"
-              class="inline-flex items-center rounded-md border border-border p-0.5"
-            >
-              {offers
-                .iter()
-                .map(|offered| {
-                  let offered = *offered;
-                  view! {
-                    <LayoutButton
-                      layout=offered
-                      current=layout
-                      label=labels.with_value(|l| l.of(offered).to_string())
-                      on_pick=Callback::new(pick)
-                    />
-                  }
-                })
-                .collect_view()}
-            </div>
-          </Show>
         </div>
       </Show>
       {move || {
@@ -616,15 +697,70 @@ impl CollectionColumns {
   }
 }
 
+/// Переключатель раскладки набора.
+///
+/// Не часть набора, и это главное в подписи: место ему выбирает тот, кто
+/// рисует экран, — своей строкой над содержимым он стоял почти пустой. У
+/// приложения на метафреймворке его не рисуют вовсе: смена вида там
+/// объявленная команда и живёт в меню, как всякая другая. Здесь он остаётся
+/// тому, кому меню негде взять.
+///
+/// Набор при этом рядом стоять не обязан: выбор лежит под именем набора, и
+/// переключателю довольно имени. Стоя **внутри** набора (например, в его
+/// `toolbar`), он знает раскладку точно — включая умолчание, которое объявил
+/// сам набор; снаружи — то, что набор о себе объявил, пока его рисовали.
+#[component]
+pub fn CollectionLayoutSwitch(
+  /// Имя набора — то же, которым набор назван.
+  #[prop(into)]
+  name: String,
+  /// Какие раскладки предлагать, в порядке показа.
+  ///
+  /// Называет их тот, кто ставит переключатель: плитка и строка подходят
+  /// всякому набору, а доска — только разбитому на группы, и предлагать её
+  /// набору документов было бы предложением, которое не во что превратить.
+  #[prop(optional)]
+  offers: Option<&'static [CollectionLayout]>,
+  #[prop(optional)] labels: CollectionLabels,
+) -> impl IntoView {
+  let offers: &'static [CollectionLayout] = offers.unwrap_or(&[CollectionLayout::Grid, CollectionLayout::List]);
+  let inside = use_context::<CollectionContext>().map(|c| c.layout);
+  let name = StoredValue::new(name);
+  let current = Signal::derive(move || match inside {
+    Some(layout) => Some(layout.get()),
+    None => collection_layout(&name.get_value()),
+  });
+  let labels = StoredValue::new(labels);
+
+  view! {
+    <div role="group" class="inline-flex items-center rounded-md border border-border p-0.5">
+      {offers
+        .iter()
+        .map(|offered| {
+          let offered = *offered;
+          view! {
+            <LayoutButton
+              layout=offered
+              current=current
+              label=labels.with_value(|l| l.of(offered).to_string())
+              on_pick=Callback::new(move |next| set_collection_layout(&name.get_value(), next))
+            />
+          }
+        })
+        .collect_view()}
+    </div>
+  }
+}
+
 /// Одна кнопка переключателя.
 #[component]
 fn LayoutButton(
   layout: CollectionLayout,
-  current: Signal<CollectionLayout>,
+  current: Signal<Option<CollectionLayout>>,
   label: String,
   on_pick: Callback<CollectionLayout>,
 ) -> impl IntoView {
-  let active = move || current.get() == layout;
+  let active = move || current.get() == Some(layout);
   view! {
     <button
       type="button"
@@ -882,17 +1018,28 @@ mod usage {
         <CollectionView
           name="document"
           len=Signal::derive(move || docs.get().len())
-          switchable=true
           columns=CollectionColumns(3)
           default_layout=CollectionLayout::List
           empty_title="Пока пусто"
           empty_hint="Создайте первый документ"
-          labels=CollectionLabels {
-          grid: "Плиткой".into(),
-          list: "Списком".into(),
-          ..Default::default()
-        }
-          toolbar=|| view! { <button type="button">"Создать"</button> }
+          toolbar=|| {
+            view! {
+              <>
+                <button type="button">"Создать"</button>
+                // Переключатель — там, где его поставили: своей строки у него
+                // больше нет, и в полосе заголовка он стоит рядом с тем, что
+                // туда положило приложение.
+                <CollectionLayoutSwitch
+                  name="document"
+                  labels=CollectionLabels {
+                    grid: "Плиткой".into(),
+                    list: "Списком".into(),
+                    ..Default::default()
+                  }
+                />
+              </>
+            }
+          }
         >
           <For each=move || docs.get() key=|doc| doc.id let:doc>
             <DocumentItem doc=doc />
@@ -981,6 +1128,9 @@ mod generated_shape {
   /// Проверка именно сборки, и проверять есть что: дети едут свойством, а не
   /// блоком — блок стал бы замыканием, забирающим их себе, а набор рисует их
   /// в одной ветке из трёх. Это `FnOnce` и отказ сборки клиента (E0525).
+  ///
+  /// Переключателя в обёртке нет и не будет: смену вида метафреймворк
+  /// объявляет командой, и набор о ней не знает.
   #[component]
   fn BoardCollection(
     #[prop(into)] len: Signal<usize>,
@@ -993,20 +1143,42 @@ mod generated_shape {
         len=len
         loading=loading
         default_layout=CollectionLayout::Grid
-        switchable=true
         columns=CollectionColumns(3)
         width=ContainerSize::Sm
         gap=Gap::Md
         empty_title="Пока нет ни одной доски"
         empty_hint="Создайте первую"
-        labels=CollectionLabels {
-          grid: "Плиткой".into(),
-          list: "Списком".into(),
-          ..Default::default()
-        }
         children=children
       />
     }
+  }
+
+  /// А такую — на набор, стоящий внутри страницы, у которой отступ уже есть.
+  #[component]
+  fn TaskCollection(#[prop(into)] len: Signal<usize>, children: ChildrenFn) -> impl IntoView {
+    view! {
+      <CollectionView
+        name="task"
+        len=len
+        default_layout=CollectionLayout::Board
+        columns=CollectionColumns(2)
+        width=ContainerSize::Full
+        gap=Gap::Md
+        flush=true
+        children=children
+      />
+    }
+  }
+
+  #[test]
+  fn a_nested_collection_stands_flush_to_the_edges() {
+    let _unrendered = move || {
+      view! {
+        <TaskCollection len=0>
+          <div>"столбец"</div>
+        </TaskCollection>
+      }
+    };
   }
 
   #[test]
@@ -1171,16 +1343,37 @@ mod grouping {
     assert!(group_items_class(CollectionLayout::Board).contains("overflow-y-auto"));
   }
 
-  /// Список по группам идёт вниз, и второй прокрутки внутри первой у него нет.
+  /// Список по группам идёт вниз и прокручивается целиком, а не по группе.
+  ///
+  /// Прокрутка у него своя, и это не выбор: страница, где он живёт, отдала ему
+  /// высоту экрана и остаток срезала — столбцы доски прокручиваются по одному,
+  /// и прокрутки у самой страницы нет. Без своей список оказывался срезанным,
+  /// и сорок задач просто не показывались.
   #[test]
-  fn список_по_группам_идёт_вниз_и_не_заводит_второй_прокрутки() {
+  fn список_по_группам_идёт_вниз_и_прокручивается_целиком() {
     let grouped = shell_class(CollectionLayout::Grouped, Gap::Md, CollectionColumns(3));
     assert!(grouped.contains("flex-col"), "{grouped}");
+    assert!(grouped.contains("overflow-y-auto"), "{grouped}");
+    assert!(grouped.contains("min-h-0"), "{grouped}");
     assert!(!grouped.contains("overflow-x-auto"), "{grouped}");
+    // А группа внутри него — нет: вторая прокрутка внутри первой это две
+    // полосы на одном экране, и человек ловит не ту.
     assert!(
       !group_items_class(CollectionLayout::Grouped).contains("overflow-y-auto"),
-      "прокручивается страница, а не группа"
+      "прокручивается список, а не группа"
     );
+  }
+
+  /// Раскладка, разбитая на группы, — та, которой страница отдаёт высоту.
+  ///
+  /// Проверка про `grouped()`, а не про перечисление: класс полосы спрашивает
+  /// ровно это, и добавленная пятая раскладка с группами получит высоту сама.
+  #[test]
+  fn высоту_насквозь_получают_разбитые_на_группы() {
+    assert!(CollectionLayout::Board.grouped());
+    assert!(CollectionLayout::Grouped.grouped());
+    assert!(!CollectionLayout::Grid.grouped());
+    assert!(!CollectionLayout::List.grouped());
   }
 
   /// У плоских раскладок групп нет — и класса у них тоже нет.
