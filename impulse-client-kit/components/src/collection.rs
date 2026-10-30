@@ -41,7 +41,7 @@ use impulse_client_kit::utils::cn;
 use leptos::prelude::*;
 
 use crate::empty::{Empty, EmptyDescription, EmptyHeader, EmptyTitle};
-use crate::layout::{Container, ContainerSize, Gap, Grid, GridCols};
+use crate::layout::{ContainerSize, Gap};
 use crate::skeleton::Skeleton;
 
 /// Как набор разложен.
@@ -52,6 +52,19 @@ pub enum CollectionLayout {
   Grid,
   /// Список: строка во всю полосу, подробности — только те, что в неё влезают.
   List,
+  /// Доска: колонка на группу, колонки едут вбок.
+  ///
+  /// Группа здесь — не заголовок, а столбец: у набора, разбитого на группы,
+  /// читают не «сколько всего», а «что в каждой», и сравнивают столбцы
+  /// взглядом. Цена — ширина: видно столько групп, сколько влезло, остальные
+  /// за краем.
+  Board,
+  /// Список по группам: заголовок группы, под ним её строки, и так далее.
+  ///
+  /// То же разбиение, что у доски, но вниз: влезает вся глубина группы и ни
+  /// одна не уезжает за край. Цена — сравнивать группы между собой уже нельзя,
+  /// они идут одна за другой.
+  Grouped,
 }
 
 impl CollectionLayout {
@@ -62,6 +75,8 @@ impl CollectionLayout {
     match self {
       CollectionLayout::Grid => "grid",
       CollectionLayout::List => "list",
+      CollectionLayout::Board => "board",
+      CollectionLayout::Grouped => "grouped",
     }
   }
 
@@ -69,16 +84,19 @@ impl CollectionLayout {
     match value {
       "grid" => Some(CollectionLayout::Grid),
       "list" => Some(CollectionLayout::List),
+      "board" => Some(CollectionLayout::Board),
+      "grouped" => Some(CollectionLayout::Grouped),
       _ => None,
     }
   }
 
-  /// Другая из двух.
-  pub fn other(self) -> Self {
-    match self {
-      CollectionLayout::Grid => CollectionLayout::List,
-      CollectionLayout::List => CollectionLayout::Grid,
-    }
+  /// Разбит ли набор на группы при этой раскладке.
+  ///
+  /// Это главное различие между раскладками, а не то, вниз они или вбок:
+  /// приложение рисует либо элементы подряд, либо группы, и спрашивает оно
+  /// ровно это.
+  pub fn grouped(self) -> bool {
+    matches!(self, CollectionLayout::Board | CollectionLayout::Grouped)
   }
 }
 
@@ -141,7 +159,73 @@ pub fn use_collection_layout() -> Signal<CollectionLayout> {
 fn gap_for(layout: CollectionLayout, declared: Gap) -> Gap {
   match layout {
     CollectionLayout::List => Gap::Hair,
+    // Группы отделяет воздух, а не черта: у них есть заголовок, и столбец от
+    // столбца на доске отличают именно промежутком.
+    CollectionLayout::Board | CollectionLayout::Grouped => declared,
     CollectionLayout::Grid => declared,
+  }
+}
+
+/// Классы коробки **одной группы** при этой раскладке.
+///
+/// Группу рисует приложение — в ней его дроп-зона, его заголовок, его команды,
+/// — а какой она формы, решает набор. Поэтому наружу отдаётся строка классов, а
+/// не компонент: приложение вешает её на свой элемент и не теряет ни перетаскивания,
+/// ни меню.
+///
+/// На доске это столбец: своя ширина, своя вертикальная прокрутка, не сжимается
+/// (`shrink-0`) — иначе десять групп ужались бы в десять полосок. В списке по
+/// группам — обычный раздел во всю полосу. В плоских раскладках групп нет, и
+/// класса у них тоже нет: приложение туда их и не рисует.
+pub fn group_class(layout: CollectionLayout) -> &'static str {
+  match layout {
+    CollectionLayout::Board => {
+      "flex max-h-full w-[min(18rem,calc(100vw-3.5rem))] shrink-0 flex-col rounded-lg border border-border bg-card p-3 sm:w-72"
+    }
+    CollectionLayout::Grouped => "flex w-full min-w-0 flex-col rounded-lg border border-border bg-card p-3",
+    CollectionLayout::Grid | CollectionLayout::List => "",
+  }
+}
+
+/// Классы оболочки, в которой лежат элементы набора.
+///
+/// Форма раскладки целиком: сетка вниз у плитки и списка, ряд вбок у доски,
+/// столбик разделов у списка по группам. Строкой, а не компонентом, потому что
+/// тот же набор классов нужен и скелету — а скелет и содержимое обязаны
+/// обещать одну и ту же форму, иначе загрузка видна прыжком.
+///
+/// Сетка складывается теми же словами, что и `Grid` кита (`grid grid-cols-1`
+/// плюс промежуток): второй способ написать то же самое однажды разошёлся бы
+/// с первым.
+fn shell_class(layout: CollectionLayout, gap: Gap, columns: CollectionColumns) -> String {
+  match layout {
+    CollectionLayout::Grid | CollectionLayout::List => cn(&[
+      "grid",
+      "grid-cols-1",
+      gap_for(layout, gap).class(),
+      columns.class(layout),
+    ]),
+    // Вбок и с прокруткой: столбцы не переносятся и не сжимаются, а `min-h-0`
+    // рядом с `flex-1` — то, чем столбец получает право прокручиваться сам,
+    // вместо того чтобы вытягивать страницу.
+    CollectionLayout::Board => cn(&[
+      "flex min-h-0 w-full min-w-0 flex-1 items-start overflow-x-auto overflow-y-hidden pb-2",
+      gap_for(layout, gap).class(),
+    ]),
+    CollectionLayout::Grouped => cn(&["flex w-full min-w-0 flex-col", gap_for(layout, gap).class()]),
+  }
+}
+
+/// Классы **ряда элементов внутри** группы.
+///
+/// На доске он прокручивается сам: столбец ограничен высотой экрана, а задач в
+/// нём бывает сорок. В списке по группам прокручивается страница, и ограничивать
+/// группу значило бы завести вторую прокрутку внутри первой.
+pub fn group_items_class(layout: CollectionLayout) -> &'static str {
+  match layout {
+    CollectionLayout::Board => "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto",
+    CollectionLayout::Grouped => "flex flex-col gap-px",
+    CollectionLayout::Grid | CollectionLayout::List => "",
   }
 }
 
@@ -149,6 +233,10 @@ fn skeletons(layout: CollectionLayout) -> usize {
   match layout {
     CollectionLayout::Grid => 6,
     CollectionLayout::List => 4,
+    // Обещание скелета — про форму, а не про число: три столбца обещают доску,
+    // три заголовка — список по группам.
+    CollectionLayout::Board => 3,
+    CollectionLayout::Grouped => 3,
   }
 }
 
@@ -157,6 +245,20 @@ fn skeletons(layout: CollectionLayout) -> usize {
 pub struct CollectionLabels {
   pub grid: String,
   pub list: String,
+  pub board: String,
+  pub grouped: String,
+}
+
+impl CollectionLabels {
+  /// Подпись кнопки этой раскладки.
+  pub fn of(&self, layout: CollectionLayout) -> &str {
+    match layout {
+      CollectionLayout::Grid => &self.grid,
+      CollectionLayout::List => &self.list,
+      CollectionLayout::Board => &self.board,
+      CollectionLayout::Grouped => &self.grouped,
+    }
+  }
 }
 
 impl Default for CollectionLabels {
@@ -164,6 +266,8 @@ impl Default for CollectionLabels {
     Self {
       grid: "Tiles".into(),
       list: "List".into(),
+      board: "Board".into(),
+      grouped: "Grouped".into(),
     }
   }
 }
@@ -192,6 +296,13 @@ pub fn CollectionView(
   /// спрашивает: у набора из трёх строк выбирать нечего.
   #[prop(optional)]
   switchable: bool,
+  /// Какие раскладки предлагать, в порядке показа.
+  ///
+  /// Называет их состав, а не этот список: плитка и строка подходят всякому
+  /// набору, а доска — только разбитому на группы, и предлагать её набору
+  /// документов было бы предложением, которое не во что превратить.
+  #[prop(optional)]
+  offers: Option<&'static [CollectionLayout]>,
   /// До скольких колонок разворачивается плитка. Точки останова — решение
   /// системы: приложение называет предел.
   #[prop(optional)]
@@ -211,6 +322,9 @@ pub fn CollectionView(
 ) -> impl IntoView {
   let chosen = RwSignal::new(None::<CollectionLayout>);
   let key = StoredValue::new(collection_layout_key(&name));
+  // Умолчание — две плоские: таким был переключатель, пока раскладок было две,
+  // и набор, ничего не назвавший, обязан остаться таким же.
+  let offers: &'static [CollectionLayout] = offers.unwrap_or(&[CollectionLayout::Grid, CollectionLayout::List]);
 
   // Прочитанное — эффектом, а не при сборке вида. На гидратации разметка уже
   // пришла с сервера, и вид, собранный из хранилища сразу, разошёлся бы с ней:
@@ -243,7 +357,22 @@ pub fn CollectionView(
   let toolbar = StoredValue::new(toolbar);
 
   view! {
-    <Container size=width class="py-4">
+    // Полоса — теми же словами, что и `Container` кита, но своей коробкой:
+    // доске высота нужна насквозь (её столбцы ограничены экраном и
+    // прокручиваются сами, а блок по содержимому вытянул бы страницу на сорок
+    // задач), и класс полосы зависит от раскладки, а `Container` принимает его
+    // строкой — строка от сигнала не меняется.
+    <div
+      data-slot="collection"
+      class=move || cn(&[
+        "mx-auto w-full px-4 sm:px-6 lg:px-8",
+        width.class(),
+        match layout.get() {
+          CollectionLayout::Board => "flex min-h-0 flex-1 flex-col py-4",
+          _ => "py-4",
+        },
+      ])
+    >
       <Show when=move || switchable || has_toolbar>
         <div data-slot="collection-bar" class="mb-3 flex items-center justify-end gap-2">
           {move || toolbar.with_value(|toolbar| toolbar.as_ref().map(ViewFn::run))}
@@ -252,18 +381,20 @@ pub fn CollectionView(
               role="group"
               class="inline-flex items-center rounded-md border border-border p-0.5"
             >
-              <LayoutButton
-                layout=CollectionLayout::Grid
-                current=layout
-                label=labels.with_value(|l| l.grid.clone())
-                on_pick=Callback::new(pick)
-              />
-              <LayoutButton
-                layout=CollectionLayout::List
-                current=layout
-                label=labels.with_value(|l| l.list.clone())
-                on_pick=Callback::new(pick)
-              />
+              {offers
+                .iter()
+                .map(|offered| {
+                  let offered = *offered;
+                  view! {
+                    <LayoutButton
+                      layout=offered
+                      current=layout
+                      label=labels.with_value(|l| l.of(offered).to_string())
+                      on_pick=Callback::new(pick)
+                    />
+                  }
+                })
+                .collect_view()}
             </div>
           </Show>
         </div>
@@ -272,17 +403,20 @@ pub fn CollectionView(
         if loading.get() {
           let layout = layout.get();
           return view! {
-            <Grid cols=GridCols::One gap=gap_for(layout, gap) class=columns.class(layout)>
+            <div class=shell_class(layout, gap, columns)>
               {(0..skeletons(layout))
                 .map(|_| {
                   let height = match layout {
                     CollectionLayout::Grid => "h-24 w-full rounded-lg",
                     CollectionLayout::List => "h-12 w-full rounded-md",
+                    // Столбец обещает столбец: узкий и во всю высоту.
+                    CollectionLayout::Board => "h-64 w-[min(18rem,calc(100vw-3.5rem))] shrink-0 rounded-lg sm:w-72",
+                    CollectionLayout::Grouped => "h-32 w-full rounded-lg",
                   };
                   view! { <Skeleton class=height /> }
                 })
                 .collect_view()}
-            </Grid>
+            </div>
           }
             .into_any();
         }
@@ -304,13 +438,13 @@ pub fn CollectionView(
             .into_any();
         }
         view! {
-          <Grid cols=GridCols::One gap=gap_for(layout.get(), gap) class=columns.class(layout.get())>
+          <div class=shell_class(layout.get(), gap, columns)>
             {children.with_value(|c| c())}
-          </Grid>
+          </div>
         }
           .into_any()
       }}
-    </Container>
+    </div>
   }
 }
 
@@ -429,7 +563,9 @@ impl CollectionColumns {
   /// `grid-cols-4`, составленный в рантайме, не резолвится ни во что.
   pub fn class(self, layout: CollectionLayout) -> &'static str {
     match layout {
-      CollectionLayout::List => "",
+      // Колонок у них нет: у доски ширину задаёт сама группа, у списка по
+      // группам её не задаёт никто.
+      CollectionLayout::List | CollectionLayout::Board | CollectionLayout::Grouped => "",
       CollectionLayout::Grid => match self.0 {
         0 | 1 => "",
         2 => "sm:grid-cols-2",
@@ -512,6 +648,26 @@ fn LayoutGlyph(layout: CollectionLayout) -> impl IntoView {
           view! {
             <>
               <path d="M3 6h.01M8 6h13M3 12h.01M8 12h13M3 18h.01M8 18h13" />
+            </>
+          }
+            .into_any()
+        }
+        // Доска — три столбца рядом; список по группам — заголовок и строки
+        // под ним, дважды.
+        CollectionLayout::Board => {
+          view! {
+            <>
+              <rect width="5" height="18" x="3" y="3" rx="1" />
+              <rect width="5" height="12" x="10" y="3" rx="1" />
+              <rect width="5" height="15" x="17" y="3" rx="1" />
+            </>
+          }
+            .into_any()
+        }
+        CollectionLayout::Grouped => {
+          view! {
+            <>
+              <path d="M3 4h8M3 8h18M3 12h18M3 16h8M3 20h18" />
             </>
           }
             .into_any()
@@ -602,8 +758,10 @@ mod tests {
 
   #[test]
   fn the_other_layout_is_the_other_one() {
-    assert_eq!(CollectionLayout::Grid.other(), CollectionLayout::List);
-    assert_eq!(CollectionLayout::List.other(), CollectionLayout::Grid);
+    assert!(!CollectionLayout::Grid.grouped());
+    assert!(!CollectionLayout::List.grouped());
+    assert!(CollectionLayout::Board.grouped());
+    assert!(CollectionLayout::Grouped.grouped());
   }
 }
 
@@ -635,7 +793,7 @@ mod usage {
         </div>
       }
       .into_any(),
-      CollectionLayout::List => view! {
+      _ => view! {
         <div class="flex items-center gap-3 border-b border-border py-2">
           <span class="truncate font-medium">{doc.title.clone()}</span>
         </div>
@@ -691,7 +849,11 @@ mod usage {
           default_layout=CollectionLayout::List
           empty_title="Пока пусто"
           empty_hint="Создайте первый документ"
-          labels=CollectionLabels { grid: "Плиткой".into(), list: "Списком".into() }
+          labels=CollectionLabels {
+          grid: "Плиткой".into(),
+          list: "Списком".into(),
+          ..Default::default()
+        }
           toolbar=|| view! { <button type="button">"Создать"</button> }
         >
           <For each=move || docs.get() key=|doc| doc.id let:doc>
@@ -799,7 +961,11 @@ mod generated_shape {
         gap=Gap::Md
         empty_title="Пока нет ни одной доски"
         empty_hint="Создайте первую"
-        labels=CollectionLabels { grid: "Плиткой".into(), list: "Списком".into() }
+        labels=CollectionLabels {
+          grid: "Плиткой".into(),
+          list: "Списком".into(),
+          ..Default::default()
+        }
         children=children
       />
     }
@@ -845,18 +1011,18 @@ mod two_views {
         class=Signal::derive(move || {
           match layout.get() {
             CollectionLayout::Grid => "flex h-full min-h-20 w-full flex-col items-start text-left",
-            CollectionLayout::List => "flex w-full flex-row items-center gap-3 text-left",
+            _ => "flex w-full flex-row items-center gap-3 text-left",
           }
             .to_string()
         })
       >
         <div class=move || match layout.get() {
           CollectionLayout::Grid => "line-clamp-2 w-full min-w-0 whitespace-normal font-medium",
-          CollectionLayout::List => "min-w-0 flex-1 truncate font-medium",
+          _ => "min-w-0 flex-1 truncate font-medium",
         }>{move || title.get_value()}</div>
         <div class=move || match layout.get() {
           CollectionLayout::Grid => "mt-auto w-full text-xs text-muted-foreground",
-          CollectionLayout::List => "ml-auto shrink-0 text-xs text-muted-foreground",
+          _ => "ml-auto shrink-0 text-xs text-muted-foreground",
         }>{if owner { "владелец" } else { "доступ открыт" }}</div>
       </Button>
     }
@@ -898,5 +1064,106 @@ mod spacing {
     assert_eq!(Gap::Hair.class(), "gap-px");
     assert_eq!(Gap::None.class(), "gap-0");
     assert_eq!(Gap::Xs.class(), "gap-1");
+  }
+}
+
+#[cfg(test)]
+mod grouping {
+  use super::*;
+
+  /// Раскладка говорит приложению главное: рисовать элементы или группы.
+  #[test]
+  fn раскладка_называет_разбиение_а_не_направление() {
+    assert!(!CollectionLayout::Grid.grouped());
+    assert!(!CollectionLayout::List.grouped());
+    assert!(CollectionLayout::Board.grouped());
+    assert!(CollectionLayout::Grouped.grouped());
+  }
+
+  /// Выбор помнится и для новых раскладок: привычка переживает перезапуск
+  /// одинаково у всех четырёх.
+  #[test]
+  fn новые_раскладки_помнятся_наравне_со_старыми() {
+    for layout in [
+      CollectionLayout::Grid,
+      CollectionLayout::List,
+      CollectionLayout::Board,
+      CollectionLayout::Grouped,
+    ] {
+      assert_eq!(CollectionLayout::from_storage(layout.as_storage()), Some(layout));
+    }
+  }
+
+  /// Плоские раскладки складываются теми же словами, что и `Grid` кита.
+  ///
+  /// Второй способ написать то же самое однажды разошёлся бы с первым, и
+  /// набор поехал бы иначе, чем всякая другая сетка в приложении.
+  #[test]
+  fn плоская_оболочка_это_сетка_кита() {
+    let grid = shell_class(CollectionLayout::Grid, Gap::Md, CollectionColumns(3));
+    assert!(grid.contains("grid"), "{grid}");
+    assert!(grid.contains("grid-cols-1"), "{grid}");
+    assert!(grid.contains("gap-4"), "{grid}");
+    assert!(grid.contains("lg:grid-cols-3"), "{grid}");
+
+    // А у списка — волосок и ни одной колонки сверх одной.
+    let list = shell_class(CollectionLayout::List, Gap::Md, CollectionColumns(3));
+    assert!(list.contains("gap-px"), "{list}");
+    assert!(!list.contains("lg:grid-cols-3"), "{list}");
+  }
+
+  /// Доска едет вбок и отдаёт высоту столбцам.
+  ///
+  /// `min-h-0` рядом с `flex-1` — то, чем столбец получает право прокручиваться
+  /// сам; без него сорок задач вытягивают страницу, и прокрутка оказывается у
+  /// неё, а не у столбца.
+  #[test]
+  fn доска_едет_вбок_и_отдаёт_высоту_столбцам() {
+    let board = shell_class(CollectionLayout::Board, Gap::Md, CollectionColumns(3));
+    assert!(board.contains("overflow-x-auto"), "{board}");
+    assert!(board.contains("min-h-0"), "{board}");
+    assert!(board.contains("flex-1"), "{board}");
+    assert!(!board.contains("flex-wrap"), "столбцы не переносятся: {board}");
+
+    // Столбец — своей ширины и несжимаемый: иначе десять групп ужались бы в
+    // десять полосок.
+    let column = group_class(CollectionLayout::Board);
+    assert!(column.contains("shrink-0"), "{column}");
+    assert!(column.contains("flex-col"), "{column}");
+    assert!(group_items_class(CollectionLayout::Board).contains("overflow-y-auto"));
+  }
+
+  /// Список по группам идёт вниз, и второй прокрутки внутри первой у него нет.
+  #[test]
+  fn список_по_группам_идёт_вниз_и_не_заводит_второй_прокрутки() {
+    let grouped = shell_class(CollectionLayout::Grouped, Gap::Md, CollectionColumns(3));
+    assert!(grouped.contains("flex-col"), "{grouped}");
+    assert!(!grouped.contains("overflow-x-auto"), "{grouped}");
+    assert!(
+      !group_items_class(CollectionLayout::Grouped).contains("overflow-y-auto"),
+      "прокручивается страница, а не группа"
+    );
+  }
+
+  /// У плоских раскладок групп нет — и класса у них тоже нет.
+  #[test]
+  fn у_плоских_раскладок_групп_не_бывает() {
+    assert!(group_class(CollectionLayout::Grid).is_empty());
+    assert!(group_class(CollectionLayout::List).is_empty());
+    assert!(group_items_class(CollectionLayout::Grid).is_empty());
+  }
+
+  /// Подпись находится для каждой раскладки: кнопка без подписи — загадка.
+  #[test]
+  fn у_каждой_раскладки_есть_подпись() {
+    let labels = CollectionLabels::default();
+    for layout in [
+      CollectionLayout::Grid,
+      CollectionLayout::List,
+      CollectionLayout::Board,
+      CollectionLayout::Grouped,
+    ] {
+      assert!(!labels.of(layout).is_empty(), "{layout:?}");
+    }
   }
 }
