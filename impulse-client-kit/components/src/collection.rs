@@ -39,6 +39,7 @@
 
 use impulse_client_kit::utils::cn;
 use leptos::prelude::*;
+use leptos::wasm_bindgen::JsCast;
 
 use crate::empty::{Empty, EmptyDescription, EmptyHeader, EmptyTitle};
 use crate::layout::{ContainerSize, Gap};
@@ -179,8 +180,16 @@ fn gap_for(layout: CollectionLayout, declared: Gap) -> Gap {
 /// класса у них тоже нет: приложение туда их и не рисует.
 pub fn group_class(layout: CollectionLayout) -> &'static str {
   match layout {
+    // `min-h-0` рядом с `max-h-full` — то, чем столбцу разрешено быть ниже
+    // своего содержимого; без этого его внутренняя прокрутка не включается, и
+    // сорок задач вытягивают доску.
+    //
+    // Ширина — по экрану, а не по числу: `w-72` шире среднего телефона в
+    // портрете, и столбец уезжал за край вместе с ломтиком следующего, по
+    // которому только и видно, что доска едет дальше. Вычитаются отступ доски,
+    // промежуток и сам ломоть — 56 пикселей на всё.
     CollectionLayout::Board => {
-      "flex max-h-full w-[min(18rem,calc(100vw-3.5rem))] shrink-0 flex-col rounded-lg border border-border bg-card p-3 sm:w-72"
+      "flex max-h-full min-h-0 w-[min(18rem,calc(100vw-3.5rem))] shrink-0 flex-col rounded-lg border border-border bg-card p-3 sm:w-72"
     }
     CollectionLayout::Grouped => "flex w-full min-w-0 flex-col rounded-lg border border-border bg-card p-3",
     CollectionLayout::Grid | CollectionLayout::List => "",
@@ -347,6 +356,32 @@ pub fn CollectionView(
     write_layout(&key.get_value(), next);
   };
 
+  // Колесо по пустому месту доски везёт её вбок.
+  //
+  // Поведение доски, а не приложения: у набора, который едет вбок, мыши нечем
+  // его двигать — горизонтальной оси у обычного колеса нет, — и каждый, кто
+  // рисовал доску руками, писал это себе сам.
+  //
+  // Только по пустому месту: цель события сверяется с самой коробкой, иначе
+  // колесо над столбцом перестало бы прокручивать его задачи, а это главное,
+  // чем в столбце и пользуются.
+  let shell = NodeRef::<leptos::html::Div>::new();
+  let sideways = move |e: web_sys::WheelEvent| {
+    if e.delta_y() == 0.0 {
+      return;
+    }
+    let Some(el) = shell.get() else { return };
+    let over_empty = e
+      .target()
+      .and_then(|t| t.dyn_into::<web_sys::Node>().ok())
+      .map(|n| el.is_same_node(Some(&n)))
+      .unwrap_or(false);
+    if over_empty {
+      e.prevent_default();
+      el.set_scroll_left(el.scroll_left() + e.delta_y() as i32);
+    }
+  };
+
   let labels = StoredValue::new(labels);
   let children = StoredValue::new(children);
   // Через `StoredValue`, чтобы замыкание вида осталось `FnMut`: вид
@@ -438,7 +473,7 @@ pub fn CollectionView(
             .into_any();
         }
         view! {
-          <div class=shell_class(layout.get(), gap, columns)>
+          <div node_ref=shell class=shell_class(layout.get(), gap, columns) on:wheel=sideways>
             {children.with_value(|c| c())}
           </div>
         }
